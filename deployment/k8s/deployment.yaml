@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: milvus-cdc
+spec:
+  selector:
+    matchLabels:
+      app: milvus-cdc
+      instance: my-release
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: milvus-cdc
+        instance: my-release
+    spec:
+      containers:
+        - name: milvus-cdc
+          image: harbor.milvus.io/qa/milvus-cdc:0.1
+          imagePullPolicy: Always
+          resources:
+            limits:
+              cpu: 500m
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            privileged: false
+          volumeMounts:
+          - name: cdc-config
+            mountPath: /app/configs/cdc.yaml
+            subPath: cdc.yaml
+      volumes:
+        - name: cdc-config
+          configMap:
+            defaultMode: 420
+            name: milvus-cdc-config
+      restartPolicy: Always
+

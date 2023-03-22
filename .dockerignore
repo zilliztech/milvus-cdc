@@ -1,0 +1,6 @@
+.git
+.vscode
+scripts
+logs
+tests
+deployment

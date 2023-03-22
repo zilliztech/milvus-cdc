@@ -1,0 +1,145 @@
+name: Test
+
+on:
+    push:
+        branches:
+        - main
+    pull_request:           
+        branches:
+        - main
+
+jobs:
+    milvus-cdc-test:
+        runs-on: ubuntu-latest
+        steps:
+        - uses: actions/checkout@v2
+        
+        - uses: actions/setup-python@v4
+          with:
+            python-version: 3.8
+            cache: pip
+            cache-dependency-path: 'tests/requirements.txt'      
+        - name: Deploy Source Milvus
+          timeout-minutes: 15
+          shell: bash
+          working-directory: tests/deployment/upstream/
+          run: |
+            docker-compose up -d
+            bash ../../../scripts/check_healthy.sh
+            docker-compose ps -a
+
+        - name: Creating kind cluster
+          uses: helm/kind-action@v1.2.0
+          
+        - name: Print cluster information
+          run: |
+            kubectl config view
+            kubectl cluster-info
+            kubectl get nodes
+            kubectl get pods -n kube-system
+            helm version
+            kubectl version 
+
+        - name: Deploy Target Milvus
+          timeout-minutes: 15
+          shell: bash
+          working-directory: tests/deployment/downstream
+          run: |
+            helm repo add milvus https://milvus-io.github.io/milvus-helm
+            helm repo update
+            helm install --wait --timeout 720s cdc-target milvus/milvus -f standalone-values.yaml;
+            kubectl get pods
+            sleep 20s
+            kubectl get pods
+            kubectl port-forward service/cdc-target-milvus 19500:19530 >/dev/null 2>&1 &
+            sleep 20s
+            # check whether port-forward success
+            nc -vz 127.0.0.1 19500
+        
+        - uses: actions/setup-go@v4
+          with:
+            go-version: '1.18'
+            cache-dependency-path: server/go.sum
+            cache: true
+        - name: Build CDC
+          timeout-minutes: 15
+          working-directory: server
+          shell: bash
+          run: |
+            go build -o milvus-cdc main/main.go
+            ls -l
+
+        - name: Deploy Milvus CDC
+          timeout-minutes: 15
+          working-directory: server
+          shell: bash
+          run: |
+            ./milvus-cdc > server.log 2>&1 &
+            sleep 20s
+            nc -vz 127.0.0.1 8444
+            sleep 20s
+            curl --location '127.0.0.1:8444/cdc' \
+            --header 'Content-Type: application/json' \
+            --data '{
+                "request_type": "create",
+                "request_data": {
+                    "milvus_connect_param": {
+                        "host": "127.0.0.1",
+                        "port": 19500,
+                        "username": "",
+                        "password": "",
+                        "enable_tls": false,
+                        "ignore_partition": true,
+                        "connect_timeout": 10
+                    },
+                    "collection_infos": [
+                        {
+                            "name": "sift_128_euclidean_HNSW"
+                        }
+                    ]
+                }
+            }'
+
+        - name: Install dependencies
+          timeout-minutes: 5
+          working-directory: tests
+          run: |
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+
+        - name: Download data
+          timeout-minutes: 5
+          working-directory: tests/assets/ann_hdf5
+          run: |
+            bash download.sh
+
+        - name: Run tests for source milvus
+          timeout-minutes: 15
+          working-directory: tests/scripts
+          run: |
+            python source_test.py --host 127.0.0.1 --port 19530
+
+        - name: Wait for 1 minutes
+          timeout-minutes: 5
+          run: |
+            sleep 60s
+
+        - name: Run tests for target milvus
+          timeout-minutes: 15
+          working-directory: tests/scripts
+          run: |
+            python target_test.py --host 127.0.0.1 --port 19500
+
+        - name: Verify deletion
+          timeout-minutes: 15
+          working-directory: tests/scripts
+          run: |
+            python verify_delete.py --source_host 127.0.0.1 --source_port 19530 --target_host 127.0.0.1 --target_port 19500
+  
+        - name: Upload logs
+          if: ${{ ! success() }}
+          uses: actions/upload-artifact@v2
+          with:
+            name: logs
+            path: |
+              server/server.log

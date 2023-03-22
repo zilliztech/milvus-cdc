@@ -1,5 +1,5 @@
 ---
-address: localhost
+address: 0.0.0.0
 port: 8444
 task.maxNum: 100
 name:maxLength: 256
@@ -21,7 +21,7 @@ source:
     tenant: public
     namespace: default
   kafka:
-    broker_list: localhost:9092
+    broker_list: 127.0.0.1:9092
 
 
 
