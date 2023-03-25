@@ -179,6 +179,14 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		e.collectionNames.data[milvusAddress] = lo.Without(e.collectionNames.data[milvusAddress], newCollectionNames...)
 	}
 
+	getResp, err := util.EtcdGet(e.etcdCli, getTaskInfoPrefix(e.rootPath), clientv3.WithPrefix(), clientv3.WithCountOnly())
+	if err != nil {
+		return nil, NewServerError(errors.WithMessage(err, "fail to get task list to check num"))
+	}
+	if getResp.Count > int64(e.config.MaxTaskNum) {
+		return nil, NewServerError(errors.WithMessagef(err, "the task num has reach the limit, %d", e.config.MaxTaskNum))
+	}
+
 	info := &meta.TaskInfo{
 		TaskID:             e.getUuid(),
 		MilvusConnectParam: req.MilvusConnectParam,

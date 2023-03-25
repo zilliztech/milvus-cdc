@@ -1,6 +1,8 @@
 ---
 address: localhost
 port: 8444
+task.maxNum: 100
+name:maxLength: 256
 etcd.endpoints: [localhost:2379] # etcd endpoints
 etcd.rootpath: cdc
 source:

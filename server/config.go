@@ -19,7 +19,8 @@ package server
 import "github.com/zilliztech/milvus-cdc/core/config"
 
 type CDCServerConfig struct {
-	Address       string             // like: "localhost:8080"
+	Address       string // like: "localhost:8080"
+	MaxTaskNum    int
 	EtcdConfig    CDCEtcdConfig      // cdc meta data save
 	SourceConfig  MilvusSourceConfig // cdc source
 	MaxNameLength int

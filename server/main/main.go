@@ -25,11 +25,13 @@ import (
 )
 
 type config struct {
-	Address   string
-	Port      int
-	Endpoints []string `yaml:"etcd.endpoints"`
-	RootPath  string   `yaml:"etcd.rootpath"`
-	Source    struct {
+	Address       string
+	Port          int
+	Endpoints     []string `yaml:"etcd.endpoints"`
+	RootPath      string   `yaml:"etcd.rootpath"`
+	MaxTaskNum    int      `yaml:"task.maxNum"`
+	MaxNameLength int      `yaml:"name.maxLength"`
+	Source        struct {
 		Endpoints            []string `yaml:"etcd.endpoints"`
 		RootPath             string   `yaml:"etcd.rootpath"`
 		MetaPath             string   `yaml:"etcd.meta.path"`
@@ -81,7 +83,9 @@ func main() {
 	}
 
 	s.Run(&server.CDCServerConfig{
-		Address: fmt.Sprintf("%s:%d", conf.Address, conf.Port),
+		Address:       fmt.Sprintf("%s:%d", conf.Address, conf.Port),
+		MaxTaskNum:    conf.MaxTaskNum,
+		MaxNameLength: conf.MaxNameLength,
 		EtcdConfig: server.CDCEtcdConfig{
 			Endpoints: conf.Endpoints,
 			RootPath:  conf.RootPath,
