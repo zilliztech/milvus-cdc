@@ -1,32 +1,24 @@
-import pytest
 import time
 from datetime import datetime
-from pymilvus import connections
 from utils.util_log import test_log as log
 from api.milvus_cdc import MilvusCdcClient
 from pymilvus import (
-    connections, list_collections, has_partition,
-    FieldSchema, CollectionSchema, DataType,
+    connections, list_collections,
     Collection, Partition
 )
 from base.checker import (
-    CreateCollectionChecker,
-    DropCollectionChecker,
-    CreatePartitionChecker,
-    DropPartitionChecker,
     InsertEntitiesCollectionChecker,
     InsertEntitiesPartitionChecker,
-    DeleteEntitiesCollectionChecker,
-    DeleteEntitiesPartitionChecker
 )
-
+from base.client_base import TestBase
 
 prefix = "cdc_e2e_"
 client = MilvusCdcClient('http://localhost:8444')
 
 
-class TestE2E(object):
+class TestE2E(TestBase):
     """ Test Milvus CDC end to end """
+
     def test_cdc_collection(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -63,14 +55,13 @@ class TestE2E(object):
         connections.connect(host=upstream_host, port=upstream_port)
         checker = InsertEntitiesCollectionChecker(host=upstream_host, port=upstream_port, c_name=collection_name)
         checker.run()
-        time.sleep(120)
-        all_collections = list_collections()
+        time.sleep(60)
         # pause the insert task
         log.info(f"start to pause the insert task")
         checker.pause()
         log.info(f"pause the insert task successfully")
         # check the collection in upstream
-        num_entities_upstream =  checker.get_num_entities()
+        num_entities_upstream = checker.get_num_entities()
         log.info(f"num_entities_upstream: {num_entities_upstream}")
         count_by_query_upstream = checker.get_count_by_query()
         log.info(f"count_by_query_upstream: {count_by_query_upstream}")
@@ -78,15 +69,17 @@ class TestE2E(object):
         connections.disconnect("default")
         log.info(f"start to connect to downstream {downstream_host} {downstream_port}")
         connections.connect(host=downstream_host, port=downstream_port)
-        all_collections = list_collections()
         collection = Collection(name=collection_name)
-        collection.create_index(field_name="float_vector", index_params={"index_type": "IVF_FLAT", "metric_type": "L2", "params": {"nlist": 128}})
+        collection.create_index(field_name="float_vector",
+                                index_params={"index_type": "IVF_FLAT", "metric_type": "L2", "params": {"nlist": 128}})
         collection.load()
         # wait for the collection to be synced
-        timeout = 120
+        timeout = 60
         t0 = time.time()
+        count_by_query_downstream = None
         while True and time.time() - t0 < timeout:
-            count_by_query_downstream = len(collection.query(expr=checker.query_expr, output_fields=checker.output_fields))
+            count_by_query_downstream = len(collection.query(expr=checker.query_expr,
+                                                             output_fields=checker.output_fields))
             if count_by_query_downstream == count_by_query_upstream:
                 break
             time.sleep(1)
@@ -99,7 +92,8 @@ class TestE2E(object):
         collection.flush()
         num_entities_downstream = collection.num_entities
         log.info(f"num_entities_downstream: {num_entities_downstream}")
-        assert num_entities_upstream == num_entities_downstream, f"num_entities_upstream {num_entities_upstream} != num_entities_downstream {num_entities_downstream}"
+        assert num_entities_upstream == num_entities_downstream, \
+            f"num_entities_upstream {num_entities_upstream} != num_entities_downstream {num_entities_downstream}"
 
         # delete the entities in upstream
         connections.disconnect("default")
@@ -108,6 +102,7 @@ class TestE2E(object):
         log.info(f"start to delete the entities in upstream")
         delete_expr = f"int64 in {[i for i in range(0, 3000)]}"
         checker.collection.delete(delete_expr)
+        res = None
         while True and time.time() - t0 < timeout:
             res = checker.collection.query(expr=delete_expr, output_fields=checker.output_fields)
             if len(res) == 0:
@@ -128,7 +123,7 @@ class TestE2E(object):
         collection = Collection(name=collection_name)
         collection.load()
         # wait for the collection to be synced
-        timeout = 120
+        timeout = 60
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             count_by_query_downstream = len(collection.query(expr=delete_expr, output_fields=checker.output_fields))
@@ -174,7 +169,6 @@ class TestE2E(object):
                 log.error(f"Timeout waiting for collection {collection_name} to be dropped")
         assert collection_name not in list_collections()
 
-
     def test_cdc_partition(self, upstream_host, upstream_port, downstream_host, downstream_port):
         collection_name = prefix + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
         request_data = {
@@ -201,14 +195,15 @@ class TestE2E(object):
         # get the cdc task
         rsp, result = client.get_task(task_id)
         assert result
-        log.info(f"get task {task_id} response: {rsp}")            
+        log.info(f"get task {task_id} response: {rsp}")
         # check create partition and insert entities to partition
         connections.disconnect("default")
         connections.connect(host=upstream_host, port=upstream_port)
         p_name = "p1"
-        checker = InsertEntitiesPartitionChecker(host=upstream_host, port=upstream_port, c_name=collection_name, p_name=p_name)
+        checker = InsertEntitiesPartitionChecker(host=upstream_host, port=upstream_port, c_name=collection_name,
+                                                 p_name=p_name)
         checker.run()
-        time.sleep(120)
+        time.sleep(60)
         # pause the insert task
         log.info(f"start to pause the insert task")
         checker.pause()
@@ -216,7 +211,7 @@ class TestE2E(object):
         # check the collection in upstream
         count_by_query_upstream = checker.get_count_by_query(p_name=p_name)
         log.info(f"count_by_query_upstream: {count_by_query_upstream}")
-        num_entities_upstream =  checker.get_num_entities(p_name=p_name)
+        num_entities_upstream = checker.get_num_entities(p_name=p_name)
         log.info(f"num_entities_upstream: {num_entities_upstream}")
 
         # check the collection in downstream
@@ -224,13 +219,17 @@ class TestE2E(object):
         connections.connect(host=downstream_host, port=downstream_port)
         collection = Collection(name=collection_name)
         # create index and load collection
-        collection.create_index(field_name="float_vector", index_params={"index_type": "IVF_FLAT", "metric_type": "L2", "params": {"nlist": 1024}})
+        collection.create_index(field_name="float_vector",
+                                index_params={"index_type": "IVF_FLAT", "metric_type": "L2", "params": {"nlist": 1024}})
         collection.load()
         # wait for the collection to be synced
-        timeout = 120
+        timeout = 60
         t0 = time.time()
+        count_by_query_downstream = None
         while True and time.time() - t0 < timeout:
-            count_by_query_downstream = len(collection.query(expr=checker.query_expr, output_fields=checker.output_fields, partition_names=[p_name]))
+            count_by_query_downstream = len(
+                collection.query(expr=checker.query_expr, output_fields=checker.output_fields,
+                                 partition_names=[p_name]))
             if count_by_query_downstream == count_by_query_upstream:
                 break
             time.sleep(1)
@@ -242,7 +241,8 @@ class TestE2E(object):
         p = Partition(collection, p_name)
         p.flush()
         num_entities_downstream = p.num_entities
-        assert num_entities_upstream == num_entities_downstream, f"num_entities_upstream {num_entities_upstream} != num_entities_downstream {num_entities_downstream}"
+        assert num_entities_upstream == num_entities_downstream,\
+            f"num_entities_upstream {num_entities_upstream} != num_entities_downstream {num_entities_downstream}"
 
         # delete the entities of partition in upstream
         connections.disconnect("default")
@@ -251,8 +251,10 @@ class TestE2E(object):
         log.info(f"start to delete the entities in upstream")
         delete_expr = f"int64 in {[i for i in range(0, 3000)]}"
         checker.collection.delete(delete_expr, partition_name=p_name)
+        res = None
         while True and time.time() - t0 < timeout:
-            res = checker.collection.query(expr=delete_expr, output_fields=checker.output_fields, partition_names=[p_name])
+            res = checker.collection.query(expr=delete_expr, output_fields=checker.output_fields,
+                                           partition_names=[p_name])
             if len(res) == 0:
                 break
             else:
@@ -271,10 +273,11 @@ class TestE2E(object):
         collection = Collection(name=collection_name)
         collection.load()
         # wait for the collection to be synced
-        timeout = 120
+        timeout = 60
         t0 = time.time()
         while True and time.time() - t0 < timeout:
-            count_by_query_downstream = len(collection.query(expr=delete_expr, output_fields=checker.output_fields, partition_names=[p_name]))
+            count_by_query_downstream = len(
+                collection.query(expr=delete_expr, output_fields=checker.output_fields, partition_names=[p_name]))
             if count_by_query_downstream == count_by_query_upstream:
                 log.info(f"cost time: {time.time() - t0} to sync the delete entities")
                 break
@@ -312,6 +315,7 @@ class TestE2E(object):
         collection = Collection(name=collection_name)
         collection.release()
         t0 = time.time()
+        p_list = None
         while True and time.time() - t0 < timeout:
             p_list = [p.name for p in collection.partitions]
             if p_name not in p_list:
@@ -322,4 +326,3 @@ class TestE2E(object):
             if time.time() - t0 > timeout:
                 log.error(f"Timeout waiting for partition {p_name} to be dropped")
         assert p_name not in p_list
-

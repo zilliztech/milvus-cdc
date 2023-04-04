@@ -5,13 +5,13 @@ log:
 image:
   all:
     repository: milvusdb/milvus
-    tag: v2.2.5
+    tag: master-latest
     pullPolicy: IfNotPresent
 
 standalone:
   messageQueue: pulsar
 kafka:
-  enabled: true
+  enabled: false
   name: kafka
   replicaCount: 3
   defaultReplicationFactor: 2
@@ -25,4 +25,4 @@ etcd:
 minio:
   mode: standalone
 pulsar:
-  enabled: false
+  enabled: true

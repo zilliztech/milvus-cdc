@@ -98,17 +98,31 @@ class Checker:
         self.reset()
     
     def pause(self):
+        log.info("start to pause checker")
         self._paused = True
         self.wait_running_stop()
+        log.info("checker pause finished")
 
 
     def resume(self):
+        log.info("start to resume checker")
         self._paused = False
+        self._is_running = True
+        log.info("checker resume finished")
 
-    def wait_running_stop(self):
-        while self._is_running:
+    def wait_running_stop(self, timeout=60):
+        log.info("start to wait running stop")
+        t0 = time.time()
+        while self._is_running and time.time() - t0 < timeout:
             log.debug(f"is running: {self._is_running}")
             sleep(1)
+            if time.time() - t0 > timeout:
+                log.info(f"current status: is running: {self._is_running}, keep running: {self._keep_running}, paused: {self._paused}")
+                break
+        if self._is_running:
+            log.error("wait running stop timeout")
+        else:
+            log.info("wait running stop finished")
     
     def reset(self):
         self._succ = 0
@@ -127,7 +141,8 @@ class Checker:
     def get_count_by_query(self, expr="int64 >= 0", output_fields=["int64"], p_name=None):
         self.query_expr = expr
         self.output_fields = output_fields
-        self.collection.create_index(field_name="float_vector", index_params={"index_type": "IVF_FLAT", "metric_type": "L2", "params": {"nlist": 128}})
+        if len(self.collection.indexes) == 0:
+            self.collection.create_index(field_name="float_vector", index_params={"index_type": "IVF_FLAT", "metric_type": "L2", "params": {"nlist": 128}})
         self.collection.load()
         if p_name:
             res = self.collection.query(expr=expr, output_fields=self.output_fields, partition_names=[p_name])
@@ -175,6 +190,7 @@ class CreateCollectionChecker(Checker):
                     self._fail += 1
                     sleep(1)
                 if self._paused or not self._keep_running:
+                    log.info(f"checker paused or terminated: {self._paused}, keep running: {self._keep_running}")
                     self._is_running = False
             sleep(1)
 
@@ -306,6 +322,7 @@ class InsertEntitiesCollectionChecker(Checker):
                     log.info("stop insert entities into collection")
                     self._is_running = False
                 log.info(f"is running: {self._is_running}")
+                sleep(1)
             sleep(1)
 
 class InsertEntitiesPartitionChecker(Checker):
