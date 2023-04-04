@@ -3,3 +3,7 @@
 **/.idea/*
 **/dist/*
 **/*.log/*
+**/volumes/*
+**/__pycache__/*
+**/.pytest_cache/*
+server/cdc
