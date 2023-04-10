@@ -5,11 +5,11 @@ log:
 image:
   all:
     repository: milvusdb/milvus
-    tag: master-latest
+    tag: v2.2.5
     pullPolicy: IfNotPresent
 
 standalone:
-  messageQueue: kafka
+  messageQueue: pulsar
 kafka:
   enabled: true
   name: kafka
