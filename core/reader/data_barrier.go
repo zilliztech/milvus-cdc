@@ -101,7 +101,7 @@ func (d *DataBarrierManager) AddData(channelName string, data *model.CDCData) bo
 
 func (d *DataBarrierManager) addDropCollectionData(channelName string, data *model.CDCData) bool {
 	msg := data.Msg.(*msgstream.DropCollectionMsg)
-	barrier, _ := d.m.LoadOrStore(fmt.Sprintf("drop_collection_%d_%s", msg.CollectionID, channelName), NewDataBarrier(d.total, func(m map[string]*model.CDCData) {
+	barrier, _ := d.m.LoadOrStore(fmt.Sprintf("drop_collection_%d", msg.CollectionID), NewDataBarrier(d.total, func(m map[string]*model.CDCData) {
 		dropCollectionCdcData := &model.CDCData{
 			Extra: make(map[string]any),
 		}
@@ -122,7 +122,7 @@ func (d *DataBarrierManager) addDropCollectionData(channelName string, data *mod
 
 func (d *DataBarrierManager) addDropPartitionData(channelName string, data *model.CDCData) bool {
 	msg := data.Msg.(*msgstream.DropPartitionMsg)
-	barrier, _ := d.m.LoadOrStore(fmt.Sprintf("drop_partition_%d_%d_%s", msg.CollectionID, msg.PartitionID, channelName), NewDataBarrier(d.total, func(m map[string]*model.CDCData) {
+	barrier, _ := d.m.LoadOrStore(fmt.Sprintf("drop_partition_%d_%d", msg.CollectionID, msg.PartitionID), NewDataBarrier(d.total, func(m map[string]*model.CDCData) {
 		dropPartitionCdcData := &model.CDCData{
 			Extra: make(map[string]any),
 		}

@@ -184,7 +184,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		return nil, NewServerError(errors.WithMessage(err, "fail to get task list to check num"))
 	}
 	if getResp.Count > int64(e.config.MaxTaskNum) {
-		return nil, NewServerError(errors.WithMessagef(err, "the task num has reach the limit, %d", e.config.MaxTaskNum))
+		return nil, NewServerError(errors.Newf("the task num has reach the limit, %d", e.config.MaxTaskNum))
 	}
 
 	info := &meta.TaskInfo{
