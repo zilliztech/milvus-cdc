@@ -11,6 +11,8 @@ def pytest_addoption(parser):
     parser.addoption("--downstream_port", action="store", default=19530, help="downstream port")
     parser.addoption("--downstream_username", action="store", default="", help="downstream username")
     parser.addoption("--downstream_password", action="store", default="", help="downstream password")
+    parser.addoption("--duration_time", action="store", default=7200, help="duration_time")
+    parser.addoption("--task_num", action="store", default=10, help="task_num")
 
 @pytest.fixture
 def upstream_host(request):
@@ -47,3 +49,11 @@ def downstream_username(request):
 @pytest.fixture
 def downstream_password(request):
     return request.config.getoption("--downstream_password")
+
+@pytest.fixture
+def duration_time(request):
+    return request.config.getoption("--duration_time")
+
+@pytest.fixture
+def task_num(request):
+    return request.config.getoption("--task_num")
