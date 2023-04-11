@@ -135,11 +135,31 @@ jobs:
           working-directory: tests/scripts
           run: |
             python verify_delete.py --source_host 127.0.0.1 --source_port 19530 --target_host 127.0.0.1 --target_port 19500
-  
+        - name: Run testcases
+          timeout-minutes: 30
+          working-directory: tests/testcases
+          run: |
+            pytest -s -v --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
+
+        - name: Export upstream milvus logs
+          if: ${{ ! success() }}
+          timeout-minutes: 5
+          working-directory: tests/deployment/upstream
+          run: |
+            docker-compose ps -a
+            bash ../../../scripts/export_log_docker.sh 
+        - name: Export downstream milvus logs
+          if: ${{ ! success() }}
+          timeout-minutes: 5
+          working-directory: scripts
+          run: |
+            bash export_log_k8s.sh default cdc-target k8s_logs         
         - name: Upload logs
           if: ${{ ! success() }}
           uses: actions/upload-artifact@v2
           with:
             name: logs
             path: |
+              scripts/k8s_logs
+              tests/deployment/upstream/logs
               server/server.log

@@ -19,7 +19,7 @@ spec:
   components:
     enableRollingUpdate: true
     imageUpdateMode: rollingUpgrade
-    image: milvusdb/milvus:v2.2.5
+    image: milvusdb/milvus:master-latest
     disableMetric: false
     dataNode:
       replicas: 2
