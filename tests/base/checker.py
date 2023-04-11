@@ -98,17 +98,17 @@ class Checker:
         self.reset()
     
     def pause(self):
-        log.info("start to pause checker")
+        log.info(f"start to pause checker {self.__class__.__name__}")
         self._paused = True
         self.wait_running_stop()
-        log.info("checker pause finished")
+        log.info(f"checker {self.__class__.__name__} pause finished")
 
 
     def resume(self):
-        log.info("start to resume checker")
+        log.info(f"start to resume checker {self.__class__.__name__}")
         self._paused = False
         self._is_running = True
-        log.info("checker resume finished")
+        log.info(f"checker {self.__class__.__name__} resume finished")
 
     def wait_running_stop(self, timeout=60):
         log.info("start to wait running stop")
@@ -361,7 +361,8 @@ class DeleteEntitiesCollectionChecker(Checker):
     def __init__(self, host, port, name_prefix="", c_name="cdc_insert_collection_test"):
         super().__init__(host, port, name_prefix=name_prefix, c_name=c_name)
         self.collection_name = c_name
-        self.delete_expr = f"int64 in {[i for i in range(self.total()*10, self.total()*10+10)]}"
+        self.batch_size = 10
+        self.delete_expr = f"int64 in {[i for i in range(self.total()*self.batch_size, self.total()*self.batch_size+self.batch_size)]}"
         self.delete_expr_list = []
         self.collection = Collection(name=self.collection_name, schema=default_schema)
 
@@ -373,7 +374,7 @@ class DeleteEntitiesCollectionChecker(Checker):
                     self._succ += 1
                     self.delete_expr_list.append(self.delete_expr)
                     log.info(f"delete entities with expr {self.delete_expr} for collection {self.collection_name} successfully")
-                    self.delete_expr = f"int64 in {[i for i in range(self.total()*10, self.total()*10+10)]}"
+                    self.delete_expr = f"int64 in {[i for i in range(self.total()*self.batch_size, self.total()*self.batch_size+self.batch_size)]}"
                     sleep(1)
                 except Exception as e:
                     log.error(f"delete entities with expr {self.delete_expr} for collection {self.collection_name} failed, {e}")
@@ -388,7 +389,8 @@ class DeleteEntitiesPartitionChecker(Checker):
     def __init__(self, host, port, name_prefix="", c_name="cdc_test", p_name="cdc_delete_partition_test"):
         super().__init__(host, port, name_prefix=name_prefix, c_name=c_name)
         self.collection_name = c_name
-        self.delete_expr = f"int64 in {[i for i in range(self.total()*10, self.total()*10+10)]}"
+        self.batch_size = 10
+        self.delete_expr = f"int64 in {[i for i in range(self.total()*self.batch_size, self.total()*self.batch_size+self.batch_size)]}"
         self.delete_expr_list = []
         self.collection = Collection(name=self.collection_name, schema=default_schema)
         self.p = Partition(collection=self.collection, name=p_name)
@@ -401,7 +403,7 @@ class DeleteEntitiesPartitionChecker(Checker):
                     self._succ += 1
                     self.delete_expr_list.append(self.delete_expr)
                     log.info(f"delete entities in {self.p.name}  with expr {self.delete_expr} for collection {self.collection_name} successfully")
-                    self.delete_expr = f"int64 in {[i for i in range(self.total()*10, self.total()*10+10)]}"
+                    self.delete_expr = f"int64 in {[i for i in range(self.total()*self.batch_size, self.total()*self.batch_size+self.batch_size)]}"
                     sleep(1)
                 except Exception as e:
                     log.error(f"delete entities in {self.p.name} with expr {self.delete_expr} for collection {self.collection_name} failed, {e}")
