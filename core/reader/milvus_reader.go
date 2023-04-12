@@ -521,7 +521,6 @@ func (reader *MilvusCollectionReader) readMsg(collectionName string, collectionI
 			if reader.filterMsgType(msgType) {
 				continue
 			}
-			// TODO fubang dropPartition no collection id
 			if reader.filterMsg(collectionName, collectionID, msg) {
 				continue
 			}
@@ -529,6 +528,9 @@ func (reader *MilvusCollectionReader) readMsg(collectionName string, collectionI
 				Msg: msg,
 			}
 			if barrierManager.IsBarrierData(data) {
+				if dropPartitionMsg, ok := msg.(*msgstream.DropPartitionMsg); ok {
+					dropPartitionMsg.CollectionName = collectionName
+				}
 				barrierManager.AddData(vchannelName, data)
 				if _, ok := msg.(*msgstream.DropCollectionMsg); ok {
 					return
