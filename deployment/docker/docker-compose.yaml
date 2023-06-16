@@ -1,0 +1,12 @@
+services:
+  milvus-cdc:
+    container_name: milvus-cdc
+    image: milvusdb/milvus-cdc:v0.0.1
+    tty: true
+    ports:
+      - "8444:8444"
+    volumes:
+      - type: bind
+        source: ./cdc.yaml
+        target: /app/configs/cdc.yaml
+        read_only: true

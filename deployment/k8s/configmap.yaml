@@ -8,7 +8,7 @@ data:
     address: 0.0.0.0
     port: 8444
     etcd.endpoints: [10.101.143.170:2379] # etcd endpoints
-    etcd.rootpath: cdc_demo
+    etcd.rootpath: cdc
     source:
       etcd.endpoints: [10.101.143.170:2379]  # etcd endpoints
       etcd.rootpath: cdc-test-source  # etcd rootpath

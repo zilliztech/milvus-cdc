@@ -7,7 +7,7 @@ spec:
     matchLabels:
       app: milvus-cdc
       instance: my-release
-  replicas: 2
+  replicas: 1
   template:
     metadata:
       labels:
@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: milvus-cdc
-          image: harbor.milvus.io/qa/milvus-cdc:0.1
+          image: milvusdb/milvus-cdc:v0.0.1
           imagePullPolicy: Always
           resources:
             limits:
