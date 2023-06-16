@@ -116,7 +116,7 @@ jobs:
       - name: Docker Login
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKER_USER }}
+          username: milvusdb
           password: ${{ secrets.DOCKER_TOKEN }}
       - name: Build and push docker image
         run: |
