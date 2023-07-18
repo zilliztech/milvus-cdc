@@ -34,6 +34,8 @@ type MilvusEtcdConfig struct {
 	FiledKey string
 	// default: _default
 	DefaultPartitionName string
+	// default: root-coord/database/collection-info
+	CollectionWithDBKey string
 }
 
 func defaultMilvusEtcdConfig() MilvusEtcdConfig {
@@ -45,6 +47,7 @@ func defaultMilvusEtcdConfig() MilvusEtcdConfig {
 		PartitionKey:         "root-coord/partitions",
 		FiledKey:             "root-coord/fields",
 		DefaultPartitionName: "_default",
+		CollectionWithDBKey:  "root-coord/database/collection-info",
 	}
 }
 

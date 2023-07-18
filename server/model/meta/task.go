@@ -19,7 +19,7 @@ package meta
 import (
 	"fmt"
 
-	"github.com/milvus-io/milvus-proto/go-api/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/zilliztech/milvus-cdc/server/model"
 )
 

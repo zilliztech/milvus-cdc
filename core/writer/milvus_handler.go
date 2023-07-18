@@ -21,9 +21,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/milvus-io/milvus-sdk-go/v2/entity"
-
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
+	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"go.uber.org/zap"
 )
@@ -78,9 +77,9 @@ func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*Milvus
 
 func (m *MilvusDataHandler) CreateCollection(ctx context.Context, param *CreateCollectionParam) error {
 	var options []client.CreateCollectionOption
-	for _, property := range param.Properties {
-		options = append(options, client.WithCollectionProperty(property.GetKey(), property.GetValue()))
-	}
+	//for _, property := range param.Properties {
+	//	options = append(options, client.WithCollectionProperty(property.GetKey(), property.GetValue()))
+	//}
 	options = append(options, client.WithConsistencyLevel(entity.ConsistencyLevel(param.ConsistencyLevel)))
 	return m.milvus.CreateCollection(ctx, param.Schema, param.ShardsNum,
 		options...)

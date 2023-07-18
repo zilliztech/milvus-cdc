@@ -27,9 +27,9 @@ import (
 	"sync"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/milvus-io/milvus-proto/go-api/commonpb"
-	"github.com/milvus-io/milvus-proto/go-api/msgpb"
-	"github.com/milvus-io/milvus-proto/go-api/schemapb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 	"github.com/samber/lo"
@@ -78,6 +78,8 @@ type MilvusCollectionReader struct {
 	// Please no read or write it excluding in the beginning of readStreamData method
 	readingSteamCollection []int64
 	readingLock            sync.Mutex
+
+	dbID int64
 }
 
 func NewMilvusCollectionReader(options ...config.Option[*MilvusCollectionReader]) (*MilvusCollectionReader, error) {
@@ -85,6 +87,7 @@ func NewMilvusCollectionReader(options ...config.Option[*MilvusCollectionReader]
 		monitor:        NewDefaultMonitor(),
 		factoryCreator: NewDefaultFactoryCreator(),
 		dataChanLen:    10,
+		dbID:           1,
 	}
 	reader.shouldReadFunc = reader.getDefaultShouldReadFunc()
 	for _, option := range options {
@@ -105,6 +108,8 @@ func (reader *MilvusCollectionReader) StartRead(ctx context.Context) <-chan *mod
 	reader.startOnce.Do(func() {
 		watchCtx, cancel := context.WithCancel(context.Background())
 		reader.cancelWatch = cancel
+
+		log.Info("start read collection")
 
 		go reader.watchCollection(watchCtx)
 		go reader.watchPartition(watchCtx)
@@ -138,6 +143,7 @@ func (reader *MilvusCollectionReader) watchCollection(watchCtx context.Context) 
 					return
 				}
 				collectionKey := util.ToString(event.Kv.Key)
+				log.Info("collection key", zap.String("key", collectionKey))
 				if !strings.HasPrefix(collectionKey, reader.collectionPrefix()) {
 					return
 				}
@@ -150,7 +156,9 @@ func (reader *MilvusCollectionReader) watchCollection(watchCtx context.Context) 
 				}
 				if info.State == pb.CollectionState_CollectionCreated {
 					go func() {
+						log.Info("collection key created", zap.String("key", collectionKey))
 						if reader.shouldReadFunc(info) {
+							log.Info("collection key should created", zap.String("key", collectionKey))
 							reader.collectionID2Name.Store(info.ID, reader.collectionName(info))
 							err := util.Do(context.Background(), func() error {
 								err := reader.fillCollectionField(info)
@@ -242,7 +250,16 @@ func (reader *MilvusCollectionReader) watchPartition(watchCtx context.Context) {
 }
 
 func (reader *MilvusCollectionReader) getCollectionNameByID(collectionID int64) string {
-	resp, err := util.EtcdGet(reader.etcdCli, path.Join(reader.collectionPrefix(), strconv.FormatInt(collectionID, 10)))
+	var (
+		resp *clientv3.GetResponse
+		err  error
+	)
+
+	if reader.dbID == 0 {
+		resp, err = util.EtcdGet(reader.etcdCli, path.Join(reader.collectionPrefix(), strconv.FormatInt(collectionID, 10)))
+	} else {
+		resp, err = util.EtcdGet(reader.etcdCli, path.Join(reader.collectionPrefix(), strconv.FormatInt(reader.dbID, 10), strconv.FormatInt(collectionID, 10)))
+	}
 	if err != nil {
 		log.Warn("fail to get all collection data", zap.Int64("collection_id", collectionID), zap.Error(err))
 		return ""
@@ -289,7 +306,11 @@ func (reader *MilvusCollectionReader) getAllCollections() {
 
 func (reader *MilvusCollectionReader) collectionPrefix() string {
 	c := reader.etcdConfig
-	return util.GetCollectionPrefix(c.RootPath, c.MetaSubPath, c.CollectionKey)
+	collectionKey := c.CollectionKey
+	if reader.dbID != 0 {
+		collectionKey = c.CollectionWithDBKey
+	}
+	return util.GetCollectionPrefix(c.RootPath, c.MetaSubPath, collectionKey)
 }
 
 func (reader *MilvusCollectionReader) partitionPrefix() string {
@@ -430,6 +451,7 @@ func (reader *MilvusCollectionReader) readStreamData(info *pb.CollectionInfo, se
 
 	vchannels := info.VirtualChannelNames
 	barrierManager := NewDataBarrierManager(len(vchannels), reader.sendData)
+	log.Info("read vchannels", zap.Strings("channels", vchannels))
 	for _, vchannel := range vchannels {
 		position, err := reader.collectionPosition(info, vchannel)
 		handleError := func() {
@@ -448,6 +470,7 @@ func (reader *MilvusCollectionReader) readStreamData(info *pb.CollectionInfo, se
 			return
 		}
 		msgChan, err := reader.msgStreamChan(vchannel, position, stream)
+		// TODO steam leak
 		if err != nil {
 			stream.Close()
 			log.Warn("fail to get message stream chan", zap.String("vchannel", vchannel), zap.Error(err))
@@ -521,6 +544,7 @@ func (reader *MilvusCollectionReader) readMsg(collectionName string, collectionI
 			if reader.filterMsgType(msgType) {
 				continue
 			}
+			log.Info("msgType", zap.Any("msg_type", msgType))
 			if reader.filterMsg(collectionName, collectionID, msg) {
 				continue
 			}
