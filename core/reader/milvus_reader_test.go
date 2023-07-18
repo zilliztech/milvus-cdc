@@ -23,14 +23,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/milvus-io/milvus-proto/go-api/msgpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 
 	"github.com/goccy/go-json"
-	"github.com/milvus-io/milvus-proto/go-api/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/zilliztech/milvus-cdc/core/model"
 
-	"github.com/milvus-io/milvus-proto/go-api/schemapb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 
 	"github.com/golang/protobuf/proto"

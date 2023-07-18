@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	msgpb "github.com/milvus-io/milvus-proto/go-api/msgpb"
+	msgpb "github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	msgstream "github.com/milvus-io/milvus/pkg/mq/msgstream"
 	mqwrapper "github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 	mock "github.com/stretchr/testify/mock"

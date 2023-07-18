@@ -23,8 +23,8 @@ import (
 
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 
-	"github.com/milvus-io/milvus-proto/go-api/commonpb"
-	"github.com/milvus-io/milvus-proto/go-api/schemapb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"go.uber.org/zap"
 )
 

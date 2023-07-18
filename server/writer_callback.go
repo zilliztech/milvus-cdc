@@ -19,7 +19,7 @@ package server
 import (
 	"strconv"
 
-	"github.com/milvus-io/milvus-proto/go-api/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/core/writer"

@@ -22,7 +22,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/goccy/go-json"
-	"github.com/milvus-io/milvus-proto/go-api/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/samber/lo"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
