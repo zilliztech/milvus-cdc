@@ -563,6 +563,10 @@ func (reader *MilvusCollectionReader) readMsg(collectionName string, collectionI
 			}
 			reader.sendData(&model.CDCData{
 				Msg: msg,
+				Extra: map[string]any{
+					model.CollectionIDKey:   collectionID,
+					model.CollectionNameKey: collectionName,
+				},
 			})
 		}
 	}

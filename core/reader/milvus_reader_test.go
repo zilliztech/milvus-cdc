@@ -71,7 +71,7 @@ func TestNewMilvusCollectionReader(t *testing.T) {
 	monitor := mocks.NewMonitor(t)
 	var options []config.Option[*reader.MilvusCollectionReader]
 	mockEtcdCli := mocks.NewKVApi(t)
-	mockEtcdCli.On("Endpoints").Return(endpoints)
+	mockEtcdCli.On("EtcdEndpoints").Return(endpoints)
 
 	util.MockEtcdClient(func(cfg clientv3.Config) (util.KVApi, error) {
 		return mockEtcdCli, nil
@@ -102,7 +102,7 @@ func TestNewMilvusCollectionReader(t *testing.T) {
 
 func TestReaderGetCollectionInfo(t *testing.T) {
 	mockEtcdCli := mocks.NewKVApi(t)
-	mockEtcdCli.On("Endpoints").Return(endpoints)
+	mockEtcdCli.On("EtcdEndpoints").Return(endpoints)
 
 	util.MockEtcdClient(func(cfg clientv3.Config) (util.KVApi, error) {
 		return mockEtcdCli, nil
@@ -298,7 +298,7 @@ func TestReaderGetCollectionInfo(t *testing.T) {
 
 func TestReaderWatchCollectionInfo(t *testing.T) {
 	mockEtcdCli := mocks.NewKVApi(t)
-	mockEtcdCli.On("Endpoints").Return(endpoints)
+	mockEtcdCli.On("EtcdEndpoints").Return(endpoints)
 	call := mockEtcdCli.On("Status", mock.Anything, endpoints[0]).Return(&clientv3.StatusResponse{}, nil)
 	defer call.Unset()
 	collectionName1 := "coll1"

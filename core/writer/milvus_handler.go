@@ -24,6 +24,7 @@ import (
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/util"
 	"go.uber.org/zap"
 )
 
@@ -38,7 +39,8 @@ type MilvusDataHandler struct {
 	connectTimeout  int
 
 	factory MilvusClientFactory
-	milvus  MilvusClientApi
+	// TODO support db
+	milvus MilvusClientApi
 }
 
 // NewMilvusDataHandler options must include AddressOption
@@ -77,12 +79,11 @@ func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*Milvus
 
 func (m *MilvusDataHandler) CreateCollection(ctx context.Context, param *CreateCollectionParam) error {
 	var options []client.CreateCollectionOption
-	//for _, property := range param.Properties {
-	//	options = append(options, client.WithCollectionProperty(property.GetKey(), property.GetValue()))
-	//}
+	for _, property := range param.Properties {
+		options = append(options, client.WithCollectionProperty(property.GetKey(), property.GetValue()))
+	}
 	options = append(options, client.WithConsistencyLevel(entity.ConsistencyLevel(param.ConsistencyLevel)))
-	return m.milvus.CreateCollection(ctx, param.Schema, param.ShardsNum,
-		options...)
+	return m.milvus.CreateCollection(ctx, param.Schema, param.ShardsNum, options...)
 }
 
 func (m *MilvusDataHandler) DropCollection(ctx context.Context, param *DropCollectionParam) error {
@@ -118,4 +119,31 @@ func (m *MilvusDataHandler) DropPartition(ctx context.Context, param *DropPartit
 		return nil
 	}
 	return m.milvus.DropPartition(ctx, param.CollectionName, param.PartitionName)
+}
+
+func (m *MilvusDataHandler) CreateIndex(ctx context.Context, param *CreateIndexParam) error {
+	indexEntity := entity.NewGenericIndex(param.IndexName, "", util.ConvertKVPairToMap(param.ExtraParams))
+	return m.milvus.CreateIndex(ctx, param.CollectionName, param.FieldName, indexEntity, true, client.WithIndexName(param.IndexName))
+}
+
+func (m *MilvusDataHandler) DropIndex(ctx context.Context, param *DropIndexParam) error {
+	return m.milvus.DropIndex(ctx, param.CollectionName, param.FieldName, client.WithIndexName(param.IndexName))
+}
+
+func (m *MilvusDataHandler) LoadCollection(ctx context.Context, param *LoadCollectionParam) error {
+	// TODO resource group
+	//return m.milvus.LoadCollection(ctx, param.CollectionName, true, client.WithReplicaNumber(param.ReplicaNumber), client.WithResourceGroups(param.ResourceGroups))
+	return m.milvus.LoadCollection(ctx, param.CollectionName, true, client.WithReplicaNumber(param.ReplicaNumber))
+}
+
+func (m *MilvusDataHandler) ReleaseCollection(ctx context.Context, param *ReleaseCollectionParam) error {
+	return m.milvus.ReleaseCollection(ctx, param.CollectionName)
+}
+
+func (m *MilvusDataHandler) CreateDatabase(ctx context.Context, param *CreateDataBaseParam) error {
+	return m.milvus.CreateDatabase(ctx, param.DbName)
+}
+
+func (m *MilvusDataHandler) DropDatabase(ctx context.Context, param *DropDataBaseParam) error {
+	return m.milvus.DropDatabase(ctx, param.DbName)
 }

@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"math/rand"
+	"sync"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
@@ -12,8 +15,6 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"go.uber.org/zap"
-	"math/rand"
-	"sync"
 )
 
 type ChannelReader struct {
@@ -33,14 +34,13 @@ type ChannelReader struct {
 	quitOnce    sync.Once
 }
 
-func NewChannelReader(mqConfig config.MilvusMQConfig, channelName string, subscriptionPosition mqwrapper.SubscriptionInitialPosition, seekPosition string, dataChanLen int) (*ChannelReader, error) {
+func NewChannelReader(options ...config.Option[*ChannelReader]) (*ChannelReader, error) {
 	channelReader := &ChannelReader{
-		mqConfig:             mqConfig,
-		factoryCreator:       NewDefaultFactoryCreator(),
-		channelName:          channelName, // default: by-dev-rpc-request
-		subscriptionPosition: subscriptionPosition,
-		seekPosition:         seekPosition,
-		dataChanLen:          dataChanLen,
+		factoryCreator: NewDefaultFactoryCreator(),
+		dataChanLen:    100,
+	}
+	for _, option := range options {
+		option.Apply(channelReader)
 	}
 	channelReader.isQuit.Store(false)
 	err := channelReader.initMsgStream()
@@ -100,6 +100,7 @@ func (c *ChannelReader) StartRead(ctx context.Context) <-chan *model.CDCData {
 			msgChan := c.msgStream.Chan()
 			for {
 				if c.isQuit.Load() {
+					close(c.dataChan)
 					return
 				}
 				msgPack := <-msgChan

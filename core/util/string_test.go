@@ -19,9 +19,8 @@ package util
 import (
 	"encoding/base64"
 	"encoding/json"
-	"testing"
-
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestStringAndByte(t *testing.T) {

@@ -18,6 +18,7 @@ package reader
 
 import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 	"github.com/zilliztech/milvus-cdc/core/config"
 )
 
@@ -81,6 +82,48 @@ func ShouldReadFuncOption(f ShouldReadFunc) config.Option[*MilvusCollectionReade
 	return config.OptionFunc[*MilvusCollectionReader](func(object *MilvusCollectionReader) {
 		if f != nil {
 			object.shouldReadFunc = f
+		}
+	})
+}
+
+func MqChannelOption(p config.PulsarConfig, k config.KafkaConfig) config.Option[*ChannelReader] {
+	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
+		object.mqConfig = config.MilvusMQConfig{Pulsar: p, Kafka: k}
+	})
+}
+
+func FactoryChannelOption(f FactoryCreator) config.Option[*ChannelReader] {
+	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
+		if f != nil {
+			object.factoryCreator = f
+		}
+	})
+}
+
+func ChannelNameOption(c string) config.Option[*ChannelReader] {
+	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
+		if c != "" {
+			object.channelName = c
+		}
+	})
+}
+
+func SubscriptionPositionChannelOption(p mqwrapper.SubscriptionInitialPosition) config.Option[*ChannelReader] {
+	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
+		object.subscriptionPosition = p
+	})
+}
+
+func SeekPositionChannelOption(p string) config.Option[*ChannelReader] {
+	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
+		object.seekPosition = p
+	})
+}
+
+func DataChanChannelOption(l int) config.Option[*ChannelReader] {
+	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
+		if l > 0 {
+			object.dataChanLen = l
 		}
 	})
 }

@@ -19,6 +19,8 @@ package writer
 import (
 	"context"
 
+	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
+
 	"github.com/zilliztech/milvus-cdc/core/util"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
@@ -34,6 +36,13 @@ type CDCDataHandler interface {
 	Delete(ctx context.Context, param *DeleteParam) error
 	CreatePartition(ctx context.Context, param *CreatePartitionParam) error
 	DropPartition(ctx context.Context, param *DropPartitionParam) error
+
+	CreateIndex(ctx context.Context, param *CreateIndexParam) error
+	DropIndex(ctx context.Context, param *DropIndexParam) error
+	LoadCollection(ctx context.Context, param *LoadCollectionParam) error
+	ReleaseCollection(ctx context.Context, param *ReleaseCollectionParam) error
+	CreateDatabase(ctx context.Context, param *CreateDataBaseParam) error
+	DropDatabase(ctx context.Context, param *DropDataBaseParam) error
 }
 
 type DefaultDataHandler struct {
@@ -61,6 +70,30 @@ func (d *DefaultDataHandler) CreatePartition(ctx context.Context, param *CreateP
 }
 
 func (d *DefaultDataHandler) DropPartition(ctx context.Context, param *DropPartitionParam) error {
+	return nil
+}
+
+func (d *DefaultDataHandler) CreateIndex(ctx context.Context, param *CreateIndexParam) error {
+	return nil
+}
+
+func (d *DefaultDataHandler) DropIndex(ctx context.Context, param *DropIndexParam) error {
+	return nil
+}
+
+func (d *DefaultDataHandler) LoadCollection(ctx context.Context, param *LoadCollectionParam) error {
+	return nil
+}
+
+func (d *DefaultDataHandler) ReleaseCollection(ctx context.Context, param *ReleaseCollectionParam) error {
+	return nil
+}
+
+func (d *DefaultDataHandler) CreateDatabase(ctx context.Context, param *CreateDataBaseParam) error {
+	return nil
+}
+
+func (d *DefaultDataHandler) DropDatabase(ctx context.Context, param *DropDataBaseParam) error {
 	return nil
 }
 
@@ -95,4 +128,28 @@ type CreatePartitionParam struct {
 type DropPartitionParam struct {
 	CollectionName string
 	PartitionName  string
+}
+
+type CreateIndexParam struct {
+	milvuspb.CreateIndexRequest
+}
+
+type DropIndexParam struct {
+	milvuspb.DropIndexRequest
+}
+
+type LoadCollectionParam struct {
+	milvuspb.LoadCollectionRequest
+}
+
+type ReleaseCollectionParam struct {
+	milvuspb.ReleaseCollectionRequest
+}
+
+type CreateDataBaseParam struct {
+	milvuspb.CreateDatabaseRequest
+}
+
+type DropDataBaseParam struct {
+	milvuspb.DropDatabaseRequest
 }

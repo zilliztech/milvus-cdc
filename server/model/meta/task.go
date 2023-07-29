@@ -60,13 +60,14 @@ func (t TaskState) String() string {
 }
 
 type TaskInfo struct {
-	TaskID             string
-	MilvusConnectParam model.MilvusConnectParam
-	WriterCacheConfig  model.BufferConfig
-	CollectionInfos    []model.CollectionInfo
-	ExcludeCollections []string // it's used for the `*` collection name
-	State              TaskState
-	FailedReason       string
+	TaskID                string
+	MilvusConnectParam    model.MilvusConnectParam
+	WriterCacheConfig     model.BufferConfig
+	CollectionInfos       []model.CollectionInfo
+	RpcRequestChannelInfo model.ChannelInfo
+	ExcludeCollections    []string // it's used for the `*` collection name
+	State                 TaskState
+	FailedReason          string
 }
 
 func (t *TaskInfo) CollectionNames() []string {
@@ -79,6 +80,7 @@ func (t *TaskInfo) CollectionNames() []string {
 
 type TaskCollectionPosition struct {
 	TaskID         string
+	CollectionID   int64
 	CollectionName string
 	// Positions key -> channel name, value -> check point
 	Positions map[string]*commonpb.KeyDataPair

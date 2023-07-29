@@ -22,6 +22,7 @@ import "github.com/zilliztech/milvus-cdc/server/model"
 type CreateRequest struct {
 	MilvusConnectParam model.MilvusConnectParam `json:"milvus_connect_param" mapstructure:"milvus_connect_param"`
 	CollectionInfos    []model.CollectionInfo   `json:"collection_infos" mapstructure:"collection_infos"`
+	RpcChannelInfo     model.ChannelInfo        `json:"rpc_channel_info" mapstructure:"rpc_channel_info"`
 	BufferConfig       model.BufferConfig       `json:"buffer_config" mapstructure:"buffer_config"`
 }
 

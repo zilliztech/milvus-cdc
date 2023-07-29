@@ -16,19 +16,27 @@
 
 package server
 
-import "github.com/zilliztech/milvus-cdc/core/config"
+import (
+	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/server/model"
+)
 
 type CDCServerConfig struct {
-	Address       string // like: "localhost:8080"
-	MaxTaskNum    int
-	EtcdConfig    CDCEtcdConfig      // cdc meta data save
-	SourceConfig  MilvusSourceConfig // cdc source
-	MaxNameLength int
+	Address         string // like: "localhost:8080"
+	MaxTaskNum      int
+	MetaStoreConfig CDCMetaStoreConfig // cdc meta data save
+	SourceConfig    MilvusSourceConfig // cdc source
+	EnableReverse   bool
+	ReverseMilvus   model.MilvusConnectParam
+	CurrentMilvus   model.MilvusConnectParam
+	MaxNameLength   int
 }
 
-type CDCEtcdConfig struct {
-	Endpoints []string
-	RootPath  string
+type CDCMetaStoreConfig struct {
+	StoreType      string
+	EtcdEndpoints  []string
+	MysqlSourceUrl string
+	RootPath       string
 }
 
 type MilvusSourceConfig struct {

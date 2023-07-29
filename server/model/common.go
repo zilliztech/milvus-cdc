@@ -32,6 +32,11 @@ type CollectionInfo struct {
 	Name string `json:"name" mapstructure:"name"`
 }
 
+type ChannelInfo struct {
+	Name     string `json:"name" mapstructure:"name"`
+	Position string `json:"position" mapstructure:"position"`
+}
+
 type BufferConfig struct {
 	Period int `json:"period" mapstructure:"period"`
 	Size   int `json:"size" mapstructure:"size"`

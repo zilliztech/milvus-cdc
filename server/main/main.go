@@ -17,87 +17,23 @@
 package main
 
 import (
-	"fmt"
+	"os"
 
-	"github.com/golobby/config/v3/pkg/feeder"
-	coreconf "github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server"
+	"go.uber.org/zap"
+	"sigs.k8s.io/yaml"
 )
-
-type config struct {
-	Address       string
-	Port          int
-	Endpoints     []string `yaml:"etcd.endpoints"`
-	RootPath      string   `yaml:"etcd.rootpath"`
-	MaxTaskNum    int      `yaml:"task.maxNum"`
-	MaxNameLength int      `yaml:"name.maxLength"`
-	Source        struct {
-		Endpoints            []string `yaml:"etcd.endpoints"`
-		RootPath             string   `yaml:"etcd.rootpath"`
-		MetaPath             string   `yaml:"etcd.meta.path"`
-		ReaderBufferLen      int      `yaml:"reader.buffer.len"`
-		MQType               string   `yaml:"mqtype"`
-		DefaultPartitionName string   `yaml:"default_partition_name"`
-		Pulsar               struct {
-			Address        string `yaml:"address"`
-			Port           int    `yaml:"port"`
-			WebAddress     string `yaml:"web.address"`
-			WebPort        int    `yaml:"web.port"`
-			MaxMessageSize int64  `yaml:"max.message.size"`
-			Tenant         string `yaml:"tenant"`
-			Namespace      string `yaml:"namespace"`
-		} `yaml:"pulsar"`
-		Kafka struct {
-			BrokerList string `yaml:"broker_list"`
-		} `yaml:"kafka"`
-	} `yaml:"source"`
-}
 
 func main() {
 	s := &server.CDCServer{}
 
 	// parse config file
-	conf := config{}
-	f := feeder.Yaml{Path: "./configs/cdc.yaml"}
-	if err := f.Feed(&conf); err != nil {
-		panic(err)
+	fileContent, _ := os.ReadFile("./configs/cdc.yaml")
+	var serverConfig server.CDCServerConfig
+	err := yaml.Unmarshal(fileContent, &serverConfig)
+	if err != nil {
+		util.Log.Panic("Failed to parse config file", zap.Error(err))
 	}
-
-	// build mq configs
-	var pulsarConfig coreconf.PulsarConfig
-	var kafkaConfig coreconf.KafkaConfig
-	if conf.Source.MQType == "pulsar" {
-		pulsarConf := conf.Source.Pulsar
-		pulsarConfig = coreconf.NewPulsarConfig(
-			coreconf.PulsarAddressOption(fmt.Sprintf("pulsar://%s:%d", pulsarConf.Address, pulsarConf.Port)),
-			coreconf.PulsarWebAddressOption(pulsarConf.WebAddress, pulsarConf.WebPort),
-			coreconf.PulsarMaxMessageSizeOption(pulsarConf.MaxMessageSize),
-			coreconf.PulsarTenantOption(pulsarConf.Tenant, pulsarConf.Namespace),
-		)
-	} else if conf.Source.MQType == "kafka" {
-		kafkaConf := conf.Source.Kafka
-		kafkaConfig = coreconf.NewKafkaConfig(
-			coreconf.KafkaAddressOption(kafkaConf.BrokerList))
-	} else {
-		panic("Unknown mq type:" + conf.Source.MQType)
-	}
-
-	s.Run(&server.CDCServerConfig{
-		Address:       fmt.Sprintf("%s:%d", conf.Address, conf.Port),
-		MaxTaskNum:    conf.MaxTaskNum,
-		MaxNameLength: conf.MaxNameLength,
-		EtcdConfig: server.CDCEtcdConfig{
-			Endpoints: conf.Endpoints,
-			RootPath:  conf.RootPath,
-		},
-		SourceConfig: server.MilvusSourceConfig{
-			EtcdAddress:          conf.Source.Endpoints,
-			EtcdRootPath:         conf.Source.RootPath,
-			EtcdMetaSubPath:      conf.Source.MetaPath,
-			ReadChanLen:          conf.Source.ReaderBufferLen,
-			DefaultPartitionName: conf.Source.DefaultPartitionName,
-			Pulsar:               pulsarConfig,
-			Kafka:                kafkaConfig,
-		},
-	})
+	s.Run(&serverConfig)
 }

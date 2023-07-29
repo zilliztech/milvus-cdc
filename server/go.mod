@@ -5,12 +5,11 @@ go 1.18
 require (
 	github.com/cockroachdb/errors v1.9.1
 	github.com/goccy/go-json v0.10.2
-	github.com/golobby/config/v3 v3.4.2
 	github.com/google/uuid v1.3.0
 	//github.com/milvus-io/milvus/pkg v0.0.0-20230411095631-6cd73d4e2a99
 	github.com/milvus-io/milvus v0.0.1
 	//github.com/milvus-io/milvus-proto/go-api v0.0.0-20230309062747-133bf302bb11
-	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.0-dev.1
+	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.0-dev.1.0.20230716112827-c3fe148f5e1d
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/samber/lo v1.27.0
@@ -21,6 +20,8 @@ require (
 	go.uber.org/zap v1.21.0
 	google.golang.org/grpc v1.54.0
 )
+
+require github.com/go-sql-driver/mysql v1.7.1
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
@@ -76,7 +77,7 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
-	github.com/milvus-io/milvus-sdk-go/v2 v2.2.6 // indirect
+	github.com/milvus-io/milvus-sdk-go/v2 v2.2.1-0.20230719020254-9e61d26bdcd3 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
