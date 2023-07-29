@@ -14,13 +14,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 	"go.uber.org/zap"
 )
+
+var log = util.Log
 
 type TaskNumMetric struct {
 	metricDesc *prometheus.Desc

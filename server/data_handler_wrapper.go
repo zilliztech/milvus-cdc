@@ -19,6 +19,8 @@ package server
 import (
 	"context"
 
+	"github.com/zilliztech/milvus-cdc/server/metrics"
+
 	"github.com/zilliztech/milvus-cdc/core/writer"
 )
 
@@ -37,10 +39,10 @@ func NewDataHandlerWrapper(taskID string, handler writer.CDCDataHandler) writer.
 
 func (d *DataHandlerWrapper) metric(collectionName string, apiType string, isErr bool) {
 	if isErr {
-		apiExecuteCountVec.WithLabelValues(d.taskID, collectionName, apiType, failStatusLabel).Inc()
+		metrics.ApiExecuteCountVec.WithLabelValues(d.taskID, collectionName, apiType, metrics.FailStatusLabel).Inc()
 		return
 	}
-	apiExecuteCountVec.WithLabelValues(d.taskID, collectionName, apiType, successStatusLabel).Inc()
+	metrics.ApiExecuteCountVec.WithLabelValues(d.taskID, collectionName, apiType, metrics.SuccessStatusLabel).Inc()
 }
 
 func (d *DataHandlerWrapper) CreateCollection(ctx context.Context, param *writer.CreateCollectionParam) (err error) {

@@ -21,11 +21,15 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
+	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"go.uber.org/zap"
+)
+
+var (
+	RpcRequestCollectionID   int64 = 1
+	RpcRequestCollectionName       = "1"
 )
 
 func GetChannelStartPosition(vchannel string, startPositions []*commonpb.KeyDataPair) (*msgstream.MsgPosition, error) {

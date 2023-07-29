@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/zilliztech/milvus-cdc/server/metrics"
+
 	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
@@ -170,7 +172,7 @@ func (c *CDCTask) work(done <-chan struct{}, cdcReader reader.CDCReader, cdcWrit
 			collectionID = msg.CollectionID
 		}
 		if msgType != "" {
-			readMsgRowCountVec.WithLabelValues(c.id, strconv.FormatInt(collectionID, 10), msgType).Add(float64(count))
+			metrics.ReadMsgRowCountVec.WithLabelValues(c.id, strconv.FormatInt(collectionID, 10), msgType).Add(float64(count))
 		}
 
 		if err := cdcWriter.Write(context.Background(), data, c.callback); err != nil {

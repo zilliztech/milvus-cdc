@@ -47,9 +47,9 @@ var (
 	endpoints    = []string{"localhost:2379"}
 	rootPath     = "cdc"
 	serverConfig = &CDCServerConfig{
-		EtcdConfig: CDCEtcdConfig{
-			Endpoints: endpoints,
-			RootPath:  rootPath,
+		MetaStoreConfig: CDCMetaStoreConfig{
+			EtcdEndpoints: endpoints,
+			RootPath:      rootPath,
 		},
 		SourceConfig: MilvusSourceConfig{
 			EtcdAddress:     endpoints,
@@ -93,7 +93,7 @@ func TestNewMetaCDC(t *testing.T) {
 
 	i := 0
 	mockEtcdCli := mocks.NewKVApi(t)
-	mockEtcdCli.On("Endpoints").Return(endpoints)
+	mockEtcdCli.On("EtcdEndpoints").Return(endpoints)
 	mockEtcdCli.On("Status", mock.Anything, endpoints[0]).Return(&clientv3.StatusResponse{}, nil)
 	newClientFunc := func(cfg clientv3.Config) (util.KVApi, error) {
 		if i == 0 {
@@ -120,7 +120,7 @@ func TestNewMetaCDC(t *testing.T) {
 
 func TestReloadTask(t *testing.T) {
 	mockEtcdCli := mocks.NewKVApi(t)
-	mockEtcdCli.On("Endpoints").Return(endpoints)
+	mockEtcdCli.On("EtcdEndpoints").Return(endpoints)
 	mockEtcdCli.On("Status", mock.Anything, endpoints[0]).Return(&clientv3.StatusResponse{}, nil)
 	util.EtcdOpRetryTime = 1
 	defer func() {
@@ -197,7 +197,7 @@ func TestReloadTask(t *testing.T) {
 
 func TestValidCreateRequest(t *testing.T) {
 	mockEtcdCli := mocks.NewKVApi(t)
-	mockEtcdCli.On("Endpoints").Return(endpoints)
+	mockEtcdCli.On("EtcdEndpoints").Return(endpoints)
 	mockEtcdCli.On("Status", mock.Anything, endpoints[0]).Return(&clientv3.StatusResponse{}, nil)
 
 	util.MockEtcdClient(func(cfg clientv3.Config) (util.KVApi, error) {
@@ -301,7 +301,7 @@ func MockMilvusServer(t *testing.T) func() {
 
 func TestCreateRequest(t *testing.T) {
 	mockEtcdCli := mocks.NewKVApi(t)
-	mockEtcdCli.On("Endpoints").Return(endpoints)
+	mockEtcdCli.On("EtcdEndpoints").Return(endpoints)
 	mockEtcdCli.On("Status", mock.Anything, endpoints[0]).Return(&clientv3.StatusResponse{}, nil)
 	util.EtcdOpRetryTime = 1
 	defer func() {
@@ -386,7 +386,7 @@ func TestCreateRequest(t *testing.T) {
 
 func TestDeleteRequest(t *testing.T) {
 	mockEtcdCli := mocks.NewKVApi(t)
-	mockEtcdCli.On("Endpoints").Return(endpoints)
+	mockEtcdCli.On("EtcdEndpoints").Return(endpoints)
 	mockEtcdCli.On("Status", mock.Anything, endpoints[0]).Return(&clientv3.StatusResponse{}, nil)
 	util.EtcdOpRetryTime = 1
 	defer func() {
@@ -488,7 +488,7 @@ func (m MockEmptyReader) StartRead(_ context.Context) <-chan *coremodel.CDCData 
 
 func TestPauseResumeRequest(t *testing.T) {
 	mockEtcdCli := mocks.NewKVApi(t)
-	mockEtcdCli.On("Endpoints").Return(endpoints)
+	mockEtcdCli.On("EtcdEndpoints").Return(endpoints)
 	mockEtcdCli.On("Status", mock.Anything, endpoints[0]).Return(&clientv3.StatusResponse{}, nil)
 	util.EtcdOpRetryTime = 1
 	defer func() {

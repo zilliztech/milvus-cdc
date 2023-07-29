@@ -1,24 +1,38 @@
----
-address: 0.0.0.0
-port: 8444
-task.maxNum: 100
-name:maxLength: 256
-etcd.endpoints: [localhost:2379] # etcd endpoints
-etcd.rootpath: cdc
-source:
-  etcd.endpoints: [localhost:2379]  # etcd endpoints
-  etcd.rootpath: by-dev  # etcd rootpath
-  etcd.meta.path: meta  # etcd meta sub path
+address: 0.0.0.0:8444
+maxTaskNum: 100
+metaStoreConfig:
+  storeType: etcd
+  etcdEndpoints:
+    - localhost:2379
+  mysqlSourceUrl: root:root@tcp(127.0.0.1:3306)/milvus-cdc?charset=utf8
+  rootPath: cdc
+sourceConfig:
+  etcdAddress:
+    - localhost:2379
+  etcdRootPath: by-dev
+  etcdMetaSubPath: meta
+  readChanLen: 10
   defaultPartitionName: _default
-  reader.buffer.len: 10
-  mqtype: pulsar
   pulsar:
     address: localhost
     port: 6650
-    web.address:
-    web.port: 80
-    max.message.size: 5242880
+    webAddress:
+    webPort: 80
+    maxMessageSize: 5242880
     tenant: public
     namespace: default
-  kafka:
-    broker_list: 127.0.0.1:9092
+#  kafka:
+#    address: 127.0.0.1:9092
+enableReverse: false
+reverseMilvus:
+  host: localhost
+  port: 19530
+  username: root
+  password: 123456
+  enable_tls: false
+  ignore_partition: true
+  connect_timeout: 10
+currentMilvus:
+  host: 127.0.0.1
+  port: 19530
+maxNameLength: 256

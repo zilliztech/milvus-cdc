@@ -31,4 +31,6 @@ const (
 	CollectionPropertiesKey = "properties"
 	DropCollectionMsgsKey   = "drop_collection_msgs"
 	DropPartitionMsgsKey    = "drop_partition_msgs"
+	CollectionIDKey         = "collection_id"
+	CollectionNameKey       = "collection_name"
 )

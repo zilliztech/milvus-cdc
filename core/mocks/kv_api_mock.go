@@ -273,14 +273,14 @@ func (_m *KVApi) Endpoints() []string {
 	return r0
 }
 
-// KVApi_Endpoints_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Endpoints'
+// KVApi_Endpoints_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'EtcdEndpoints'
 type KVApi_Endpoints_Call struct {
 	*mock.Call
 }
 
 // Endpoints is a helper method to define mock.On call
 func (_e *KVApi_Expecter) Endpoints() *KVApi_Endpoints_Call {
-	return &KVApi_Endpoints_Call{Call: _e.mock.On("Endpoints")}
+	return &KVApi_Endpoints_Call{Call: _e.mock.On("EtcdEndpoints")}
 }
 
 func (_c *KVApi_Endpoints_Call) Run(run func()) *KVApi_Endpoints_Call {

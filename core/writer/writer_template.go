@@ -18,12 +18,13 @@ package writer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/cockroachdb/errors"
-	"github.com/goccy/go-json"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
@@ -80,12 +81,18 @@ func NewCDCWriterTemplate(options ...config.Option[*CDCWriterTemplate]) CDCWrite
 		option.Apply(c)
 	}
 	c.funcMap = map[msgstream.MsgType]func(context.Context, *model.CDCData, WriteCallback){
-		commonpb.MsgType_CreateCollection: c.handleCreateCollection,
-		commonpb.MsgType_DropCollection:   c.handleDropCollection,
-		commonpb.MsgType_Insert:           c.handleInsert,
-		commonpb.MsgType_Delete:           c.handleDelete,
-		commonpb.MsgType_CreatePartition:  c.handleCreatePartition,
-		commonpb.MsgType_DropPartition:    c.handleDropPartition,
+		commonpb.MsgType_CreateCollection:  c.handleCreateCollection,
+		commonpb.MsgType_DropCollection:    c.handleDropCollection,
+		commonpb.MsgType_Insert:            c.handleInsert,
+		commonpb.MsgType_Delete:            c.handleDelete,
+		commonpb.MsgType_CreatePartition:   c.handleCreatePartition,
+		commonpb.MsgType_DropPartition:     c.handleDropPartition,
+		commonpb.MsgType_CreateIndex:       c.handleRpcRequest,
+		commonpb.MsgType_DropIndex:         c.handleRpcRequest,
+		commonpb.MsgType_LoadCollection:    c.handleRpcRequest,
+		commonpb.MsgType_ReleaseCollection: c.handleRpcRequest,
+		commonpb.MsgType_CreateDatabase:    c.handleRpcRequest,
+		commonpb.MsgType_DropDatabase:      c.handleRpcRequest,
 	}
 	c.initBuffer()
 	c.periodFlush()
@@ -134,18 +141,31 @@ func (c *CDCWriterTemplate) initBuffer() {
 				}
 			}
 
+			ctx := context.Background()
 			for _, combineDatas := range combineDataMap {
 				for _, combineData := range combineDatas {
 					var err error
 					switch p := combineData.param.(type) {
 					case *InsertParam:
-						err = c.handler.Insert(context.Background(), p)
+						err = c.handler.Insert(ctx, p)
 					case *DeleteParam:
-						err = c.handler.Delete(context.Background(), p)
+						err = c.handler.Delete(ctx, p)
 					case *DropCollectionParam:
-						err = c.handler.DropCollection(context.Background(), p)
+						err = c.handler.DropCollection(ctx, p)
 					case *DropPartitionParam:
-						err = c.handler.DropPartition(context.Background(), p)
+						err = c.handler.DropPartition(ctx, p)
+					case *CreateIndexParam:
+						err = c.handler.CreateIndex(ctx, p)
+					case *DropIndexParam:
+						err = c.handler.DropIndex(ctx, p)
+					case *LoadCollectionParam:
+						err = c.handler.LoadCollection(ctx, p)
+					case *ReleaseCollectionParam:
+						err = c.handler.ReleaseCollection(ctx, p)
+					case *CreateDataBaseParam:
+						err = c.handler.CreateDatabase(ctx, p)
+					case *DropDataBaseParam:
+						err = c.handler.DropDatabase(ctx, p)
 					default:
 						log.Warn("invalid param", zap.Any("data", combineData))
 						continue
@@ -191,6 +211,18 @@ func (c *CDCWriterTemplate) combineDataFunc(dataArr []lo.Tuple2[*model.CDCData, 
 			c.handleDropCollectionBuffer(msg, data, callback, combineDataMap, positionFunc)
 		case *msgstream.DropPartitionMsg:
 			c.handleDropPartitionBuffer(msg, data, callback, combineDataMap, positionFunc)
+		case *msgstream.CreateIndexMsg:
+			c.handleCreateIndexBuffer(msg, data, callback, combineDataMap, positionFunc)
+		case *msgstream.DropIndexMsg:
+			c.handleDropIndexBuffer(msg, data, callback, combineDataMap, positionFunc)
+		case *msgstream.LoadCollectionMsg:
+			c.handleLoadCollectionBuffer(msg, data, callback, combineDataMap, positionFunc)
+		case *msgstream.ReleaseCollectionMsg:
+			c.handleReleaseCollectionBuffer(msg, data, callback, combineDataMap, positionFunc)
+		case *msgstream.CreateDatabaseMsg:
+			c.handleCreateDatabaseBuffer(msg, data, callback, combineDataMap, positionFunc)
+		case *msgstream.DropDatabaseMsg:
+			c.handleDropDatabaseBuffer(msg, data, callback, combineDataMap, positionFunc)
 		}
 	}
 }
@@ -438,6 +470,175 @@ func (c *CDCWriterTemplate) handleDropPartitionBuffer(msg *msgstream.DropPartiti
 	combineDataMap[dataKey] = append(combineDataMap[dataKey], newCombineData)
 }
 
+func (c *CDCWriterTemplate) handleCreateIndexBuffer(msg *msgstream.CreateIndexMsg,
+	data *model.CDCData, callback WriteCallback,
+	combineDataMap map[string][]*CombineData,
+	positionFunc NotifyCollectionPositionChangeFunc,
+) {
+	dataKey := fmt.Sprintf("create_index_%s_%s_%d", msg.CollectionName, msg.IndexName, rand.Int())
+	newCombineData := &CombineData{
+		param: &CreateIndexParam{
+			CreateIndexRequest: msg.CreateIndexRequest,
+		},
+		successes: []func(){
+			func() {
+				c.rpcRequestSuccess(msg, data, callback, positionFunc)
+			},
+		},
+		fails: []func(err error){
+			func(err error) {
+				c.fail("fail to create index", err, data, callback)
+			},
+		},
+	}
+	combineDataMap[dataKey] = append(combineDataMap[dataKey], newCombineData)
+}
+
+func (c *CDCWriterTemplate) handleDropIndexBuffer(msg *msgstream.DropIndexMsg,
+	data *model.CDCData, callback WriteCallback,
+	combineDataMap map[string][]*CombineData,
+	positionFunc NotifyCollectionPositionChangeFunc,
+) {
+	dataKey := fmt.Sprintf("drop_index_%s_%s_%d", msg.CollectionName, msg.IndexName, rand.Int())
+	newCombineData := &CombineData{
+		param: &DropIndexParam{
+			DropIndexRequest: msg.DropIndexRequest,
+		},
+		successes: []func(){
+			func() {
+				c.rpcRequestSuccess(msg, data, callback, positionFunc)
+			},
+		},
+		fails: []func(err error){
+			func(err error) {
+				c.fail("fail to drop index", err, data, callback)
+			},
+		},
+	}
+	combineDataMap[dataKey] = append(combineDataMap[dataKey], newCombineData)
+}
+
+func (c *CDCWriterTemplate) handleLoadCollectionBuffer(msg *msgstream.LoadCollectionMsg,
+	data *model.CDCData, callback WriteCallback,
+	combineDataMap map[string][]*CombineData,
+	positionFunc NotifyCollectionPositionChangeFunc,
+) {
+	dataKey := fmt.Sprintf("load_collection_%s_%d", msg.CollectionName, rand.Int())
+	newCombineData := &CombineData{
+		param: &LoadCollectionParam{
+			LoadCollectionRequest: msg.LoadCollectionRequest,
+		},
+		successes: []func(){
+			func() {
+				c.rpcRequestSuccess(msg, data, callback, positionFunc)
+			},
+		},
+		fails: []func(err error){
+			func(err error) {
+				c.fail("fail to load collection", err, data, callback)
+			},
+		},
+	}
+	combineDataMap[dataKey] = append(combineDataMap[dataKey], newCombineData)
+}
+
+func (c *CDCWriterTemplate) handleReleaseCollectionBuffer(msg *msgstream.ReleaseCollectionMsg,
+	data *model.CDCData, callback WriteCallback,
+	combineDataMap map[string][]*CombineData,
+	positionFunc NotifyCollectionPositionChangeFunc,
+) {
+	dataKey := fmt.Sprintf("release_collection_%s_%d", msg.CollectionName, rand.Int())
+	newCombineData := &CombineData{
+		param: &ReleaseCollectionParam{
+			ReleaseCollectionRequest: msg.ReleaseCollectionRequest,
+		},
+		successes: []func(){
+			func() {
+				c.rpcRequestSuccess(msg, data, callback, positionFunc)
+			},
+		},
+		fails: []func(err error){
+			func(err error) {
+				c.fail("fail to release collection", err, data, callback)
+			},
+		},
+	}
+	combineDataMap[dataKey] = append(combineDataMap[dataKey], newCombineData)
+}
+
+func (c *CDCWriterTemplate) handleCreateDatabaseBuffer(msg *msgstream.CreateDatabaseMsg,
+	data *model.CDCData, callback WriteCallback,
+	combineDataMap map[string][]*CombineData,
+	positionFunc NotifyCollectionPositionChangeFunc,
+) {
+	dataKey := fmt.Sprintf("create_database_%s_%d", msg.DbName, rand.Int())
+	newCombineData := &CombineData{
+		param: &CreateDataBaseParam{
+			CreateDatabaseRequest: msg.CreateDatabaseRequest,
+		},
+		successes: []func(){
+			func() {
+				c.rpcRequestSuccess(msg, data, callback, positionFunc)
+			},
+		},
+		fails: []func(err error){
+			func(err error) {
+				c.fail("fail to create database", err, data, callback)
+			},
+		},
+	}
+	combineDataMap[dataKey] = append(combineDataMap[dataKey], newCombineData)
+}
+
+func (c *CDCWriterTemplate) handleDropDatabaseBuffer(msg *msgstream.DropDatabaseMsg,
+	data *model.CDCData, callback WriteCallback,
+	combineDataMap map[string][]*CombineData,
+	positionFunc NotifyCollectionPositionChangeFunc,
+) {
+	dataKey := fmt.Sprintf("drop_database_%s_%d", msg.DbName, rand.Int())
+	newCombineData := &CombineData{
+		param: &DropDataBaseParam{
+			DropDatabaseRequest: msg.DropDatabaseRequest,
+		},
+		successes: []func(){
+			func() {
+				c.rpcRequestSuccess(msg, data, callback, positionFunc)
+			},
+		},
+		fails: []func(err error){
+			func(err error) {
+				c.fail("fail to drop database", err, data, callback)
+			},
+		},
+	}
+	combineDataMap[dataKey] = append(combineDataMap[dataKey], newCombineData)
+}
+
+func (c *CDCWriterTemplate) rpcRequestSuccess(msg msgstream.TsMsg, data *model.CDCData, callback WriteCallback, positionFunc NotifyCollectionPositionChangeFunc) {
+	channelInfos := make(map[string]CallbackChannelInfo)
+	position := msg.Position()
+	info := CallbackChannelInfo{
+		Position: &commonpb.KeyDataPair{
+			Key:  position.ChannelName,
+			Data: position.MsgID,
+		},
+		Ts: msg.EndTs(),
+	}
+	channelInfos[position.ChannelName] = info
+	collectionID := util.RpcRequestCollectionID
+	collectionName := util.RpcRequestCollectionName
+	if value, ok := data.Extra[model.CollectionIDKey]; ok {
+		collectionID = value.(int64)
+	}
+	if value, ok := data.Extra[model.CollectionNameKey]; ok {
+		collectionName = value.(string)
+	}
+	callback.OnSuccess(collectionID, channelInfos)
+	if positionFunc != nil {
+		positionFunc(collectionID, collectionName, info.Position.Key, info.Position)
+	}
+}
+
 func (c *CDCWriterTemplate) periodFlush() {
 	go func() {
 		if c.bufferConfig.Period <= 0 {
@@ -560,6 +761,13 @@ func (c *CDCWriterTemplate) handleCreatePartition(ctx context.Context, data *mod
 }
 
 func (c *CDCWriterTemplate) handleDropPartition(ctx context.Context, data *model.CDCData, callback WriteCallback) {
+	c.bufferLock.Lock()
+	defer c.bufferLock.Unlock()
+	c.bufferData = append(c.bufferData, lo.T2(data, callback))
+	c.clearBufferFunc()
+}
+
+func (c *CDCWriterTemplate) handleRpcRequest(ctx context.Context, data *model.CDCData, callback WriteCallback) {
 	c.bufferLock.Lock()
 	defer c.bufferLock.Unlock()
 	c.bufferData = append(c.bufferData, lo.T2(data, callback))

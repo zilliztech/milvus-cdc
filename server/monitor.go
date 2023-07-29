@@ -18,6 +18,7 @@ package server
 
 import (
 	"github.com/zilliztech/milvus-cdc/core/reader"
+	"github.com/zilliztech/milvus-cdc/server/metrics"
 	"go.uber.org/zap"
 )
 
@@ -36,26 +37,26 @@ func NewReaderMonitor(taskID string) *ReaderMonitor {
 
 func (s *ReaderMonitor) OnFailUnKnowCollection(key string, err error) {
 	s.log.Warn("fail unknown collection", zap.String("key", key), zap.Error(err))
-	readerFailCountVec.WithLabelValues(s.taskID, readFailUnknown).Inc()
+	metrics.ReaderFailCountVec.WithLabelValues(s.taskID, metrics.ReadFailUnknown).Inc()
 }
 
 func (s *ReaderMonitor) OnFailGetCollectionInfo(collectionID int64, collectionName string, err error) {
 	s.log.Warn("fail to get collection info", zap.Int64("id", collectionID),
 		zap.String("name", collectionName), zap.Error(err))
-	readerFailCountVec.WithLabelValues(s.taskID, readFailGetCollectionInfo).Inc()
+	metrics.ReaderFailCountVec.WithLabelValues(s.taskID, metrics.ReadFailGetCollectionInfo).Inc()
 }
 
 func (s *ReaderMonitor) OnFailReadStream(collectionID int64, collectionName string, vchannel string, err error) {
 	s.log.Warn("fail to read stream data", zap.Int64("id", collectionID),
 		zap.String("name", collectionName), zap.String("channel", vchannel), zap.Error(err))
-	readerFailCountVec.WithLabelValues(s.taskID, readFailReadStream).Inc()
-	streamingCollectionCountVec.WithLabelValues(s.taskID, failStatusLabel).Inc()
+	metrics.ReaderFailCountVec.WithLabelValues(s.taskID, metrics.ReadFailReadStream).Inc()
+	metrics.StreamingCollectionCountVec.WithLabelValues(s.taskID, metrics.FailStatusLabel).Inc()
 }
 
 func (s *ReaderMonitor) OnSuccessGetACollectionInfo(collectionID int64, collectionName string) {
 	s.log.Info("success to get a collection info",
 		zap.Int64("id", collectionID), zap.String("name", collectionName))
-	streamingCollectionCountVec.WithLabelValues(s.taskID, successStatusLabel).Inc()
+	metrics.StreamingCollectionCountVec.WithLabelValues(s.taskID, metrics.SuccessStatusLabel).Inc()
 }
 
 func (s *ReaderMonitor) WatchChanClosed() {

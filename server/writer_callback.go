@@ -17,37 +17,40 @@
 package server
 
 import (
+	"context"
 	"strconv"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/core/writer"
+	"github.com/zilliztech/milvus-cdc/server/metrics"
+	"github.com/zilliztech/milvus-cdc/server/store"
 	"go.uber.org/zap"
 )
 
 type WriteCallback struct {
 	writer.DefaultWriteCallBack
 
-	etcdCtl  util.KVApi
-	rootPath string
-	taskID   string
-	log      *zap.Logger
+	metaStoreFactory store.MetaStoreFactory
+	rootPath         string
+	taskID           string
+	log              *zap.Logger
 }
 
-func NewWriteCallback(etcdCtl util.KVApi, rootPath string, taskID string) *WriteCallback {
+func NewWriteCallback(factory store.MetaStoreFactory, rootPath string, taskID string) *WriteCallback {
 	return &WriteCallback{
-		etcdCtl:  etcdCtl,
-		rootPath: rootPath,
-		taskID:   taskID,
-		log:      log.With(zap.String("task_id", taskID)),
+		metaStoreFactory: factory,
+		rootPath:         rootPath,
+		taskID:           taskID,
+		log:              log.With(zap.String("task_id", taskID)),
 	}
 }
 
 func (w *WriteCallback) OnFail(data *model.CDCData, err error) {
 	w.log.Warn("fail to write the msg", zap.String("data", util.Base64Encode(data)), zap.Error(err))
-	writerFailCountVec.WithLabelValues(w.taskID, writeFailOnFail).Inc()
-	_ = updateTaskFailedReason(w.etcdCtl, w.rootPath, w.taskID, err.Error())
+	metrics.WriterFailCountVec.WithLabelValues(w.taskID, metrics.WriteFailOnFail).Inc()
+	_ = store.UpdateTaskFailedReason(w.metaStoreFactory.GetTaskInfoMetaStore(context.Background()), w.taskID, err.Error())
 }
 
 func (w *WriteCallback) OnSuccess(collectionID int64, channelInfos map[string]writer.CallbackChannelInfo) {
@@ -61,14 +64,14 @@ func (w *WriteCallback) OnSuccess(collectionID int64, channelInfos map[string]wr
 		}
 		count += info.MsgRowCount
 		sub := util.SubByNow(info.Ts)
-		writerTimeDifferenceVec.WithLabelValues(w.taskID, strconv.FormatInt(collectionID, 10), channelName).Set(float64(sub))
+		metrics.WriterTimeDifferenceVec.WithLabelValues(w.taskID, strconv.FormatInt(collectionID, 10), channelName).Set(float64(sub))
 	}
 	if msgType != "" {
-		writeMsgRowCountVec.WithLabelValues(w.taskID, strconv.FormatInt(collectionID, 10), msgType).Add(float64(count))
+		metrics.WriteMsgRowCountVec.WithLabelValues(w.taskID, strconv.FormatInt(collectionID, 10), msgType).Add(float64(count))
 	}
 	// means it's drop collection message
 	if len(channelInfos) > 1 {
-		streamingCollectionCountVec.WithLabelValues(w.taskID, finishStatusLabel).Inc()
+		metrics.StreamingCollectionCountVec.WithLabelValues(w.taskID, metrics.FinishStatusLabel).Inc()
 	}
 }
 
@@ -76,14 +79,19 @@ func (w *WriteCallback) UpdateTaskCollectionPosition(collectionID int64, collect
 	if position == nil {
 		return
 	}
-	err := updateTaskCollectionPosition(w.etcdCtl, w.rootPath, w.taskID,
-		collectionID, collectionName, pChannelName, position)
+	err := store.UpdateTaskCollectionPosition(
+		w.metaStoreFactory.GetTaskCollectionPositionMetaStore(context.Background()),
+		w.taskID,
+		collectionID,
+		collectionName,
+		pChannelName,
+		position)
 	if err != nil {
 		w.log.Warn("fail to update the collection position",
 			zap.Int64("collection_id", collectionID),
 			zap.String("vchannel_name", pChannelName),
 			zap.String("position", util.Base64Encode(position)),
 			zap.Error(err))
-		writerFailCountVec.WithLabelValues(w.taskID, writeFailOnUpdatePosition).Inc()
+		metrics.WriterFailCountVec.WithLabelValues(w.taskID, metrics.WriteFailOnUpdatePosition).Inc()
 	}
 }

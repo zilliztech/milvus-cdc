@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package metrics
 
 import (
 	"net/http"
@@ -27,26 +27,26 @@ const (
 	milvusNamespace = "milvus"
 	systemName      = "cdc"
 
-	unknownTypeLabel = "unknown"
+	UnknownTypeLabel = "unknown"
 
 	// request status label
-	totalStatusLabel          = "total"
-	successStatusLabel        = "success"
-	failStatusLabel           = "fail"
-	finishStatusLabel         = "finish"
-	invalidMethodStatusLabel  = "invalid_method"
-	readErrorStatusLabel      = "read_error"
-	unmarshalErrorStatusLabel = "unmarshal_error"
+	TotalStatusLabel          = "total"
+	SuccessStatusLabel        = "success"
+	FailStatusLabel           = "fail"
+	FinishStatusLabel         = "finish"
+	InvalidMethodStatusLabel  = "invalid_method"
+	ReadErrorStatusLabel      = "read_error"
+	UnmarshalErrorStatusLabel = "unmarshal_error"
 
 	// write fail func label
-	writeFailOnUpdatePosition = "on_update_position"
-	writeFailOnFail           = "on_fail"
-	writeFailOnDrop           = "on_drop"
+	WriteFailOnUpdatePosition = "on_update_position"
+	WriteFailOnFail           = "on_fail"
+	WriteFailOnDrop           = "on_drop"
 
 	// read fail func label
-	readFailUnknown           = "unknown"
-	readFailGetCollectionInfo = "get_collection_info"
-	readFailReadStream        = "read_stream"
+	ReadFailUnknown           = "unknown"
+	ReadFailGetCollectionInfo = "get_collection_info"
+	ReadFailReadStream        = "read_stream"
 
 	taskStateLabelName                 = "task_state"
 	requestTypeLabelName               = "request_type"
@@ -67,11 +67,11 @@ var (
 	registry *prometheus.Registry
 	buckets  = prometheus.ExponentialBuckets(1, 2, 18)
 
-	taskNumVec = &TaskNumMetric{
+	TaskNumVec = &TaskNumMetric{
 		metricDesc: prometheus.NewDesc(prometheus.BuildFQName(milvusNamespace, systemName, "task_num"),
 			"cdc task number", []string{taskStateLabelName}, nil),
 	}
-	taskRequestLatencyVec = prometheus.NewHistogramVec(
+	TaskRequestLatencyVec = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: milvusNamespace,
 			Subsystem: systemName,
@@ -80,7 +80,7 @@ var (
 			Buckets:   buckets,
 		}, []string{requestTypeLabelName})
 
-	taskRequestCountVec = prometheus.NewCounterVec(
+	TaskRequestCountVec = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: milvusNamespace,
 			Subsystem: systemName,
@@ -88,7 +88,7 @@ var (
 			Help:      "cdc request count",
 		}, []string{requestTypeLabelName, requestStatusLabelName})
 
-	streamingCollectionCountVec = prometheus.NewCounterVec(
+	StreamingCollectionCountVec = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: milvusNamespace,
 			Subsystem: systemName,
@@ -96,40 +96,40 @@ var (
 			Help:      "the number of collections that are synchronizing data",
 		}, []string{taskIDLabelName, streamingCollectionStatusLabelName})
 
-	readerFailCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
+	ReaderFailCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: milvusNamespace,
 		Subsystem: systemName,
 		Name:      "reader_fail_total",
 		Help:      "the fail count when the reader reads milvus data",
 	}, []string{taskIDLabelName, readFailFuncLabelName})
 
-	writerFailCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
+	WriterFailCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: milvusNamespace,
 		Subsystem: systemName,
 		Name:      "writer_callback_fail_total",
 		Help:      "the fail count when the writer executes the callback function",
 	}, []string{taskIDLabelName, writeFailFuncLabelName})
 
-	writerTimeDifferenceVec = prometheus.NewGaugeVec(
+	WriterTimeDifferenceVec = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: milvusNamespace,
 			Subsystem: systemName,
 			Name:      "writer_tt_lag_ms",
 			Help:      "the time difference between the current time and the current message timestamp",
 		}, []string{taskIDLabelName, collectionIDLabelName, vchannelLabelName})
-	readMsgRowCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
+	ReadMsgRowCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: milvusNamespace,
 		Subsystem: systemName,
 		Name:      "read_msg_row_total",
 		Help:      "the counter of messages that the reader has read",
 	}, []string{taskIDLabelName, collectionIDLabelName, messageTypeLabelName})
-	writeMsgRowCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
+	WriteMsgRowCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: milvusNamespace,
 		Subsystem: systemName,
 		Name:      "write_msg_row_total",
 		Help:      "the counter of messages that the writer has written",
 	}, []string{taskIDLabelName, collectionIDLabelName, messageTypeLabelName})
-	apiExecuteCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
+	ApiExecuteCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: milvusNamespace,
 		Subsystem: systemName,
 		Name:      "api_execute_total",
@@ -139,19 +139,19 @@ var (
 
 func init() {
 	registry = prometheus.NewRegistry()
-	registry.MustRegister(taskNumVec)
-	registry.MustRegister(taskRequestLatencyVec)
-	registry.MustRegister(taskRequestCountVec)
-	registry.MustRegister(streamingCollectionCountVec)
-	registry.MustRegister(readerFailCountVec)
-	registry.MustRegister(writerFailCountVec)
-	registry.MustRegister(writerTimeDifferenceVec)
-	registry.MustRegister(readMsgRowCountVec)
-	registry.MustRegister(writeMsgRowCountVec)
-	registry.MustRegister(apiExecuteCountVec)
+	registry.MustRegister(TaskNumVec)
+	registry.MustRegister(TaskRequestLatencyVec)
+	registry.MustRegister(TaskRequestCountVec)
+	registry.MustRegister(StreamingCollectionCountVec)
+	registry.MustRegister(ReaderFailCountVec)
+	registry.MustRegister(WriterFailCountVec)
+	registry.MustRegister(WriterTimeDifferenceVec)
+	registry.MustRegister(ReadMsgRowCountVec)
+	registry.MustRegister(WriteMsgRowCountVec)
+	registry.MustRegister(ApiExecuteCountVec)
 }
 
-func registerMetric() {
+func RegisterMetric() {
 	http.Handle("/cdc/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 	http.Handle("/cdc/metrics_default", promhttp.Handler())
 }

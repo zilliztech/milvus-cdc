@@ -33,6 +33,13 @@ type MilvusClientApi interface {
 	DeleteByPks(ctx context.Context, collName string, partitionName string, ids entity.Column) error
 	CreatePartition(ctx context.Context, collName string, partitionName string) error
 	DropPartition(ctx context.Context, collName string, partitionName string) error
+
+	CreateIndex(ctx context.Context, collName string, fieldName string, idx entity.Index, async bool, opts ...client.IndexOption) error
+	DropIndex(ctx context.Context, collName string, fieldName string, opts ...client.IndexOption) error
+	LoadCollection(ctx context.Context, collName string, async bool, opts ...client.LoadCollectionOption) error
+	ReleaseCollection(ctx context.Context, collName string) error
+	CreateDatabase(ctx context.Context, dbName string) error
+	DropDatabase(ctx context.Context, dbName string) error
 }
 
 //go:generate mockery --name=MilvusClientFactory --filename=milvus_client_factory_mock.go --output=../mocks

@@ -17,15 +17,14 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	coreconfig "github.com/zilliztech/milvus-cdc/core/config"
-	"github.com/zilliztech/milvus-cdc/core/reader"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/zilliztech/milvus-cdc/server/metrics"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/samber/lo"
@@ -39,37 +38,37 @@ type CDCServer struct {
 }
 
 func (c *CDCServer) Run(config *CDCServerConfig) {
-	registerMetric()
+	metrics.RegisterMetric()
 
 	c.serverConfig = config
 	c.api = GetCDCApi(c.serverConfig)
 	c.api.ReloadTask()
 	cdcHandler := c.getCDCHandler()
-	{
-		channelReader, err := reader.NewChannelReader(
-			coreconfig.MilvusMQConfig{Pulsar: c.serverConfig.SourceConfig.Pulsar, Kafka: c.serverConfig.SourceConfig.Kafka},
-			"by-dev-rpc-request",
-			0,
-			"",
-			100,
-		)
-		if err != nil {
-			log.Warn("fail to create channel reader", zap.Error(err))
-		} else {
-			dataChan := channelReader.StartRead(context.Background())
-			go func() {
-				for {
-					select {
-					case data := <-dataChan:
-						if data == nil {
-							continue
-						}
-						log.Info("receive data from channel", zap.Any("data", data))
-					}
-				}
-			}()
-		}
-	}
+	//{
+	//	channelReader, err := reader.NewChannelReader(
+	//		coreconfig.MilvusMQConfig{Pulsar: c.serverConfig.SourceConfig.Pulsar, Kafka: c.serverConfig.SourceConfig.Kafka},
+	//		"by-dev-rpc-request",
+	//		0,
+	//		"",
+	//		100,
+	//	)
+	//	if err != nil {
+	//		log.Warn("fail to create channel reader", zap.Error(err))
+	//	} else {
+	//		dataChan := channelReader.StartRead(context.Background())
+	//		go func() {
+	//			for {
+	//				select {
+	//				case data := <-dataChan:
+	//					if data == nil {
+	//						continue
+	//					}
+	//					log.Info("receive data from channel", zap.Any("data", data))
+	//				}
+	//			}
+	//		}()
+	//	}
+	//}
 	http.Handle("/cdc", cdcHandler)
 	log.Info("start server...")
 	err := http.ListenAndServe(c.serverConfig.Address, nil)
@@ -82,30 +81,30 @@ func (c *CDCServer) getCDCHandler() http.Handler {
 		if request.Method != http.MethodPost {
 			c.handleError(writer, "only support the POST method", http.StatusMethodNotAllowed,
 				zap.String("method", request.Method))
-			taskRequestCountVec.WithLabelValues(unknownTypeLabel, invalidMethodStatusLabel).Inc()
+			metrics.TaskRequestCountVec.WithLabelValues(metrics.UnknownTypeLabel, metrics.InvalidMethodStatusLabel).Inc()
 			return
 		}
 		bodyBytes, err := ioutil.ReadAll(request.Body)
 		if err != nil {
 			c.handleError(writer, "fail to read the request body, error: "+err.Error(), http.StatusInternalServerError)
-			taskRequestCountVec.WithLabelValues(unknownTypeLabel, readErrorStatusLabel).Inc()
+			metrics.TaskRequestCountVec.WithLabelValues(metrics.UnknownTypeLabel, metrics.ReadErrorStatusLabel).Inc()
 			return
 		}
 		cdcRequest := &modelrequest.CDCRequest{}
 		err = json.Unmarshal(bodyBytes, cdcRequest)
 		if err != nil {
 			c.handleError(writer, "fail to unmarshal the request, error: "+err.Error(), http.StatusInternalServerError)
-			taskRequestCountVec.WithLabelValues(unknownTypeLabel, unmarshalErrorStatusLabel).Inc()
+			metrics.TaskRequestCountVec.WithLabelValues(metrics.UnknownTypeLabel, metrics.UnmarshalErrorStatusLabel).Inc()
 			return
 		}
-		taskRequestCountVec.WithLabelValues(cdcRequest.RequestType, totalStatusLabel).Inc()
+		metrics.TaskRequestCountVec.WithLabelValues(cdcRequest.RequestType, metrics.TotalStatusLabel).Inc()
 
 		response := c.handleRequest(cdcRequest, writer)
 
 		if response != nil {
 			_ = json.NewEncoder(writer).Encode(response)
-			taskRequestCountVec.WithLabelValues(cdcRequest.RequestType, successStatusLabel).Inc()
-			taskRequestLatencyVec.WithLabelValues(cdcRequest.RequestType).Observe(float64(time.Now().Sub(startTime).Milliseconds()))
+			metrics.TaskRequestCountVec.WithLabelValues(cdcRequest.RequestType, metrics.SuccessStatusLabel).Inc()
+			metrics.TaskRequestLatencyVec.WithLabelValues(cdcRequest.RequestType).Observe(float64(time.Now().Sub(startTime).Milliseconds()))
 		}
 	})
 }
