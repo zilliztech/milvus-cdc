@@ -318,6 +318,7 @@ func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 		cdcwriter.IgnorePartitionOption(connectParam.IgnorePartition),
 		cdcwriter.ConnectTimeoutOption(connectParam.ConnectTimeout))
 	if err != nil {
+		log.Warn("fail to connect the milvus", zap.Any("connect_param", connectParam), zap.Error(err))
 		return errors.WithMessage(err, "fail to connect the milvus")
 	}
 	return nil

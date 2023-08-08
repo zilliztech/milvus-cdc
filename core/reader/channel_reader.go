@@ -45,6 +45,7 @@ func NewChannelReader(options ...config.Option[*ChannelReader]) (*ChannelReader,
 	channelReader.isQuit.Store(false)
 	err := channelReader.initMsgStream()
 	if err != nil {
+		log.Warn("fail to init the msg stream", zap.Error(err))
 		return nil, err
 	}
 
@@ -68,24 +69,25 @@ func (c *ChannelReader) initMsgStream() error {
 
 	consumeSubName := c.channelName + string(rand.Int31())
 	stream.AsConsumer([]string{c.channelName}, consumeSubName, c.subscriptionPosition)
+	log.Info("consume channel", zap.String("channel", c.channelName))
 
 	if c.seekPosition != "" {
 		decodeBytes, err := base64.StdEncoding.DecodeString(c.seekPosition)
 		if err != nil {
-			log.Warn("fail to decode the seek position")
+			log.Warn("fail to decode the seek position", zap.Error(err))
 			stream.Close()
 			return err
 		}
 		msgPosition := &msgpb.MsgPosition{}
 		err = proto.Unmarshal(decodeBytes, msgPosition)
 		if err != nil {
-			log.Warn("fail to unmarshal the seek position")
+			log.Warn("fail to unmarshal the seek position", zap.Error(err))
 			stream.Close()
 			return err
 		}
 		err = stream.Seek([]*msgstream.MsgPosition{msgPosition})
 		if err != nil {
-			log.Warn("fail to seel the msg position")
+			log.Warn("fail to seek the msg position", zap.Any("position", msgPosition), zap.Error(err))
 			return err
 		}
 	}
@@ -96,15 +98,15 @@ func (c *ChannelReader) initMsgStream() error {
 func (c *ChannelReader) StartRead(ctx context.Context) <-chan *model.CDCData {
 	c.startOnce.Do(func() {
 		c.dataChan = make(chan *model.CDCData, c.dataChanLen)
+		msgChan := c.msgStream.Chan()
 		go func() {
-			msgChan := c.msgStream.Chan()
 			for {
 				if c.isQuit.Load() {
 					close(c.dataChan)
 					return
 				}
-				msgPack := <-msgChan
-				if msgPack == nil {
+				msgPack, ok := <-msgChan
+				if !ok || msgPack == nil {
 					return
 				}
 				for _, msg := range msgPack.Msgs {

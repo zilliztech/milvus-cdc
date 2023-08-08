@@ -39,6 +39,7 @@ type DefaultReader struct {
 // StartRead the return value is nil,
 // and if you receive the data from the nil chan, will block forever, not panic
 func (d *DefaultReader) StartRead(ctx context.Context) <-chan *model.CDCData {
+	log.Warn("StartRead is not implemented, please check it")
 	return nil
 }
 
