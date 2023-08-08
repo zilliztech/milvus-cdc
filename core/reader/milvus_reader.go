@@ -470,7 +470,6 @@ func (reader *MilvusCollectionReader) readStreamData(info *pb.CollectionInfo, se
 			return
 		}
 		msgChan, err := reader.msgStreamChan(vchannel, position, stream)
-		// TODO steam leak
 		if err != nil {
 			stream.Close()
 			log.Warn("fail to get message stream chan", zap.String("vchannel", vchannel), zap.Error(err))

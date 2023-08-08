@@ -19,9 +19,9 @@ package server
 import (
 	"context"
 
-	"github.com/zilliztech/milvus-cdc/server/metrics"
-
+	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/core/writer"
+	"github.com/zilliztech/milvus-cdc/server/metrics"
 )
 
 type DataHandlerWrapper struct {
@@ -90,5 +90,53 @@ func (d *DataHandlerWrapper) DropPartition(ctx context.Context, param *writer.Dr
 		d.metric(param.CollectionName, "DropPartition", err != nil)
 	}()
 	err = d.handler.DropPartition(ctx, param)
+	return
+}
+
+func (d *DataHandlerWrapper) CreateIndex(ctx context.Context, param *writer.CreateIndexParam) (err error) {
+	defer func() {
+		d.metric(param.CollectionName, "CreateIndex", err != nil)
+	}()
+	err = d.handler.CreateIndex(ctx, param)
+	return
+}
+
+func (d *DataHandlerWrapper) DropIndex(ctx context.Context, param *writer.DropIndexParam) (err error) {
+	defer func() {
+		d.metric(param.CollectionName, "DropIndex", err != nil)
+	}()
+	err = d.handler.DropIndex(ctx, param)
+	return
+}
+
+func (d *DataHandlerWrapper) LoadCollection(ctx context.Context, param *writer.LoadCollectionParam) (err error) {
+	defer func() {
+		d.metric(param.CollectionName, "LoadCollection", err != nil)
+	}()
+	err = d.handler.LoadCollection(ctx, param)
+	return
+}
+
+func (d *DataHandlerWrapper) ReleaseCollection(ctx context.Context, param *writer.ReleaseCollectionParam) (err error) {
+	defer func() {
+		d.metric(param.CollectionName, "ReleaseCollection", err != nil)
+	}()
+	err = d.handler.ReleaseCollection(ctx, param)
+	return
+}
+
+func (d *DataHandlerWrapper) CreateDatabase(ctx context.Context, param *writer.CreateDataBaseParam) (err error) {
+	defer func() {
+		d.metric(util.RpcRequestCollectionName, "CreateDatabase", err != nil)
+	}()
+	err = d.handler.CreateDatabase(ctx, param)
+	return
+}
+
+func (d *DataHandlerWrapper) DropDatabase(ctx context.Context, param *writer.DropDataBaseParam) (err error) {
+	defer func() {
+		d.metric(util.RpcRequestCollectionName, "DropDatabase", err != nil)
+	}()
+	err = d.handler.DropDatabase(ctx, param)
 	return
 }

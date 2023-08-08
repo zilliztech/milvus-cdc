@@ -14,10 +14,8 @@ sourceConfig:
   readChanLen: 10
   defaultPartitionName: _default
   pulsar:
-    address: localhost
-    port: 6650
-    webAddress:
-    webPort: 80
+    address: pulsar://localhost:6650
+    webAddress: localhost:80
     maxMessageSize: 5242880
     tenant: public
     namespace: default
