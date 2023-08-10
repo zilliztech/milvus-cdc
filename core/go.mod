@@ -6,9 +6,9 @@ require (
 	github.com/cockroachdb/errors v1.9.1
 	github.com/goccy/go-json v0.10.2
 	github.com/golang/protobuf v1.5.3
-	github.com/milvus-io/milvus v0.0.1
 	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.0-dev.1.0.20230716112827-c3fe148f5e1d
 	github.com/milvus-io/milvus-sdk-go/v2 v2.2.1-0.20230719020254-9e61d26bdcd3
+	github.com/milvus-io/milvus/pkg v0.0.1
 	github.com/samber/lo v1.27.0
 	github.com/stretchr/testify v1.8.3
 	go.etcd.io/etcd/api/v3 v3.5.5
@@ -139,7 +139,7 @@ require (
 
 replace (
 	github.com/apache/pulsar-client-go => github.com/milvus-io/pulsar-client-go v0.6.10
-	github.com/milvus-io/milvus => ../../milvus
+	github.com/milvus-io/milvus/pkg => ../../milvus/pkg
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => ./../rocksdb
 )

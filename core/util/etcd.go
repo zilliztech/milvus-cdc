@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	EtcdOpTimeout        = 5 * time.Second
+	EtcdOpTimeout        = 10 * time.Second
 	EtcdOpRetryTime uint = 5
 )
 
