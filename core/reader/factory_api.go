@@ -41,26 +41,38 @@ func NewDefaultFactoryCreator() FactoryCreator {
 }
 
 func (d *DefaultFactoryCreator) NewPmsFactory(cfg *config.PulsarConfig) msgstream.Factory {
-	return msgstream.NewPmsFactory(&paramtable.PulsarConfig{
-		Address:        config.NewParamItem(cfg.Address),
-		WebAddress:     config.NewParamItem(cfg.WebAddress),
-		WebPort:        config.NewParamItem(strconv.Itoa(cfg.WebPort)),
-		MaxMessageSize: config.NewParamItem(cfg.MaxMessageSize),
-		AuthPlugin:     config.NewParamItem(""),
-		AuthParams:     config.NewParamItem("{}"),
-		Tenant:         config.NewParamItem(cfg.Tenant),
-		Namespace:      config.NewParamItem(cfg.Namespace),
-	})
+	return msgstream.NewPmsFactory(
+		&paramtable.ServiceParam{
+			PulsarCfg: paramtable.PulsarConfig{
+				Address:        config.NewParamItem(cfg.Address),
+				WebAddress:     config.NewParamItem(cfg.WebAddress),
+				WebPort:        config.NewParamItem(strconv.Itoa(cfg.WebPort)),
+				MaxMessageSize: config.NewParamItem(cfg.MaxMessageSize),
+				AuthPlugin:     config.NewParamItem(""),
+				AuthParams:     config.NewParamItem("{}"),
+				Tenant:         config.NewParamItem(cfg.Tenant),
+				Namespace:      config.NewParamItem(cfg.Namespace),
+			},
+		},
+	)
 }
 
 func (d *DefaultFactoryCreator) NewKmsFactory(cfg *config.KafkaConfig) msgstream.Factory {
-	return msgstream.NewKmsFactory(&paramtable.KafkaConfig{
-		Address:             config.NewParamItem(cfg.Address),
-		SaslUsername:        config.NewParamItem(""),
-		SaslPassword:        config.NewParamItem(""),
-		SaslMechanisms:      config.NewParamItem(""),
-		SecurityProtocol:    config.NewParamItem(""),
-		ConsumerExtraConfig: config.NewParamGroup(),
-		ProducerExtraConfig: config.NewParamGroup(),
-	})
+	return msgstream.NewKmsFactory(
+		&paramtable.ServiceParam{
+			KafkaCfg: paramtable.KafkaConfig{
+				Address:             config.NewParamItem(cfg.Address),
+				SaslUsername:        config.NewParamItem(""),
+				SaslPassword:        config.NewParamItem(""),
+				SaslMechanisms:      config.NewParamItem(""),
+				SecurityProtocol:    config.NewParamItem(""),
+				ConsumerExtraConfig: config.NewParamGroup(),
+				ProducerExtraConfig: config.NewParamGroup(),
+			},
+			MQCfg: paramtable.MQConfig{
+				ReceiveBufSize: config.NewParamItem("16"),
+				MQBufSize:      config.NewParamItem("16"),
+			},
+		},
+	)
 }

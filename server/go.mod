@@ -4,12 +4,14 @@ go 1.18
 
 require (
 	github.com/cockroachdb/errors v1.9.1
+	github.com/go-sql-driver/mysql v1.7.1
 	github.com/goccy/go-json v0.10.2
+	github.com/golang/protobuf v1.5.3
 	github.com/google/uuid v1.3.0
-	//github.com/milvus-io/milvus/pkg v0.0.0-20230411095631-6cd73d4e2a99
-	github.com/milvus-io/milvus v0.0.1
 	//github.com/milvus-io/milvus-proto/go-api v0.0.0-20230309062747-133bf302bb11
 	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.0-dev.1.0.20230716112827-c3fe148f5e1d
+	//github.com/milvus-io/milvus/pkg v0.0.0-20230411095631-6cd73d4e2a99
+	github.com/milvus-io/milvus/pkg v0.0.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/samber/lo v1.27.0
@@ -19,15 +21,13 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.5
 	go.uber.org/zap v1.21.0
 	google.golang.org/grpc v1.54.0
+	sigs.k8s.io/yaml v1.2.0
 )
-
-require github.com/go-sql-driver/mysql v1.7.1
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.1 // indirect
 	github.com/AthenZ/athenz v1.10.39 // indirect
-	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/DataDog/zstd v1.5.0 // indirect
 	github.com/apache/pulsar-client-go v0.6.1-0.20210728062540-29414db801a7 // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
@@ -55,11 +55,7 @@ require (
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/golobby/cast v1.3.3 // indirect
-	github.com/golobby/dotenv v1.3.2 // indirect
-	github.com/golobby/env/v2 v2.2.4 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
@@ -147,12 +143,11 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
 replace (
 	github.com/apache/pulsar-client-go => github.com/milvus-io/pulsar-client-go v0.6.10
-	github.com/milvus-io/milvus => ../../milvus
+	github.com/milvus-io/milvus/pkg => ../../milvus/pkg
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => ./../rocksdb
 	github.com/zilliztech/milvus-cdc/core => ../core
