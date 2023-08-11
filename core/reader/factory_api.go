@@ -53,6 +53,10 @@ func (d *DefaultFactoryCreator) NewPmsFactory(cfg *config.PulsarConfig) msgstrea
 				Tenant:         config.NewParamItem(cfg.Tenant),
 				Namespace:      config.NewParamItem(cfg.Namespace),
 			},
+			MQCfg: paramtable.MQConfig{
+				ReceiveBufSize: config.NewParamItem("16"),
+				MQBufSize:      config.NewParamItem("16"),
+			},
 		},
 	)
 }
