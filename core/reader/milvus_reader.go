@@ -26,6 +26,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/milvus-io/milvus/pkg/common"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
@@ -393,6 +395,10 @@ func (reader *MilvusCollectionReader) fillCollectionField(info *pb.CollectionInf
 			log.Warn("fail to unmarshal filed schema info",
 				zap.String("key", util.ToString(kv.Key)), zap.String("value", util.Base64Encode(kv.Value)), zap.Error(err))
 			return err
+		}
+		if field.Name == common.MetaFieldName {
+			info.Schema.EnableDynamicField = true
+			continue
 		}
 		if field.FieldID >= 100 {
 			fields = append(fields, field)
