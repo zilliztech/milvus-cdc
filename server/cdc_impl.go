@@ -137,6 +137,9 @@ func (e *MetaCDC) ReloadTask() {
 				if err = e.metaStoreFactory.GetTaskInfoMetaStore(ctx).Put(ctx, taskInfo, reverseTxn); err != nil {
 					log.Panic("fail to put the task info to metastore when reversing", zap.Error(err))
 				}
+				if err = e.metaStoreFactory.GetTaskCollectionPositionMetaStore(ctx).Delete(ctx, &meta.TaskCollectionPosition{TaskID: taskInfo.TaskID}, reverseTxn); err != nil {
+					log.Panic("fail to delete the task collection position to metastore when reversing", zap.Error(err))
+				}
 			}
 		}
 		if err = commitFunc(err); err != nil {
