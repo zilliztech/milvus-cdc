@@ -73,7 +73,7 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
-	github.com/milvus-io/milvus-sdk-go/v2 v2.2.1-0.20230719020254-9e61d26bdcd3 // indirect
+	github.com/milvus-io/milvus-sdk-go/v2 v2.2.1-0.20230814034926-dd5a31f64225 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
