@@ -7,7 +7,7 @@ require (
 	github.com/goccy/go-json v0.10.2
 	github.com/golang/protobuf v1.5.3
 	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.0-dev.1.0.20230716112827-c3fe148f5e1d
-	github.com/milvus-io/milvus-sdk-go/v2 v2.2.1-0.20230719020254-9e61d26bdcd3
+	github.com/milvus-io/milvus-sdk-go/v2 v2.2.1-0.20230814034926-dd5a31f64225
 	github.com/milvus-io/milvus/pkg v0.0.1
 	github.com/samber/lo v1.27.0
 	github.com/stretchr/testify v1.8.3
