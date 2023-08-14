@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -168,11 +169,11 @@ func (m *TaskInfoMysqlStore) Put(ctx context.Context, metaObj *meta.TaskInfo, tx
 }
 
 func (m *TaskInfoMysqlStore) Get(ctx context.Context, metaObj *meta.TaskInfo, txn any) ([]*meta.TaskInfo, error) {
-	sqlStr := "SELECT task_info_value FROM task_info WHERE task_id = ?"
-	sqlArgs := []any{metaObj.TaskID}
-	if metaObj.TaskID == "" {
-		sqlStr = "SELECT task_info_value FROM task_info"
-		sqlArgs = []any{}
+	sqlStr := fmt.Sprintf("SELECT task_info_value FROM task_info WHERE task_info_key LIKE '%s%%'", getTaskInfoPrefix(m.rootPath))
+	var sqlArgs []any
+	if metaObj.TaskID != "" {
+		sqlStr += " AND task_id = ?"
+		sqlArgs = append(sqlArgs, metaObj.TaskID)
 	}
 
 	var taskInfos []*meta.TaskInfo
@@ -327,19 +328,15 @@ func (m *TaskCollectionPositionMysqlStore) Put(ctx context.Context, metaObj *met
 }
 
 func (m *TaskCollectionPositionMysqlStore) Get(ctx context.Context, metaObj *meta.TaskCollectionPosition, txn any) ([]*meta.TaskCollectionPosition, error) {
-	sqlStr := "SELECT task_id, collection_id, collection_name, task_position_value FROM task_position"
+	sqlStr := fmt.Sprintf("SELECT task_id, collection_id, collection_name, task_position_value FROM task_position WHERE task_position_key LIKE '%s%%'", getTaskCollectionPositionPrefix(m.rootPath))
 	var sqlArgs []any
 	if metaObj.TaskID != "" || metaObj.CollectionID != 0 {
-		sqlStr += " WHERE"
 		if metaObj.TaskID != "" {
-			sqlStr += " task_id = ?"
+			sqlStr += " AND task_id = ?"
 			sqlArgs = append(sqlArgs, metaObj.TaskID)
 		}
 		if metaObj.CollectionID != 0 {
-			if len(sqlArgs) > 0 {
-				sqlStr += " AND"
-			}
-			sqlStr += " collection_id = ?"
+			sqlStr += " AND collection_id = ?"
 			sqlArgs = append(sqlArgs, metaObj.CollectionID)
 		}
 	}
