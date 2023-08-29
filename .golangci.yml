@@ -1,0 +1,37 @@
+run:
+  skip-dirs:
+    - pb
+    - mocks
+
+linters-settings:
+  golint:
+    min-confidence: 0.8
+
+  misspell:
+    locale: US
+
+linters:
+  disable-all: true
+  enable:
+    - typecheck
+    - goimports
+    - misspell
+    - govet
+    - ineffassign
+    - gosimple
+    - revive
+
+issues:
+  exclude-use-default: false
+  exclude:
+    - should have a package comment
+    - should have comment
+    - should be of the form
+    - should not use dot imports
+    - which can be annoying to use
+  # Maximum issue count per one linter. Set to 0 to disable. Default is 50.
+  max-issues-per-linter: 0
+  # Maximum count of issues with same text. Set to 0 to disable. Default is 3.
+  max-same-issues: 0
+service:
+  golangci-lint-version: 1.50.0 # use the fixed version to not introduce new linters unexpectedly

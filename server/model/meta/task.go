@@ -64,7 +64,7 @@ type TaskInfo struct {
 	MilvusConnectParam    model.MilvusConnectParam
 	WriterCacheConfig     model.BufferConfig
 	CollectionInfos       []model.CollectionInfo
-	RpcRequestChannelInfo model.ChannelInfo
+	RPCRequestChannelInfo model.ChannelInfo
 	ExcludeCollections    []string // it's used for the `*` collection name
 	State                 TaskState
 	FailedReason          string

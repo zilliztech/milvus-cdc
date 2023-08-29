@@ -17,14 +17,9 @@
 package server
 
 import (
-	"github.com/cockroachdb/errors"
 	"github.com/zilliztech/milvus-cdc/core/util"
-	servererror "github.com/zilliztech/milvus-cdc/server/error"
 )
 
 var (
-	log         = util.Log
-	ClientErr   = servererror.NewClientError("")
-	ServerErr   = servererror.NewServerError(errors.New(""))
-	NotFoundErr = servererror.NewNotFoundError("")
+	log = util.Log
 )

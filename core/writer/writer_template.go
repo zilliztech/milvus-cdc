@@ -87,12 +87,12 @@ func NewCDCWriterTemplate(options ...config.Option[*CDCWriterTemplate]) CDCWrite
 		commonpb.MsgType_Delete:            c.handleDelete,
 		commonpb.MsgType_CreatePartition:   c.handleCreatePartition,
 		commonpb.MsgType_DropPartition:     c.handleDropPartition,
-		commonpb.MsgType_CreateIndex:       c.handleRpcRequest,
-		commonpb.MsgType_DropIndex:         c.handleRpcRequest,
-		commonpb.MsgType_LoadCollection:    c.handleRpcRequest,
-		commonpb.MsgType_ReleaseCollection: c.handleRpcRequest,
-		commonpb.MsgType_CreateDatabase:    c.handleRpcRequest,
-		commonpb.MsgType_DropDatabase:      c.handleRpcRequest,
+		commonpb.MsgType_CreateIndex:       c.handleRPCRequest,
+		commonpb.MsgType_DropIndex:         c.handleRPCRequest,
+		commonpb.MsgType_LoadCollection:    c.handleRPCRequest,
+		commonpb.MsgType_ReleaseCollection: c.handleRPCRequest,
+		commonpb.MsgType_CreateDatabase:    c.handleRPCRequest,
+		commonpb.MsgType_DropDatabase:      c.handleRPCRequest,
 	}
 	c.initBuffer()
 	c.periodFlush()
@@ -625,8 +625,8 @@ func (c *CDCWriterTemplate) rpcRequestSuccess(msg msgstream.TsMsg, data *model.C
 		Ts: msg.EndTs(),
 	}
 	channelInfos[position.ChannelName] = info
-	collectionID := util.RpcRequestCollectionID
-	collectionName := util.RpcRequestCollectionName
+	collectionID := util.RPCRequestCollectionID
+	collectionName := util.RPCRequestCollectionName
 	if value, ok := data.Extra[model.CollectionIDKey]; ok {
 		collectionID = value.(int64)
 	}
@@ -646,10 +646,8 @@ func (c *CDCWriterTemplate) periodFlush() {
 		}
 		ticker := time.NewTicker(c.bufferConfig.Period)
 		for {
-			select {
-			case <-ticker.C:
-				c.Flush(context.Background())
-			}
+			<-ticker.C
+			c.Flush(context.Background())
 		}
 	}()
 }
@@ -686,7 +684,7 @@ func (c *CDCWriterTemplate) handleCreateCollection(ctx context.Context, data *mo
 		c.fail("fail to unmarshal the collection schema", err, data, callback)
 		return
 	}
-	var shardNum int32 = 0
+	var shardNum int32
 	if value, ok := data.Extra[model.ShardNumKey]; ok {
 		shardNum = value.(int32)
 	}
@@ -767,7 +765,7 @@ func (c *CDCWriterTemplate) handleDropPartition(ctx context.Context, data *model
 	c.clearBufferFunc()
 }
 
-func (c *CDCWriterTemplate) handleRpcRequest(ctx context.Context, data *model.CDCData, callback WriteCallback) {
+func (c *CDCWriterTemplate) handleRPCRequest(ctx context.Context, data *model.CDCData, callback WriteCallback) {
 	c.bufferLock.Lock()
 	defer c.bufferLock.Unlock()
 	c.bufferData = append(c.bufferData, lo.T2(data, callback))

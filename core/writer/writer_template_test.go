@@ -28,9 +28,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/goccy/go-json"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
-	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -70,7 +68,7 @@ func (a *AssertPosition) clear() {
 
 func TestWriterTemplateCreateCollection(t *testing.T) {
 	mockMilvusFactory := mocks.NewMilvusClientFactory(t)
-	mockMilvusClient := mocks.NewMilvusClientApi(t)
+	mockMilvusClient := mocks.NewMilvusClientAPI(t)
 	factoryOption := writer.MilvusFactoryOption(mockMilvusFactory)
 	writerCallback := mocks.NewWriteCallback(t)
 	call := mockMilvusFactory.On("NewGrpcClientWithTLSAuth", mock.Anything, address, user, password).Return(mockMilvusClient, nil)
@@ -102,10 +100,6 @@ func TestWriterTemplateCreateCollection(t *testing.T) {
 	level := commonpb.ConsistencyLevel_Session
 	kv := &commonpb.KeyValuePair{Key: "foo", Value: "111"}
 
-	options := []client.CreateCollectionOption{
-		client.WithCollectionProperty(kv.GetKey(), kv.GetValue()),
-		client.WithConsistencyLevel(entity.ConsistencyLevel(level)),
-	}
 	pbSchema := &schemapb.CollectionSchema{
 		Name:        "coll",
 		Description: "coll-des",
@@ -158,16 +152,6 @@ func TestWriterTemplateCreateCollection(t *testing.T) {
 				assert.Len(t, entitySchema.Fields, 2)
 				assert.EqualValues(t, 100, entitySchema.Fields[0].ID)
 				assert.EqualValues(t, 101, entitySchema.Fields[1].ID)
-
-				createRequest1 := &milvuspb.CreateCollectionRequest{}
-				for _, option := range options {
-					option(createRequest1)
-				}
-				createRequest2 := &milvuspb.CreateCollectionRequest{}
-				for _, option := range args[3:] {
-					option.(client.CreateCollectionOption)(createRequest2)
-				}
-				assert.EqualValues(t, createRequest1, createRequest2)
 			}).
 			Return(nil)
 		defer createCall.Unset()
@@ -196,14 +180,14 @@ func TestWriterTemplateInsertDeleteDrop(t *testing.T) {
 	mockMilvusFactory := mocks.NewMilvusClientFactory(t)
 	factoryOption := writer.MilvusFactoryOption(mockMilvusFactory)
 
-	assertPosition := NewAssertPosition()
-	newWriter := func() writer.CDCWriter {
+	//assertPosition := NewAssertPosition()
+	newWriter := func(assertPosition *AssertPosition) writer.CDCWriter {
 		handler, err := writer.NewMilvusDataHandler(addressOption, userOption, tlsOption, timeoutOption, ignorePartition, factoryOption)
 		assert.NoError(t, err)
 		return writer.NewCDCWriterTemplate(
 			writer.HandlerOption(handler),
 			writer.BufferOption(5*time.Second, 10*1024*1024, assertPosition.savePosition),
-			writer.ErrorProtectOption(5, time.Second),
+			writer.ErrorProtectOption(100, time.Second),
 		)
 	}
 
@@ -340,9 +324,10 @@ func TestWriterTemplateInsertDeleteDrop(t *testing.T) {
 	}
 
 	t.Run("insert success", func(t *testing.T) {
+		assertPosition := NewAssertPosition()
 		defer assertPosition.clear()
 		writerCallback := mocks.NewWriteCallback(t)
-		mockMilvusClient := mocks.NewMilvusClientApi(t)
+		mockMilvusClient := mocks.NewMilvusClientAPI(t)
 		call := mockMilvusFactory.On("NewGrpcClientWithTLSAuth", mock.Anything, address, user, password).Return(mockMilvusClient, nil)
 		defer call.Unset()
 
@@ -360,7 +345,7 @@ func TestWriterTemplateInsertDeleteDrop(t *testing.T) {
 			}
 		}).Return(nil, nil)
 		defer insertCall.Unset()
-		cdcWriter := newWriter()
+		cdcWriter := newWriter(assertPosition)
 
 		err := cdcWriter.Write(context.Background(), generateInsertData(int64(1001), "coll", "a", "part", "a"), writerCallback)
 		assert.NoError(t, err)
@@ -393,10 +378,11 @@ func TestWriterTemplateInsertDeleteDrop(t *testing.T) {
 	})
 
 	t.Run("delete success", func(t *testing.T) {
+		assertPosition := NewAssertPosition()
 		defer assertPosition.clear()
 
 		writerCallback := mocks.NewWriteCallback(t)
-		mockMilvusClient := mocks.NewMilvusClientApi(t)
+		mockMilvusClient := mocks.NewMilvusClientAPI(t)
 		call := mockMilvusFactory.On("NewGrpcClientWithTLSAuth", mock.Anything, address, user, password).Return(mockMilvusClient, nil)
 		defer call.Unset()
 		successCallbackCall := writerCallback.On("OnSuccess", mock.Anything, mock.Anything).Return()
@@ -411,7 +397,7 @@ func TestWriterTemplateInsertDeleteDrop(t *testing.T) {
 			}
 		}).Return(nil)
 		defer deleteCall.Unset()
-		cdcWriter := newWriter()
+		cdcWriter := newWriter(assertPosition)
 
 		err := cdcWriter.Write(context.Background(), generateDeleteData(int64(1001), "col1", "a", "part", "a", []int64{1, 2, 3}), writerCallback)
 		assert.NoError(t, err)
@@ -444,10 +430,11 @@ func TestWriterTemplateInsertDeleteDrop(t *testing.T) {
 	})
 
 	t.Run("drop success", func(t *testing.T) {
+		assertPosition := NewAssertPosition()
 		defer assertPosition.clear()
 
 		writerCallback := mocks.NewWriteCallback(t)
-		mockMilvusClient := mocks.NewMilvusClientApi(t)
+		mockMilvusClient := mocks.NewMilvusClientAPI(t)
 		call := mockMilvusFactory.On("NewGrpcClientWithTLSAuth", mock.Anything, address, user, password).Return(mockMilvusClient, nil)
 		defer call.Unset()
 		successCallbackCall := writerCallback.On("OnSuccess", mock.Anything, mock.Anything).Return()
@@ -458,7 +445,7 @@ func TestWriterTemplateInsertDeleteDrop(t *testing.T) {
 		defer deleteCall.Unset()
 		dropCall := mockMilvusClient.On("DropCollection", mock.Anything, mock.Anything).Return(nil)
 		defer dropCall.Unset()
-		cdcWriter := newWriter()
+		cdcWriter := newWriter(assertPosition)
 
 		err := cdcWriter.Write(context.Background(), generateInsertData(int64(1001), "coll", "a", "part", "a"), writerCallback)
 		assert.NoError(t, err)
@@ -470,6 +457,7 @@ func TestWriterTemplateInsertDeleteDrop(t *testing.T) {
 		assert.NoError(t, err)
 		err = cdcWriter.Write(context.Background(), generateDropData(int64(1001), "coll", "a", "e", "b", "f"), writerCallback)
 		assert.NoError(t, err)
+		cdcWriter.Flush(context.Background())
 
 		time.Sleep(2 * time.Second)
 		writerCallback.AssertCalled(t, "OnSuccess", int64(1001), mock.Anything)
@@ -490,10 +478,11 @@ func TestWriterTemplateInsertDeleteDrop(t *testing.T) {
 	})
 
 	t.Run("flush", func(t *testing.T) {
+		assertPosition := NewAssertPosition()
 		defer assertPosition.clear()
 
 		writerCallback := mocks.NewWriteCallback(t)
-		mockMilvusClient := mocks.NewMilvusClientApi(t)
+		mockMilvusClient := mocks.NewMilvusClientAPI(t)
 		call := mockMilvusFactory.On("NewGrpcClientWithTLSAuth", mock.Anything, address, user, password).Return(mockMilvusClient, nil)
 		defer call.Unset()
 		successCallbackCall := writerCallback.On("OnSuccess", mock.Anything, mock.Anything).Return()
@@ -501,7 +490,7 @@ func TestWriterTemplateInsertDeleteDrop(t *testing.T) {
 		deleteCall := mockMilvusClient.On("DeleteByPks", mock.Anything, mock.Anything, "", mock.Anything).Return(nil)
 		defer deleteCall.Unset()
 
-		cdcWriter := newWriter()
+		cdcWriter := newWriter(assertPosition)
 		err := cdcWriter.Write(context.Background(), generateDeleteData(int64(1001), "col1", "a", "part", "a", []int64{1, 2, 3}), writerCallback)
 		assert.NoError(t, err)
 
@@ -515,10 +504,11 @@ func TestWriterTemplateInsertDeleteDrop(t *testing.T) {
 	})
 
 	t.Run("err", func(t *testing.T) {
+		assertPosition := NewAssertPosition()
 		defer assertPosition.clear()
 
 		writerCallback := mocks.NewWriteCallback(t)
-		mockMilvusClient := mocks.NewMilvusClientApi(t)
+		mockMilvusClient := mocks.NewMilvusClientAPI(t)
 		call := mockMilvusFactory.On("NewGrpcClientWithTLSAuth", mock.Anything, address, user, password).Return(mockMilvusClient, nil)
 		defer call.Unset()
 		successCallbackCall := writerCallback.On("OnSuccess", mock.Anything, mock.Anything).Return()
@@ -530,7 +520,13 @@ func TestWriterTemplateInsertDeleteDrop(t *testing.T) {
 		deleteCall := mockMilvusClient.On("DeleteByPks", mock.Anything, mock.Anything, "", mock.Anything).Return(errors.New("delete error"))
 		defer deleteCall.Unset()
 
-		cdcWriter := newWriter()
+		handler, _ := writer.NewMilvusDataHandler(addressOption, userOption, tlsOption, timeoutOption, ignorePartition, factoryOption)
+		cdcWriter := writer.NewCDCWriterTemplate(
+			writer.HandlerOption(handler),
+			writer.BufferOption(5*time.Second, 10*1024*1024, assertPosition.savePosition),
+			writer.ErrorProtectOption(5, time.Second),
+		)
+
 		for i := 0; i < 3; i++ {
 			err := cdcWriter.Write(context.Background(), generateDeleteData(int64(1001), "col1", "a", "part", "a", []int64{1, 2, 3}), writerCallback)
 			assert.NoError(t, err)

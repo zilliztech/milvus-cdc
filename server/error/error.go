@@ -16,7 +16,17 @@
 
 package error
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/cockroachdb/errors"
+)
+
+var (
+	ClientErr   = NewClientError("")
+	ServerErr   = NewServerError(errors.New(""))
+	NotFoundErr = NewNotFoundError("")
+)
 
 type ClientError struct {
 	msg string

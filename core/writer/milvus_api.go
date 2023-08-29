@@ -25,8 +25,8 @@ import (
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 )
 
-//go:generate mockery --name=MilvusClientApi --filename=milvus_client_api_mock.go --output=../mocks
-type MilvusClientApi interface {
+//go:generate mockery --name=MilvusClientAPI --filename=milvus_client_api_mock.go --output=../mocks
+type MilvusClientAPI interface {
 	CreateCollection(ctx context.Context, schema *entity.Schema, shardsNum int32, opts ...client.CreateCollectionOption) error
 	DropCollection(ctx context.Context, collName string) error
 	Insert(ctx context.Context, collName string, partitionName string, columns ...entity.Column) (entity.Column, error)
@@ -45,9 +45,9 @@ type MilvusClientApi interface {
 //go:generate mockery --name=MilvusClientFactory --filename=milvus_client_factory_mock.go --output=../mocks
 type MilvusClientFactory interface {
 	util.CDCMark
-	NewGrpcClientWithTLSAuth(ctx context.Context, addr, username, password string) (MilvusClientApi, error)
-	NewGrpcClientWithAuth(ctx context.Context, addr, username, password string) (MilvusClientApi, error)
-	NewGrpcClient(ctx context.Context, addr string) (MilvusClientApi, error)
+	NewGrpcClientWithTLSAuth(ctx context.Context, addr, username, password string) (MilvusClientAPI, error)
+	NewGrpcClientWithAuth(ctx context.Context, addr, username, password string) (MilvusClientAPI, error)
+	NewGrpcClient(ctx context.Context, addr string) (MilvusClientAPI, error)
 }
 
 type DefaultMilvusClientFactory struct {
@@ -58,14 +58,14 @@ func NewDefaultMilvusClientFactory() MilvusClientFactory {
 	return &DefaultMilvusClientFactory{}
 }
 
-func (d *DefaultMilvusClientFactory) NewGrpcClientWithTLSAuth(ctx context.Context, addr, username, password string) (MilvusClientApi, error) {
+func (d *DefaultMilvusClientFactory) NewGrpcClientWithTLSAuth(ctx context.Context, addr, username, password string) (MilvusClientAPI, error) {
 	return client.NewDefaultGrpcClientWithTLSAuth(ctx, addr, username, password)
 }
 
-func (d *DefaultMilvusClientFactory) NewGrpcClientWithAuth(ctx context.Context, addr, username, password string) (MilvusClientApi, error) {
+func (d *DefaultMilvusClientFactory) NewGrpcClientWithAuth(ctx context.Context, addr, username, password string) (MilvusClientAPI, error) {
 	return client.NewDefaultGrpcClientWithAuth(ctx, addr, username, password)
 }
 
-func (d *DefaultMilvusClientFactory) NewGrpcClient(ctx context.Context, addr string) (MilvusClientApi, error) {
+func (d *DefaultMilvusClientFactory) NewGrpcClient(ctx context.Context, addr string) (MilvusClientAPI, error) {
 	return client.NewDefaultGrpcClient(ctx, addr)
 }

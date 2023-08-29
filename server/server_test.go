@@ -25,6 +25,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/stretchr/testify/assert"
+	cdcerror "github.com/zilliztech/milvus-cdc/server/error"
 	"github.com/zilliztech/milvus-cdc/server/model/request"
 )
 
@@ -156,7 +157,7 @@ func TestCDCHandler(t *testing.T) {
 
 	t.Run("request data handle client error", func(t *testing.T) {
 		server.api = &MockBaseCDC{
-			err: NewClientError("foo"),
+			err: cdcerror.NewClientError("foo"),
 		}
 		responseWriter := &MockResponseWriter{
 			t:          t,

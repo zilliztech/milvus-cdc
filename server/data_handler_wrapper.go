@@ -39,10 +39,10 @@ func NewDataHandlerWrapper(taskID string, handler writer.CDCDataHandler) writer.
 
 func (d *DataHandlerWrapper) metric(collectionName string, apiType string, isErr bool) {
 	if isErr {
-		metrics.ApiExecuteCountVec.WithLabelValues(d.taskID, collectionName, apiType, metrics.FailStatusLabel).Inc()
+		metrics.APIExecuteCountVec.WithLabelValues(d.taskID, collectionName, apiType, metrics.FailStatusLabel).Inc()
 		return
 	}
-	metrics.ApiExecuteCountVec.WithLabelValues(d.taskID, collectionName, apiType, metrics.SuccessStatusLabel).Inc()
+	metrics.APIExecuteCountVec.WithLabelValues(d.taskID, collectionName, apiType, metrics.SuccessStatusLabel).Inc()
 }
 
 func (d *DataHandlerWrapper) CreateCollection(ctx context.Context, param *writer.CreateCollectionParam) (err error) {
@@ -127,7 +127,7 @@ func (d *DataHandlerWrapper) ReleaseCollection(ctx context.Context, param *write
 
 func (d *DataHandlerWrapper) CreateDatabase(ctx context.Context, param *writer.CreateDataBaseParam) (err error) {
 	defer func() {
-		d.metric(util.RpcRequestCollectionName, "CreateDatabase", err != nil)
+		d.metric(util.RPCRequestCollectionName, "CreateDatabase", err != nil)
 	}()
 	err = d.handler.CreateDatabase(ctx, param)
 	return
@@ -135,7 +135,7 @@ func (d *DataHandlerWrapper) CreateDatabase(ctx context.Context, param *writer.C
 
 func (d *DataHandlerWrapper) DropDatabase(ctx context.Context, param *writer.DropDataBaseParam) (err error) {
 	defer func() {
-		d.metric(util.RpcRequestCollectionName, "DropDatabase", err != nil)
+		d.metric(util.RPCRequestCollectionName, "DropDatabase", err != nil)
 	}()
 	err = d.handler.DropDatabase(ctx, param)
 	return

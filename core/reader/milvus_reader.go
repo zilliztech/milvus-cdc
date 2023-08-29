@@ -425,9 +425,6 @@ func (reader *MilvusCollectionReader) readStreamData(info *pb.CollectionInfo, se
 	reader.monitor.OnSuccessGetACollectionInfo(info.ID, reader.collectionName(info))
 
 	if sendCreateMsg {
-		baseMsg := msgstream.BaseMsg{
-			HashValues: []uint32{0},
-		}
 		schemaByte, err := json.Marshal(info.Schema)
 		if err != nil {
 			log.Warn("fail to marshal the collection schema", zap.Error(err))
@@ -435,7 +432,9 @@ func (reader *MilvusCollectionReader) readStreamData(info *pb.CollectionInfo, se
 			return
 		}
 		createCollectionMsg := &msgstream.CreateCollectionMsg{
-			BaseMsg: baseMsg,
+			BaseMsg: msgstream.BaseMsg{
+				HashValues: []uint32{0},
+			},
 			CreateCollectionRequest: msgpb.CreateCollectionRequest{
 				Base: &commonpb.MsgBase{
 					MsgType: commonpb.MsgType_CreateCollection,
@@ -588,13 +587,21 @@ func (reader *MilvusCollectionReader) filterMsgType(msgType commonpb.MsgType) bo
 func (reader *MilvusCollectionReader) filterMsg(collectionName string, collectionID int64, msg msgstream.TsMsg) bool {
 	if x, ok := msg.(interface{ GetCollectionName() string }); ok {
 		notEqual := x.GetCollectionName() != collectionName
-		if y, ok := msg.(interface{ GetCollectionID() int64 }); ok {
-			notEqual = y.GetCollectionID() != collectionID
-		}
 		if notEqual {
 			log.Warn("filter msg",
 				zap.String("current_collection_name", collectionName),
 				zap.String("msg_collection_name", x.GetCollectionName()),
+				zap.Any("msg_type", msg.Type()))
+			reader.monitor.OnFilterReadMsg(msg.Type().String())
+		}
+		return notEqual
+	}
+	if y, ok := msg.(interface{ GetCollectionID() int64 }); ok {
+		notEqual := y.GetCollectionID() != collectionID
+		if notEqual {
+			log.Warn("filter msg",
+				zap.Int64("current_collection_id", collectionID),
+				zap.Int64("msg_collection_name", y.GetCollectionID()),
 				zap.Any("msg_type", msg.Type()))
 			reader.monitor.OnFilterReadMsg(msg.Type().String())
 		}

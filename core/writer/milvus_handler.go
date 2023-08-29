@@ -34,13 +34,13 @@ type MilvusDataHandler struct {
 	address         string
 	username        string
 	password        string
-	enableTls       bool
+	enableTLS       bool
 	ignorePartition bool // sometimes the has partition api is a deny api
 	connectTimeout  int
 
 	factory MilvusClientFactory
 	// TODO support db
-	milvus MilvusClientApi
+	milvus MilvusClientAPI
 }
 
 // NewMilvusDataHandler options must include AddressOption
@@ -61,7 +61,7 @@ func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*Milvus
 	defer cancel()
 
 	switch {
-	case handler.username != "" && handler.enableTls:
+	case handler.username != "" && handler.enableTLS:
 		handler.milvus, err = handler.factory.NewGrpcClientWithTLSAuth(timeoutContext,
 			handler.address, handler.username, handler.password)
 	case handler.username != "":

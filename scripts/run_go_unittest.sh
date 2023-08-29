@@ -1,8 +1,20 @@
-ROOT_DIR="$( dirname $( dirname "$0" ) )"
+#!/usr/bin/env bash
 
-pushd "${ROOT_DIR}/core"
-go test -race -cover ${APPLE_SILICON_FLAG} "./..." -failfast
-popd
-pushd "${ROOT_DIR}/server"
-go test -race -cover ${APPLE_SILICON_FLAG} "./..." -failfast
-popd
+set -e
+
+ROOT_DIR="$( dirname $( dirname "$0" ) )"
+COVER_OUT="${ROOT_DIR}"/coverage.project.out
+
+echo "" > "$COVER_OUT"
+
+DIR_ARR=("core" "server")
+for i in "${DIR_ARR[@]}"
+do
+    pushd "${ROOT_DIR}/${i}"
+    go test -race -coverprofile=coverage.out -covermode=atomic "./..." -v
+    if [[ -f coverage.out ]]; then
+        cat coverage.out >> "$COVER_OUT"
+        rm coverage.out
+    fi
+    popd
+done

@@ -1,0 +1,57 @@
+name: Unittest
+
+on:
+  push:
+    paths:
+      - 'core/**'
+      - 'server/**'
+      - 'tests/**'
+  # Triggers the workflow on push or pull request events but only for the master branch
+  pull_request:
+    paths:
+      - 'core/**'
+      - 'server/**'
+      - 'tests/**'
+
+
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    name: Unittest AMD64 Ubuntu ${{ matrix.ubuntu }}
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        ubuntu: [18.04]
+    env:
+      UBUNTU: ${{ matrix.ubuntu }}
+    services:
+      mysql:
+        image: mysql:5.7.42
+        env:
+          MYSQL_ROOT_PASSWORD: 123456
+          MYSQL_DATABASE: milvuscdc
+        ports:
+          - 3306:3306
+      etcd:
+        image: quay.io/coreos/etcd:v3.5.5
+        env:
+          ETCD_ADVERTISE_CLIENT_URLS: http://0.0.0.0:2379
+          ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+        ports:
+          - 2379:2379
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+      # Runs a single command using the runners shell
+      - name: Run Unittest
+        run: make test-go
+      - name: Upload coverage to Codecov
+        if: github.repository == 'zilliztech/milvus-cdc'
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.project.out
+          name: ubuntu-${{ matrix.ubuntu }}-unittests

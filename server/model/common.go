@@ -22,7 +22,7 @@ type MilvusConnectParam struct {
 	Port            int    `json:"port" mapstructure:"port"`
 	Username        string `json:"username,omitempty" mapstructure:"username"`
 	Password        string `json:"password,omitempty" mapstructure:"password"`
-	EnableTls       bool   `json:"enable_tls" mapstructure:"enable_tls"`
+	EnableTLS       bool   `json:"enable_tls" mapstructure:"enable_tls"`
 	IgnorePartition bool   `json:"ignore_partition" mapstructure:"ignore_partition"`
 	// ConnectTimeout unit: s
 	ConnectTimeout int `json:"connect_timeout" mapstructure:"connect_timeout"`

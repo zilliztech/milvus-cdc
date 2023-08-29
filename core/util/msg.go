@@ -28,8 +28,8 @@ import (
 )
 
 var (
-	RpcRequestCollectionID   int64 = 1
-	RpcRequestCollectionName       = "1"
+	RPCRequestCollectionID   int64 = 1
+	RPCRequestCollectionName       = "1"
 )
 
 func GetChannelStartPosition(vchannel string, startPositions []*commonpb.KeyDataPair) (*msgstream.MsgPosition, error) {

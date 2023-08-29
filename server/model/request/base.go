@@ -39,7 +39,7 @@ type CDCRequest struct {
 
 // Task some info can be showed about the task
 type Task struct {
-	TaskId             string                   `json:"task_id" mapstructure:"task_id"`
+	TaskID             string                   `json:"task_id" mapstructure:"task_id"`
 	MilvusConnectParam model.MilvusConnectParam `json:"milvus_connect_param" mapstructure:"milvus_connect_param"`
 	CollectionInfos    []model.CollectionInfo   `json:"collection_infos" mapstructure:"collection_infos"`
 	State              string                   `json:"state" mapstructure:"state"`
@@ -50,7 +50,7 @@ func GetTask(taskInfo *meta.TaskInfo) Task {
 	taskInfo.MilvusConnectParam.Username = ""
 	taskInfo.MilvusConnectParam.Password = ""
 	return Task{
-		TaskId:             taskInfo.TaskID,
+		TaskID:             taskInfo.TaskID,
 		MilvusConnectParam: taskInfo.MilvusConnectParam,
 		CollectionInfos:    taskInfo.CollectionInfos,
 		State:              taskInfo.State.String(),
