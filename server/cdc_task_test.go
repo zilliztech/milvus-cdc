@@ -20,6 +20,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
+	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 
 	"github.com/cockroachdb/errors"
@@ -66,7 +70,17 @@ func TestNormalOpCDCTask(t *testing.T) {
 	task := NewCdcTask("", factory, &writer.DefaultWriteCallBack{}, nil)
 	err := <-task.Resume(nil)
 	assert.NoError(t, err)
-	readerChan <- &model.CDCData{}
+	readerChan <- &model.CDCData{
+		Msg: &msgstream.InsertMsg{
+			InsertRequest: msgpb.InsertRequest{
+				Base: &commonpb.MsgBase{
+					MsgType: commonpb.MsgType_Insert,
+				},
+				CollectionID: int64(100000),
+				RowIDs:       []int64{1, 2, 3},
+			},
+		},
+	}
 	err = <-task.Pause(nil)
 	assert.NoError(t, err)
 	task.workingLock.Lock()
@@ -99,7 +113,17 @@ func TestNormalOpCDCTask(t *testing.T) {
 	task = NewCdcTask("", factory, &writer.DefaultWriteCallBack{}, nil)
 	err = <-task.Resume(nil)
 	assert.NoError(t, err)
-	readerChan <- &model.CDCData{}
+	readerChan <- &model.CDCData{
+		Msg: &msgstream.DeleteMsg{
+			DeleteRequest: msgpb.DeleteRequest{
+				Base: &commonpb.MsgBase{
+					MsgType: commonpb.MsgType_Delete,
+				},
+				CollectionID: int64(100000),
+				NumRows:      int64(3),
+			},
+		},
+	}
 	time.Sleep(200 * time.Millisecond)
 	assert.Equal(t, meta.TaskStatePaused, task.current.Load())
 }
@@ -153,7 +177,7 @@ func TestOpErrorCDCTask(t *testing.T) {
 		op = true
 		return nil
 	})
-	assert.NoError(t, err)
+	assert.Error(t, err)
 
 	err = <-task.Pause(func() error {
 		return opErr

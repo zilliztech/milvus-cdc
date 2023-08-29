@@ -31,7 +31,7 @@ func TestTxnMap(t *testing.T) {
 	}
 	{
 		a := map[*sql.Tx]string{}
-		db, err := sql.Open("mysql", "root:123456@tcp(127.0.0.1:3306)/milvus-cdc?charset=utf8")
+		db, err := sql.Open("mysql", "root:123456@tcp(127.0.0.1:3306)/milvuscdc?charset=utf8")
 		assert.NoError(t, err)
 		t1, _ := db.BeginTx(context.Background(), nil)
 		t2, _ := db.BeginTx(context.Background(), nil)
@@ -45,7 +45,7 @@ func TestTxnMap(t *testing.T) {
 
 func TestMysql(t *testing.T) {
 	ctx := context.Background()
-	mysqlStore, err := NewMySQLMetaStore(ctx, "root:123456@tcp(127.0.0.1:3306)/milvus-cdc?charset=utf8", "/cdc")
+	mysqlStore, err := NewMySQLMetaStore(ctx, "root:123456@tcp(127.0.0.1:3306)/milvuscdc?charset=utf8", "/cdc")
 	assert.NoError(t, err)
 
 	testTaskInfoMetaStore(ctx, t, mysqlStore)
@@ -141,7 +141,7 @@ func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory MetaS
 			}, txn)
 			assert.NoError(t, err)
 		}
-		err = commitFunc()
+		err = commitFunc(err)
 		assert.NoError(t, err)
 	}
 
@@ -161,7 +161,7 @@ func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory MetaS
 			err = taskInfoStore.Delete(ctx, &meta.TaskInfo{TaskID: "45692f04-0103-48c9-87f7-c61c9a62f176"}, txn)
 			assert.NoError(t, err)
 		}
-		err = commitFunc()
+		err = commitFunc(err)
 		assert.NoError(t, err)
 	}
 }
@@ -292,7 +292,7 @@ func testTaskCollectionPositionMetaStore(ctx context.Context, t *testing.T, stor
 			assert.NoError(t, err)
 		}
 
-		err = commitFunc()
+		err = commitFunc(err)
 		assert.NoError(t, err)
 	}
 
@@ -310,11 +310,11 @@ func testTaskCollectionPositionMetaStore(ctx context.Context, t *testing.T, stor
 		}
 
 		{
-			err = taskCollectionPositionStore.Delete(ctx, &meta.TaskCollectionPosition{TaskID: "45692f04-0103-48c9-87f7-c61c9a62f176"}, txn)
+			err := taskCollectionPositionStore.Delete(ctx, &meta.TaskCollectionPosition{TaskID: "45692f04-0103-48c9-87f7-c61c9a62f176"}, txn)
 			assert.NoError(t, err)
 		}
 
-		err = commitFunc()
+		err = commitFunc(err)
 		assert.NoError(t, err)
 	}
 }

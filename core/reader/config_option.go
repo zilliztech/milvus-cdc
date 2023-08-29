@@ -86,6 +86,12 @@ func ShouldReadFuncOption(f ShouldReadFunc) config.Option[*MilvusCollectionReade
 	})
 }
 
+func DBOption(db int64) config.Option[*MilvusCollectionReader] {
+	return config.OptionFunc[*MilvusCollectionReader](func(object *MilvusCollectionReader) {
+		object.dbID = db
+	})
+}
+
 func MqChannelOption(p config.PulsarConfig, k config.KafkaConfig) config.Option[*ChannelReader] {
 	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
 		object.mqConfig = config.MilvusMQConfig{Pulsar: p, Kafka: k}

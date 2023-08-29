@@ -129,7 +129,7 @@ var (
 		Name:      "write_msg_row_total",
 		Help:      "the counter of messages that the writer has written",
 	}, []string{taskIDLabelName, collectionIDLabelName, messageTypeLabelName})
-	ApiExecuteCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
+	APIExecuteCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: milvusNamespace,
 		Subsystem: systemName,
 		Name:      "api_execute_total",
@@ -148,7 +148,7 @@ func init() {
 	registry.MustRegister(WriterTimeDifferenceVec)
 	registry.MustRegister(ReadMsgRowCountVec)
 	registry.MustRegister(WriteMsgRowCountVec)
-	registry.MustRegister(ApiExecuteCountVec)
+	registry.MustRegister(APIExecuteCountVec)
 }
 
 func RegisterMetric() {

@@ -35,9 +35,9 @@ func UserOption(username string, password string) config.Option[*MilvusDataHandl
 	})
 }
 
-func TlsOption(enable bool) config.Option[*MilvusDataHandler] {
+func TLSOption(enable bool) config.Option[*MilvusDataHandler] {
 	return config.OptionFunc[*MilvusDataHandler](func(object *MilvusDataHandler) {
-		object.enableTls = enable
+		object.enableTLS = enable
 	})
 }
 

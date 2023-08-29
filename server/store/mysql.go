@@ -41,7 +41,7 @@ func (s *MySQLMetaStore) init(ctx context.Context, dataSourceName string, rootPa
 		return err
 	}
 	s.db = db
-	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelFunc()
 	err = db.PingContext(timeoutCtx)
 	if err != nil {

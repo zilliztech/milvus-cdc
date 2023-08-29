@@ -133,7 +133,7 @@ func (e *MetaCDC) ReloadTask() {
 				taskInfo.MilvusConnectParam.Port = reverseConfig.Port
 				taskInfo.MilvusConnectParam.Username = reverseConfig.Username
 				taskInfo.MilvusConnectParam.Password = reverseConfig.Password
-				taskInfo.MilvusConnectParam.EnableTls = reverseConfig.EnableTls
+				taskInfo.MilvusConnectParam.EnableTLS = reverseConfig.EnableTLS
 				if err = e.metaStoreFactory.GetTaskInfoMetaStore(ctx).Put(ctx, taskInfo, reverseTxn); err != nil {
 					log.Panic("fail to put the task info to metastore when reversing", zap.Error(err))
 				}
@@ -214,8 +214,8 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		existCollectionNames := e.collectionNames.data[milvusAddress]
 		excludeCollectionNames = make([]string, len(existCollectionNames))
 		copy(excludeCollectionNames, existCollectionNames)
-		if !lo.Contains(excludeCollectionNames, util.RpcRequestCollectionName) {
-			excludeCollectionNames = append(excludeCollectionNames, util.RpcRequestCollectionName)
+		if !lo.Contains(excludeCollectionNames, util.RPCRequestCollectionName) {
+			excludeCollectionNames = append(excludeCollectionNames, util.RPCRequestCollectionName)
 		}
 		e.collectionNames.excludeData[milvusAddress] = excludeCollectionNames
 	}
@@ -244,7 +244,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		TaskID:                e.getUuid(),
 		MilvusConnectParam:    req.MilvusConnectParam,
 		CollectionInfos:       req.CollectionInfos,
-		RpcRequestChannelInfo: req.RpcChannelInfo,
+		RPCRequestChannelInfo: req.RPCChannelInfo,
 		ExcludeCollections:    excludeCollectionNames,
 		WriterCacheConfig:     req.BufferConfig,
 		State:                 meta.TaskStateInitial,
@@ -303,7 +303,7 @@ func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 		return servererror.NewClientError("the cache size is less zero")
 	}
 
-	if req.RpcChannelInfo.Name == "" {
+	if req.RPCChannelInfo.Name == "" {
 		if err := e.checkCollectionInfos(req.CollectionInfos); err != nil {
 			return err
 		}
@@ -311,13 +311,13 @@ func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 		if len(req.CollectionInfos) > 0 {
 			return servererror.NewClientError("the collection info should be empty when the rpc channel is not empty")
 		}
-		req.CollectionInfos = []model.CollectionInfo{{Name: util.RpcRequestCollectionName}}
+		req.CollectionInfos = []model.CollectionInfo{{Name: util.RPCRequestCollectionName}}
 	}
 
 	_, err := cdcwriter.NewMilvusDataHandler(
 		cdcwriter.AddressOption(fmt.Sprintf("%s:%d", connectParam.Host, connectParam.Port)),
 		cdcwriter.UserOption(connectParam.Username, connectParam.Password),
-		cdcwriter.TlsOption(connectParam.EnableTls),
+		cdcwriter.TLSOption(connectParam.EnableTLS),
 		cdcwriter.IgnorePartitionOption(connectParam.IgnorePartition),
 		cdcwriter.ConnectTimeoutOption(connectParam.ConnectTimeout))
 	if err != nil {
@@ -386,12 +386,12 @@ func (e *MetaCDC) newCdcTask(info *meta.TaskInfo) (*CDCTask, error) {
 			return nil, errors.WithMessage(err, "fail to get the task meta, task_id: "+info.TaskID)
 		}
 		sourceConfig := e.config.SourceConfig
-		if info.RpcRequestChannelInfo.Name != "" {
-			channelName := info.RpcRequestChannelInfo.Name
+		if info.RPCRequestChannelInfo.Name != "" {
+			channelName := info.RPCRequestChannelInfo.Name
 			channelPosition := ""
 			if len(positions) != 0 {
 				position := positions[0]
-				if position.CollectionName != util.RpcRequestCollectionName || position.CollectionID != util.RpcRequestCollectionID {
+				if position.CollectionName != util.RPCRequestCollectionName || position.CollectionID != util.RPCRequestCollectionID {
 					log.Panic("the collection name or id is not match the rpc request channel info", zap.Any("position", position))
 				}
 				kp, ok := position.Positions[channelName]
@@ -404,8 +404,8 @@ func (e *MetaCDC) newCdcTask(info *meta.TaskInfo) (*CDCTask, error) {
 					return nil, err
 				}
 				channelPosition = base64.StdEncoding.EncodeToString(positionBytes)
-			} else if info.RpcRequestChannelInfo.Position != "" {
-				channelPosition = info.RpcRequestChannelInfo.Position
+			} else if info.RPCRequestChannelInfo.Position != "" {
+				channelPosition = info.RPCRequestChannelInfo.Position
 			}
 			reader, err := cdcreader.NewChannelReader(
 				cdcreader.MqChannelOption(sourceConfig.Pulsar, sourceConfig.Kafka),
@@ -453,7 +453,7 @@ func (e *MetaCDC) newCdcTask(info *meta.TaskInfo) (*CDCTask, error) {
 		dataHandler, err := cdcwriter.NewMilvusDataHandler(
 			cdcwriter.AddressOption(fmt.Sprintf("%s:%d", targetConfig.Host, targetConfig.Port)),
 			cdcwriter.UserOption(targetConfig.Username, targetConfig.Password),
-			cdcwriter.TlsOption(targetConfig.EnableTls),
+			cdcwriter.TLSOption(targetConfig.EnableTLS),
 			cdcwriter.IgnorePartitionOption(targetConfig.IgnorePartition),
 			cdcwriter.ConnectTimeoutOption(targetConfig.ConnectTimeout))
 		if err != nil {
@@ -584,7 +584,7 @@ func (e *MetaCDC) Resume(req *request.ResumeRequest) (*request.ResumeResponse, e
 func (e *MetaCDC) Get(req *request.GetRequest) (*request.GetResponse, error) {
 	taskInfo, err := store.GetTaskInfo(e.metaStoreFactory.GetTaskInfoMetaStore(context.Background()), req.TaskID)
 	if err != nil {
-		if errors.Is(err, NotFoundErr) {
+		if errors.Is(err, servererror.NotFoundErr) {
 			return nil, servererror.NewClientError(err.Error())
 		}
 		return nil, servererror.NewServerError(err)
@@ -596,7 +596,7 @@ func (e *MetaCDC) Get(req *request.GetRequest) (*request.GetResponse, error) {
 
 func (e *MetaCDC) List(req *request.ListRequest) (*request.ListResponse, error) {
 	taskInfos, err := store.GetAllTaskInfo(e.metaStoreFactory.GetTaskInfoMetaStore(context.Background()))
-	if err != nil && !errors.Is(err, NotFoundErr) {
+	if err != nil && !errors.Is(err, servererror.NotFoundErr) {
 		return nil, servererror.NewServerError(err)
 	}
 	return &request.ListResponse{

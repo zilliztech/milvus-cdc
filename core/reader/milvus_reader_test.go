@@ -71,7 +71,7 @@ func TestNewMilvusCollectionReader(t *testing.T) {
 	monitor := mocks.NewMonitor(t)
 	var options []config.Option[*reader.MilvusCollectionReader]
 	mockEtcdCli := mocks.NewKVApi(t)
-	mockEtcdCli.On("EtcdEndpoints").Return(endpoints)
+	mockEtcdCli.On("Endpoints").Return(endpoints)
 
 	util.MockEtcdClient(func(cfg clientv3.Config) (util.KVApi, error) {
 		return mockEtcdCli, nil
@@ -102,7 +102,7 @@ func TestNewMilvusCollectionReader(t *testing.T) {
 
 func TestReaderGetCollectionInfo(t *testing.T) {
 	mockEtcdCli := mocks.NewKVApi(t)
-	mockEtcdCli.On("EtcdEndpoints").Return(endpoints)
+	mockEtcdCli.On("Endpoints").Return(endpoints)
 
 	util.MockEtcdClient(func(cfg clientv3.Config) (util.KVApi, error) {
 		return mockEtcdCli, nil
@@ -127,6 +127,7 @@ func TestReaderGetCollectionInfo(t *testing.T) {
 			options = append(options, reader.CollectionInfoOption(collectionName1, nil))
 			options = append(options, reader.CollectionInfoOption(collectionName2, nil))
 			collectionReader, err := reader.NewMilvusCollectionReader(append(options,
+				reader.DBOption(int64(0)),
 				reader.FactoryCreatorOption(factoryCreator),
 				reader.EtcdOption(etcdConfig),
 				reader.MqOption(pulsarConfig, config.KafkaConfig{}),
@@ -193,6 +194,7 @@ func TestReaderGetCollectionInfo(t *testing.T) {
 			var options []config.Option[*reader.MilvusCollectionReader]
 			options = append(options, reader.CollectionInfoOption(collectionName1, nil))
 			collectionReader, err := reader.NewMilvusCollectionReader(append(options,
+				reader.DBOption(int64(0)),
 				reader.FactoryCreatorOption(factoryCreator),
 				reader.EtcdOption(etcdConfig),
 				reader.MqOption(pulsarConfig, config.KafkaConfig{}),
@@ -235,6 +237,7 @@ func TestReaderGetCollectionInfo(t *testing.T) {
 			var options []config.Option[*reader.MilvusCollectionReader]
 			options = append(options, reader.CollectionInfoOption(collectionName1, nil))
 			collectionReader, err := reader.NewMilvusCollectionReader(append(options,
+				reader.DBOption(int64(0)),
 				reader.FactoryCreatorOption(factoryCreator),
 				reader.EtcdOption(etcdConfig),
 				reader.MqOption(pulsarConfig, config.KafkaConfig{}),
@@ -283,6 +286,7 @@ func TestReaderGetCollectionInfo(t *testing.T) {
 			var options []config.Option[*reader.MilvusCollectionReader]
 			options = append(options, reader.CollectionInfoOption(collectionName1, nil))
 			collectionReader, err := reader.NewMilvusCollectionReader(append(options,
+				reader.DBOption(int64(0)),
 				reader.FactoryCreatorOption(factoryCreator),
 				reader.EtcdOption(etcdConfig),
 				reader.MqOption(pulsarConfig, config.KafkaConfig{}),
@@ -298,7 +302,7 @@ func TestReaderGetCollectionInfo(t *testing.T) {
 
 func TestReaderWatchCollectionInfo(t *testing.T) {
 	mockEtcdCli := mocks.NewKVApi(t)
-	mockEtcdCli.On("EtcdEndpoints").Return(endpoints)
+	mockEtcdCli.On("Endpoints").Return(endpoints)
 	call := mockEtcdCli.On("Status", mock.Anything, endpoints[0]).Return(&clientv3.StatusResponse{}, nil)
 	defer call.Unset()
 	collectionName1 := "coll1"
@@ -346,6 +350,7 @@ func TestReaderWatchCollectionInfo(t *testing.T) {
 			var options []config.Option[*reader.MilvusCollectionReader]
 			options = append(options, reader.CollectionInfoOption(collectionName1, nil))
 			collectionReader, err := reader.NewMilvusCollectionReader(append(options,
+				reader.DBOption(int64(0)),
 				reader.FactoryCreatorOption(factoryCreator),
 				reader.EtcdOption(etcdConfig),
 				reader.MqOption(pulsarConfig, config.KafkaConfig{}),
@@ -425,7 +430,15 @@ func TestReaderWatchCollectionInfo(t *testing.T) {
 			})
 			watchChan := make(chan clientv3.WatchResponse, 10)
 			var onlyReadChan clientv3.WatchChan = watchChan
-			watchCall := mockEtcdCli.On("Watch", mock.Anything, mock.Anything, mock.Anything).Return(onlyReadChan)
+			watchCall := mockEtcdCli.EXPECT().Watch(mock.Anything, mock.Anything, mock.Anything).Return(onlyReadChan).RunAndReturn(func(ctx context.Context, s string, option ...clientv3.OpOption) clientv3.WatchChan {
+				if s != collectionPrefix+"/" {
+					closeChan := make(chan clientv3.WatchResponse, 10)
+					close(closeChan)
+					return closeChan
+				}
+				return onlyReadChan
+			})
+			//watchCall := mockEtcdCli.On("Watch", mock.Anything, mock.Anything, mock.Anything).Return(onlyReadChan)
 			asuccessCall := monitor.On("OnSuccessGetACollectionInfo", collectionID1, collectionName1).Return()
 			filterCall := monitor.On("OnFilterReadMsg", "Delete").Return()
 			msgStream1.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything).Return()
@@ -460,8 +473,10 @@ func TestReaderWatchCollectionInfo(t *testing.T) {
 			var options []config.Option[*reader.MilvusCollectionReader]
 			options = append(options, reader.CollectionInfoOption(collectionName1, map[string]*commonpb.KeyDataPair{
 				"p1": {Key: "p1", Data: []byte("hello")},
+				"p2": {Key: "p2", Data: []byte("foo2")},
 			}))
 			collectionReader, err := reader.NewMilvusCollectionReader(append(options,
+				reader.DBOption(int64(0)),
 				reader.FactoryCreatorOption(factoryCreator),
 				reader.EtcdOption(etcdConfig),
 				reader.MqOption(pulsarConfig, config.KafkaConfig{}),
@@ -478,12 +493,14 @@ func TestReaderWatchCollectionInfo(t *testing.T) {
 						InsertRequest: msgpb.InsertRequest{
 							Base:           &commonpb.MsgBase{MsgType: commonpb.MsgType_Insert},
 							CollectionName: collectionName1,
+							CollectionID:   collectionID1,
 						},
 					},
 					&msgstream.DropCollectionMsg{
 						DropCollectionRequest: msgpb.DropCollectionRequest{
 							Base:           &commonpb.MsgBase{MsgType: commonpb.MsgType_DropCollection},
 							CollectionName: collectionName1,
+							CollectionID:   collectionID1,
 						},
 					},
 				},
@@ -500,12 +517,14 @@ func TestReaderWatchCollectionInfo(t *testing.T) {
 						DeleteRequest: msgpb.DeleteRequest{
 							Base:           &commonpb.MsgBase{MsgType: commonpb.MsgType_Delete},
 							CollectionName: collectionName1,
+							CollectionID:   collectionID1,
 						},
 					},
 					&msgstream.DropCollectionMsg{
 						DropCollectionRequest: msgpb.DropCollectionRequest{
 							Base:           &commonpb.MsgBase{MsgType: commonpb.MsgType_DropCollection},
 							CollectionName: collectionName1,
+							CollectionID:   collectionID1,
 						},
 					},
 				},
@@ -528,6 +547,7 @@ func TestReaderWatchCollectionInfo(t *testing.T) {
 
 			//create message
 			cdcData := <-cdcChan
+			util.Log.Info("xxxxxxxxx")
 			assert.EqualValues(t, shardNum, cdcData.Extra[model.ShardNumKey])
 			assert.EqualValues(t, level, cdcData.Extra[model.ConsistencyLevelKey])
 			receiveKv := cdcData.Extra[model.CollectionPropertiesKey].([]*commonpb.KeyValuePair)[0]

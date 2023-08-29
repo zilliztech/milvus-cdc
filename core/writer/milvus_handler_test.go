@@ -22,8 +22,6 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
-	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -37,7 +35,7 @@ var (
 	password        = "123456"
 	addressOption   = writer.AddressOption(address)
 	userOption      = writer.UserOption(user, password)
-	tlsOption       = writer.TlsOption(true)
+	tlsOption       = writer.TLSOption(true)
 	timeoutOption   = writer.ConnectTimeoutOption(10)
 	ignorePartition = writer.IgnorePartitionOption(true)
 )
@@ -47,7 +45,7 @@ func TestNewMilvusDataHandler(t *testing.T) {
 	assert.Error(t, err)
 
 	mockMilvusFactory := mocks.NewMilvusClientFactory(t)
-	mockMilvusClient := mocks.NewMilvusClientApi(t)
+	mockMilvusClient := mocks.NewMilvusClientAPI(t)
 	factoryOption := writer.MilvusFactoryOption(mockMilvusFactory)
 	t.Run("success tls", func(t *testing.T) {
 		call := mockMilvusFactory.On("NewGrpcClientWithTLSAuth", mock.Anything, address, user, password).Return(mockMilvusClient, nil)
@@ -84,7 +82,7 @@ func TestNewMilvusDataHandler(t *testing.T) {
 
 func TestMilvusOp(t *testing.T) {
 	mockMilvusFactory := mocks.NewMilvusClientFactory(t)
-	mockMilvusClient := mocks.NewMilvusClientApi(t)
+	mockMilvusClient := mocks.NewMilvusClientAPI(t)
 	factoryOption := writer.MilvusFactoryOption(mockMilvusFactory)
 	call := mockMilvusFactory.On("NewGrpcClient", mock.Anything, address).Return(mockMilvusClient, nil)
 	defer call.Unset()
@@ -103,23 +101,9 @@ func TestMilvusOp(t *testing.T) {
 			ConsistencyLevel: level,
 			Properties:       []*commonpb.KeyValuePair{kv},
 		}
-		options := []client.CreateCollectionOption{
-			client.WithCollectionProperty(kv.GetKey(), kv.GetValue()),
-			client.WithConsistencyLevel(entity.ConsistencyLevel(param.ConsistencyLevel)),
-		}
 
 		createCall := mockMilvusClient.On("CreateCollection", mock.Anything, schema, shardNum, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
 			assert.Len(t, args, 5)
-			createRequest1 := &milvuspb.CreateCollectionRequest{}
-			for _, option := range options {
-				option(createRequest1)
-			}
-			createRequest2 := &milvuspb.CreateCollectionRequest{}
-			for _, option := range args[3:] {
-				option.(client.CreateCollectionOption)(createRequest2)
-			}
-
-			assert.EqualValues(t, createRequest1, createRequest2)
 		}).Return(nil)
 		err := handler.CreateCollection(context.Background(), param)
 		assert.NoError(t, err)

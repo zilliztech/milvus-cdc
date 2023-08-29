@@ -24,10 +24,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/zilliztech/milvus-cdc/server/metrics"
-
 	"github.com/mitchellh/mapstructure"
 	"github.com/samber/lo"
+	cdcerror "github.com/zilliztech/milvus-cdc/server/error"
+	"github.com/zilliztech/milvus-cdc/server/metrics"
 	modelrequest "github.com/zilliztech/milvus-cdc/server/model/request"
 	"go.uber.org/zap"
 )
@@ -130,7 +130,7 @@ func (c *CDCServer) handleRequest(cdcRequest *modelrequest.CDCRequest, writer ht
 	response, err := handler.handle(c.api, requestModel)
 	if err != nil {
 		code := http.StatusInternalServerError
-		if errors.Is(err, ClientErr) {
+		if errors.Is(err, cdcerror.ClientErr) {
 			code = http.StatusBadRequest
 		}
 		c.handleError(writer, fmt.Sprintf("fail to handle the %s request, error: %s", requestType, err.Error()), code, zap.Error(err))

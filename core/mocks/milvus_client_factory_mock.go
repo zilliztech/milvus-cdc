@@ -5,8 +5,9 @@ package mocks
 import (
 	context "context"
 
-	mock "github.com/stretchr/testify/mock"
 	"github.com/zilliztech/milvus-cdc/core/util"
+
+	mock "github.com/stretchr/testify/mock"
 	writer "github.com/zilliztech/milvus-cdc/core/writer"
 )
 
@@ -17,19 +18,19 @@ type MilvusClientFactory struct {
 }
 
 // NewGrpcClient provides a mock function with given fields: ctx, addr
-func (_m *MilvusClientFactory) NewGrpcClient(ctx context.Context, addr string) (writer.MilvusClientApi, error) {
+func (_m *MilvusClientFactory) NewGrpcClient(ctx context.Context, addr string) (writer.MilvusClientAPI, error) {
 	ret := _m.Called(ctx, addr)
 
-	var r0 writer.MilvusClientApi
+	var r0 writer.MilvusClientAPI
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (writer.MilvusClientApi, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) (writer.MilvusClientAPI, error)); ok {
 		return rf(ctx, addr)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) writer.MilvusClientApi); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) writer.MilvusClientAPI); ok {
 		r0 = rf(ctx, addr)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(writer.MilvusClientApi)
+			r0 = ret.Get(0).(writer.MilvusClientAPI)
 		}
 	}
 
@@ -43,19 +44,19 @@ func (_m *MilvusClientFactory) NewGrpcClient(ctx context.Context, addr string) (
 }
 
 // NewGrpcClientWithAuth provides a mock function with given fields: ctx, addr, username, password
-func (_m *MilvusClientFactory) NewGrpcClientWithAuth(ctx context.Context, addr string, username string, password string) (writer.MilvusClientApi, error) {
+func (_m *MilvusClientFactory) NewGrpcClientWithAuth(ctx context.Context, addr string, username string, password string) (writer.MilvusClientAPI, error) {
 	ret := _m.Called(ctx, addr, username, password)
 
-	var r0 writer.MilvusClientApi
+	var r0 writer.MilvusClientAPI
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (writer.MilvusClientApi, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (writer.MilvusClientAPI, error)); ok {
 		return rf(ctx, addr, username, password)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) writer.MilvusClientApi); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) writer.MilvusClientAPI); ok {
 		r0 = rf(ctx, addr, username, password)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(writer.MilvusClientApi)
+			r0 = ret.Get(0).(writer.MilvusClientAPI)
 		}
 	}
 
@@ -69,19 +70,19 @@ func (_m *MilvusClientFactory) NewGrpcClientWithAuth(ctx context.Context, addr s
 }
 
 // NewGrpcClientWithTLSAuth provides a mock function with given fields: ctx, addr, username, password
-func (_m *MilvusClientFactory) NewGrpcClientWithTLSAuth(ctx context.Context, addr string, username string, password string) (writer.MilvusClientApi, error) {
+func (_m *MilvusClientFactory) NewGrpcClientWithTLSAuth(ctx context.Context, addr string, username string, password string) (writer.MilvusClientAPI, error) {
 	ret := _m.Called(ctx, addr, username, password)
 
-	var r0 writer.MilvusClientApi
+	var r0 writer.MilvusClientAPI
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (writer.MilvusClientApi, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (writer.MilvusClientAPI, error)); ok {
 		return rf(ctx, addr, username, password)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) writer.MilvusClientApi); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) writer.MilvusClientAPI); ok {
 		r0 = rf(ctx, addr, username, password)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(writer.MilvusClientApi)
+			r0 = ret.Get(0).(writer.MilvusClientAPI)
 		}
 	}
 

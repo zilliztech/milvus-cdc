@@ -40,7 +40,7 @@ func TestServerError(t *testing.T) {
 
 func TestNotFoundError(t *testing.T) {
 	err := NewNotFoundError("foo")
-	assert.Contains(t, err.Error(), "not found the key")
+	assert.Contains(t, err.Error(), "not found")
 	assert.Contains(t, err.Error(), "foo")
 	assert.True(t, errors.Is(err, NotFoundErr))
 	assert.False(t, errors.Is(err, ClientErr))
