@@ -1,0 +1,13 @@
+# source config
+rootPath: by-dev
+metaPath: meta
+etcdEndpoint: localhost:2379
+pulsarAddress: pulsar://localhost:6650
+pulsarAdminAddress: localhost:80
+pulsarTenant: public
+pulsarNamespace: default
+
+# target config
+addr: in01-944f15585f248dd.aws-us-west-2.vectordb-uat3.zillizcloud.com:19540
+username: root
+password: O6-[6t|qR]<E~Y1k~TCFU4sk8d:zcmRK

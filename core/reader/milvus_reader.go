@@ -212,7 +212,7 @@ func (reader *MilvusCollectionReader) watchPartition(watchCtx context.Context) {
 				if err != nil {
 					log.Warn("fail to unmarshal the partition info", zap.String("key", partitionKey), zap.String("value", util.Base64Encode(event.Kv.Value)), zap.Error(err))
 					// TODO monitor
-					//reader.monitor.OnFailUnKnowCollection(collectionKey, err)
+					// reader.monitor.OnFailUnKnowCollection(collectionKey, err)
 					return
 				}
 				if info.State == pb.PartitionState_PartitionCreated &&
@@ -499,7 +499,7 @@ func (reader *MilvusCollectionReader) collectionPosition(info *pb.CollectionInfo
 			}
 		}
 	}
-	//return util.GetChannelStartPosition(vchannelName, info.StartPositions)
+	// return util.GetChannelStartPosition(vchannelName, info.StartPositions)
 	return nil, nil
 }
 
@@ -522,13 +522,14 @@ func (reader *MilvusCollectionReader) msgStream() (msgstream.MsgStream, error) {
 func (reader *MilvusCollectionReader) msgStreamChan(vchannel string, position *msgstream.MsgPosition, stream msgstream.MsgStream) (<-chan *msgstream.MsgPack, error) {
 	consumeSubName := vchannel + string(rand.Int31())
 	pchannelName := util.ToPhysicalChannel(vchannel)
-	stream.AsConsumer([]string{pchannelName}, consumeSubName, mqwrapper.SubscriptionPositionLatest)
+	stream.AsConsumer(context.Background(), []string{pchannelName}, consumeSubName, mqwrapper.SubscriptionPositionLatest)
 	if position == nil {
 		return stream.Chan(), nil
 	}
 	position.ChannelName = pchannelName
-	err := stream.Seek([]*msgstream.MsgPosition{position})
+	err := stream.Seek(context.Background(), []*msgstream.MsgPosition{position})
 	if err != nil {
+		stream.Close()
 		log.Warn("fail to seek the msg position", zap.String("vchannel", vchannel), zap.Error(err))
 		return nil, err
 	}

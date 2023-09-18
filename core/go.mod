@@ -6,14 +6,14 @@ require (
 	github.com/cockroachdb/errors v1.9.1
 	github.com/goccy/go-json v0.10.2
 	github.com/golang/protobuf v1.5.3
-	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.0-dev.1.0.20230716112827-c3fe148f5e1d
+	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.1-0.20230911111453-720fcfb1a048
 	github.com/milvus-io/milvus-sdk-go/v2 v2.2.1-0.20230814034926-dd5a31f64225
 	github.com/milvus-io/milvus/pkg v0.0.2-0.20230823021022-7af0f7d90cee
 	github.com/samber/lo v1.27.0
 	github.com/stretchr/testify v1.8.3
 	go.etcd.io/etcd/api/v3 v3.5.5
 	go.etcd.io/etcd/client/v3 v3.5.5
-	go.uber.org/zap v1.17.0
+	go.uber.org/zap v1.20.0
 )
 
 require (
@@ -23,6 +23,7 @@ require (
 	github.com/DataDog/zstd v1.5.0 // indirect
 	github.com/apache/pulsar-client-go v0.6.1-0.20210728062540-29414db801a7 // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
+	github.com/benbjohnson/clock v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
@@ -46,7 +47,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/btree v1.0.1 // indirect
+	github.com/google/btree v1.1.2 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
@@ -118,7 +119,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.13.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/crypto v0.9.0 // indirect
 	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
 	golang.org/x/net v0.10.0 // indirect
@@ -141,7 +142,8 @@ require (
 
 replace (
 	github.com/apache/pulsar-client-go => github.com/milvus-io/pulsar-client-go v0.6.10
-	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20230823080606-a88e7c27d190
+	github.com/milvus-io/milvus-sdk-go/v2 => github.com/SimFG/milvus-sdk-go/v2 v2.0.0-20230918025012-e4fb30541113
+	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20230915085959-b1bd79e12920
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => ./../rocksdb
 )
