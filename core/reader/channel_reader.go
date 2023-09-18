@@ -68,7 +68,7 @@ func (c *ChannelReader) initMsgStream() error {
 	}
 
 	consumeSubName := c.channelName + string(rand.Int31())
-	stream.AsConsumer([]string{c.channelName}, consumeSubName, c.subscriptionPosition)
+	stream.AsConsumer(context.Background(), []string{c.channelName}, consumeSubName, c.subscriptionPosition)
 	log.Info("consume channel", zap.String("channel", c.channelName))
 
 	if c.seekPosition != "" {
@@ -85,7 +85,7 @@ func (c *ChannelReader) initMsgStream() error {
 			stream.Close()
 			return err
 		}
-		err = stream.Seek([]*msgstream.MsgPosition{msgPosition})
+		err = stream.Seek(context.Background(), []*msgstream.MsgPosition{msgPosition})
 		if err != nil {
 			log.Warn("fail to seek the msg position", zap.Any("position", msgPosition), zap.Error(err))
 			return err
