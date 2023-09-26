@@ -16,14 +16,9 @@
 
 package server
 
-import (
-	"github.com/zilliztech/milvus-cdc/core/util"
-	"github.com/zilliztech/milvus-cdc/server/model/request"
-)
+import "github.com/zilliztech/milvus-cdc/server/model/request"
 
-type CDCApi interface {
-	util.CDCMark
-
+type CDCService interface {
 	ReloadTask()
 	Create(request *request.CreateRequest) (*request.CreateResponse, error)
 	Delete(request *request.DeleteRequest) (*request.DeleteResponse, error)
@@ -33,9 +28,7 @@ type CDCApi interface {
 	List(request *request.ListRequest) (*request.ListResponse, error)
 }
 
-type BaseCDC struct {
-	util.CDCMark
-}
+type BaseCDC struct{}
 
 func NewBaseCDC() *BaseCDC {
 	return &BaseCDC{}
@@ -69,6 +62,6 @@ func (b *BaseCDC) List(request *request.ListRequest) (*request.ListResponse, err
 	return nil, nil
 }
 
-func GetCDCApi(config *CDCServerConfig) CDCApi {
+func GetCDCApi(config *CDCServerConfig) CDCService {
 	return NewMetaCDC(config)
 }

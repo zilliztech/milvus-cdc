@@ -17,9 +17,11 @@
 package server
 
 import (
+	"github.com/milvus-io/milvus/pkg/log"
+	"go.uber.org/zap"
+
 	"github.com/zilliztech/milvus-cdc/core/reader"
 	"github.com/zilliztech/milvus-cdc/server/metrics"
-	"go.uber.org/zap"
 )
 
 type ReaderMonitor struct {
@@ -31,7 +33,7 @@ type ReaderMonitor struct {
 func NewReaderMonitor(taskID string) *ReaderMonitor {
 	return &ReaderMonitor{
 		taskID: taskID,
-		log:    log.With(zap.String("task_id", taskID)),
+		log:    log.With(zap.String("task_id", taskID)).Logger,
 	}
 }
 

@@ -28,7 +28,7 @@ var (
 
 type requestHandler struct {
 	generateModel func() any
-	handle        func(api CDCApi, request any) (any, error)
+	handle        func(api CDCService, request any) (any, error)
 }
 
 func init() {
@@ -37,7 +37,7 @@ func init() {
 			generateModel: func() any {
 				return &modelrequest.CreateRequest{}
 			},
-			handle: func(api CDCApi, request any) (any, error) {
+			handle: func(api CDCService, request any) (any, error) {
 				createRequest, ok := request.(*modelrequest.CreateRequest)
 				if !ok {
 					return nil, errors.New("fail to cast the request to the create model")
@@ -49,7 +49,7 @@ func init() {
 			generateModel: func() any {
 				return &modelrequest.DeleteRequest{}
 			},
-			handle: func(api CDCApi, request any) (any, error) {
+			handle: func(api CDCService, request any) (any, error) {
 				deleteRequest, ok := request.(*modelrequest.DeleteRequest)
 				if !ok {
 					return nil, errors.New("fail to cast the request to the delete model")
@@ -61,7 +61,7 @@ func init() {
 			generateModel: func() any {
 				return &modelrequest.PauseRequest{}
 			},
-			handle: func(api CDCApi, request any) (any, error) {
+			handle: func(api CDCService, request any) (any, error) {
 				pauseRequest, ok := request.(*modelrequest.PauseRequest)
 				if !ok {
 					return nil, errors.New("fail to cast the request to the pause model")
@@ -73,7 +73,7 @@ func init() {
 			generateModel: func() any {
 				return &modelrequest.ResumeRequest{}
 			},
-			handle: func(api CDCApi, request any) (any, error) {
+			handle: func(api CDCService, request any) (any, error) {
 				resumeRequest, ok := request.(*modelrequest.ResumeRequest)
 				if !ok {
 					return nil, errors.New("fail to cast the request to the resume model")
@@ -85,7 +85,7 @@ func init() {
 			generateModel: func() any {
 				return &modelrequest.GetRequest{}
 			},
-			handle: func(api CDCApi, request any) (any, error) {
+			handle: func(api CDCService, request any) (any, error) {
 				getRequest, ok := request.(*modelrequest.GetRequest)
 				if !ok {
 					return nil, errors.New("fail to cast the request to the get model")
@@ -97,7 +97,7 @@ func init() {
 			generateModel: func() any {
 				return &modelrequest.ListRequest{}
 			},
-			handle: func(api CDCApi, request any) (any, error) {
+			handle: func(api CDCService, request any) (any, error) {
 				listRequest, ok := request.(*modelrequest.ListRequest)
 				if !ok {
 					return nil, errors.New("fail to cast the request to the list model")

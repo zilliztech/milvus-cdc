@@ -4,16 +4,15 @@ go 1.18
 
 require (
 	github.com/cockroachdb/errors v1.9.1
-	github.com/goccy/go-json v0.10.2
 	github.com/golang/protobuf v1.5.3
-	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.1-0.20230911111453-720fcfb1a048
+	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.2-0.20230919092633-6ef446ad2aab
 	github.com/milvus-io/milvus-sdk-go/v2 v2.2.1-0.20230814034926-dd5a31f64225
 	github.com/milvus-io/milvus/pkg v0.0.2-0.20230823021022-7af0f7d90cee
 	github.com/samber/lo v1.27.0
 	github.com/stretchr/testify v1.8.3
-	go.etcd.io/etcd/api/v3 v3.5.5
 	go.etcd.io/etcd/client/v3 v3.5.5
 	go.uber.org/zap v1.20.0
+	sigs.k8s.io/yaml v1.2.0
 )
 
 require (
@@ -104,6 +103,7 @@ require (
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
+	go.etcd.io/etcd/api/v3 v3.5.5 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
 	go.etcd.io/etcd/client/v2 v2.305.5 // indirect
 	go.etcd.io/etcd/pkg/v3 v3.5.5 // indirect
@@ -137,13 +137,12 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
 replace (
 	github.com/apache/pulsar-client-go => github.com/milvus-io/pulsar-client-go v0.6.10
-	github.com/milvus-io/milvus-sdk-go/v2 => github.com/SimFG/milvus-sdk-go/v2 v2.0.0-20230918025012-e4fb30541113
-	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20230915085959-b1bd79e12920
+	github.com/milvus-io/milvus-sdk-go/v2 => github.com/SimFG/milvus-sdk-go/v2 v2.0.0-20230919094145-06acf1ab753c
+	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20230925083123-8c1cd0c4b615
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => ./../rocksdb
 )

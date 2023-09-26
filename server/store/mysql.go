@@ -10,9 +10,11 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/goccy/go-json"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/milvus-io/milvus/pkg/log"
+	"go.uber.org/zap"
+
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
-	"go.uber.org/zap"
 )
 
 type MySQLMetaStore struct {
@@ -34,7 +36,7 @@ func NewMySQLMetaStore(ctx context.Context, dataSourceName string, rootPath stri
 }
 
 func (s *MySQLMetaStore) init(ctx context.Context, dataSourceName string, rootPath string) error {
-	s.log = util.Log.With(zap.String("meta_store", "mysql"))
+	s.log = log.With(zap.String("meta_store", "mysql")).Logger
 	db, err := sql.Open("mysql", dataSourceName)
 	if err != nil {
 		s.log.Warn("fail to open mysql", zap.Error(err))
@@ -119,7 +121,7 @@ func NewTaskInfoMysqlStore(ctx context.Context, db *sql.DB, rootPath string, txn
 }
 
 func (m *TaskInfoMysqlStore) init(ctx context.Context, db *sql.DB, rootPath string) error {
-	m.log = util.Log.With(zap.String("meta_store", "mysql"), zap.String("table", "task_info"), zap.String("root_path", rootPath))
+	m.log = log.With(zap.String("meta_store", "mysql"), zap.String("table", "task_info"), zap.String("root_path", rootPath)).Logger
 	_, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS task_info (
 			task_info_key VARCHAR(255) NOT NULL,
@@ -275,7 +277,7 @@ func NewTaskCollectionPositionMysqlStore(ctx context.Context, db *sql.DB, rootPa
 }
 
 func (m *TaskCollectionPositionMysqlStore) init(ctx context.Context, db *sql.DB, rootPath string) error {
-	m.log = util.Log.With(zap.String("meta_store", "mysql"), zap.String("table", "task_position"), zap.String("root_path", rootPath))
+	m.log = log.With(zap.String("meta_store", "mysql"), zap.String("table", "task_position"), zap.String("root_path", rootPath)).Logger
 	_, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS task_position (
 			task_position_key VARCHAR(255) NOT NULL,

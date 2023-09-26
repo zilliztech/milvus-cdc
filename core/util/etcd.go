@@ -21,11 +21,14 @@ import (
 	"path"
 	"time"
 
+	"github.com/milvus-io/milvus/pkg/log"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 )
 
 var (
+	// TODO config
+
 	EtcdOpTimeout        = 10 * time.Second
 	EtcdOpRetryTime uint = 5
 )
@@ -56,9 +59,9 @@ func GetEtcdClient(endpoints []string) (KVApi, error) {
 	etcdCli, err := newEtcdClient(clientv3.Config{
 		Endpoints:   endpoints,
 		DialTimeout: 5 * time.Second,
-		Logger:      Log,
+		Logger:      log.L(),
 	})
-	errLog := Log.With(zap.Strings("endpoints", endpoints), zap.Error(err))
+	errLog := log.With(zap.Strings("endpoints", endpoints), zap.Error(err))
 	if err != nil {
 		errLog.Warn("fail to etcd client")
 		return nil, err
@@ -92,19 +95,22 @@ func EtcdPut(etcdCli KVApi, key, val string, opts ...clientv3.OpOption) error {
 	}, Attempts(EtcdOpRetryTime))
 }
 
-func EtcdGet(etcdCli KVApi, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), EtcdOpTimeout)
-	defer cancel()
-	var (
-		resp *clientv3.GetResponse
-		err  error
-	)
+func EtcdGetWithContext(ctx context.Context, etcdCli KVApi, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error) {
+	var err error
+	var resp *clientv3.GetResponse
 
+	ctx, cancel := context.WithTimeout(ctx, EtcdOpTimeout)
+	defer cancel()
 	err = Do(ctx, func() error {
 		resp, err = etcdCli.Get(ctx, key, opts...)
 		return err
 	}, Attempts(EtcdOpRetryTime))
 	return resp, err
+}
+
+// Deprecated: use EtcdGetWithContext instead
+func EtcdGet(etcdCli KVApi, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error) {
+	return EtcdGetWithContext(context.TODO(), etcdCli, key, opts...)
 }
 
 func EtcdDelete(etcdCli KVApi, key string, opts ...clientv3.OpOption) error {

@@ -20,9 +20,11 @@ import (
 	"encoding/binary"
 
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
+	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/zilliztech/milvus-cdc/core/util"
 	"go.uber.org/zap"
+
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 func SizeOfInsertMsg(msg *msgstream.InsertMsg) int64 {
@@ -39,17 +41,17 @@ func SizeOfInsertMsg(msg *msgstream.InsertMsg) int64 {
 	for _, fieldData := range msg.FieldsData {
 		if column, err := entity.FieldDataColumn(fieldData, 0, -1); err == nil {
 			if !sizeFunc(column) {
-				util.Log.Warn("insert msg, fail to get the data size", zap.String("name", column.Name()))
+				log.Warn("insert msg, fail to get the data size", zap.String("name", column.Name()))
 				return -1
 			}
 		} else {
 			column, err := entity.FieldDataVector(fieldData)
 			if err != nil {
-				util.Log.Warn("fail to get the data size", zap.Any("msg", msg), zap.Error(err))
+				log.Warn("fail to get the data size", zap.Any("msg", msg), zap.Error(err))
 				return -1
 			}
 			if !sizeFunc(column) {
-				util.Log.Warn("insert msg, fail to get the data size", zap.String("name", column.Name()))
+				log.Warn("insert msg, fail to get the data size", zap.String("name", column.Name()))
 				return -1
 			}
 		}
@@ -61,11 +63,11 @@ func SizeOfDeleteMsg(msg *msgstream.DeleteMsg) int64 {
 	var totalSize int64
 	column, err := entity.IDColumns(msg.PrimaryKeys, 0, -1)
 	if err != nil {
-		util.Log.Warn("fail to get the id columns", zap.Any("msg", msg), zap.Error(err))
+		log.Warn("fail to get the id columns", zap.Any("msg", msg), zap.Error(err))
 		return -1
 	}
 	if totalSize = SizeColumn(column); totalSize < 0 {
-		util.Log.Warn("delete msg, fail to get the data size", zap.String("name", column.Name()))
+		log.Warn("delete msg, fail to get the data size", zap.String("name", column.Name()))
 		return -1
 	}
 	return totalSize
@@ -117,7 +119,7 @@ func SizeColumn(column entity.Column) int64 {
 		}
 		return int64(total)
 	default:
-		util.Log.Warn("invalid type", zap.Any("column", column))
+		log.Warn("invalid type", zap.Any("column", column))
 		return -1
 	}
 	return int64(binary.Size(data))

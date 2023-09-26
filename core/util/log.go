@@ -18,18 +18,27 @@ package util
 
 import (
 	"github.com/milvus-io/milvus/pkg/log"
-	"go.uber.org/zap"
 )
 
-var (
-	Log *zap.Logger
-)
+// var (
+// 	Log *zap.Logger
+// )
 
 func init() {
-	conf := &log.Config{Level: "info", Stdout: true, File: log.FileLogConfig{
-		RootPath: "/tmp/cdc_log",
-		Filename: "cdc.log",
-	}}
-	Log, _, _ = log.InitLogger(conf)
-	Log = Log.WithOptions(zap.AddCallerSkip(-1))
+	conf := &log.Config{
+		Level:  "info",
+		Stdout: true,
+		File: log.FileLogConfig{
+			RootPath: "/tmp/cdc_log",
+			Filename: "cdc.log",
+		},
+	}
+
+	// TODO delete it
+	// Log, _, _ = log.InitLogger(conf)
+	// Log = Log.WithOptions(zap.AddCallerSkip(-1))
+
+	// l, p, _ := log.InitLogger(conf, zap.AddCallerSkip(1))
+	l, p, _ := log.InitLogger(conf)
+	log.ReplaceGlobals(l, p)
 }

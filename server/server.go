@@ -24,16 +24,18 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/mitchellh/mapstructure"
 	"github.com/samber/lo"
+	"go.uber.org/zap"
+
 	cdcerror "github.com/zilliztech/milvus-cdc/server/error"
 	"github.com/zilliztech/milvus-cdc/server/metrics"
 	modelrequest "github.com/zilliztech/milvus-cdc/server/model/request"
-	"go.uber.org/zap"
 )
 
 type CDCServer struct {
-	api          CDCApi
+	api          CDCService
 	serverConfig *CDCServerConfig
 }
 
@@ -44,7 +46,7 @@ func (c *CDCServer) Run(config *CDCServerConfig) {
 	c.api = GetCDCApi(c.serverConfig)
 	c.api.ReloadTask()
 	cdcHandler := c.getCDCHandler()
-	//{
+	// {
 	//	channelReader, err := reader.NewChannelReader(
 	//		coreconfig.MilvusMQConfig{Pulsar: c.serverConfig.SourceConfig.Pulsar, Kafka: c.serverConfig.SourceConfig.Kafka},
 	//		"by-dev-rpc-request",
@@ -68,7 +70,7 @@ func (c *CDCServer) Run(config *CDCServerConfig) {
 	//			}
 	//		}()
 	//	}
-	//}
+	// }
 	http.Handle("/cdc", cdcHandler)
 	log.Info("start server...")
 	err := http.ListenAndServe(c.serverConfig.Address, nil)

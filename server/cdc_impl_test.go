@@ -22,11 +22,12 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	clientv3 "go.etcd.io/etcd/client/v3"
+
 	"github.com/zilliztech/milvus-cdc/core/mocks"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/model"
 	"github.com/zilliztech/milvus-cdc/server/model/request"
-	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 var (

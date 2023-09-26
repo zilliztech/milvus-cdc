@@ -44,6 +44,11 @@ func NewParamGroup() paramtable.ParamGroup {
 	return group
 }
 
+type MQConfig struct {
+	Pulsar PulsarConfig
+	Kafka  KafkaConfig
+}
+
 type KafkaConfig struct {
 	Address string
 }

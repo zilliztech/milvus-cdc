@@ -16,32 +16,26 @@
 
 package reader
 
-import (
-	"context"
-
-	"github.com/zilliztech/milvus-cdc/core/model"
-	. "github.com/zilliztech/milvus-cdc/core/util"
-)
-
-//go:generate mockery --name=CDCReader --filename=cdc_reader_mock.go --output=../mocks
-type CDCReader interface {
-	CDCMark
-
-	StartRead(ctx context.Context) <-chan *model.CDCData
-	QuitRead(ctx context.Context)
-}
-
-// DefaultReader All CDCReader implements should combine it
-type DefaultReader struct {
-	CDCMark
-}
-
-// StartRead the return value is nil,
-// and if you receive the data from the nil chan, will block forever, not panic
-func (d *DefaultReader) StartRead(ctx context.Context) <-chan *model.CDCData {
-	log.Warn("StartRead is not implemented, please check it")
-	return nil
-}
-
-func (d *DefaultReader) QuitRead(ctx context.Context) {
-}
+// import (
+// 	"context"
+//
+// 	"github.com/zilliztech/milvus-cdc/core/model"
+// )
+//
+// type CDCReader interface {
+// 	StartRead(ctx context.Context) <-chan *model.CDCData
+// 	QuitRead(ctx context.Context)
+// }
+//
+// // DefaultReader All CDCReader implements should combine it
+// type DefaultReader struct{}
+//
+// // StartRead the return value is nil,
+// // and if you receive the data from the nil chan, will block forever, not panic
+// func (d *DefaultReader) StartRead(ctx context.Context) <-chan *model.CDCData {
+// 	log.Warn("StartRead is not implemented, please check it")
+// 	return nil
+// }
+//
+// func (d *DefaultReader) QuitRead(ctx context.Context) {
+// }

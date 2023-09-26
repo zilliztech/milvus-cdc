@@ -8,3 +8,4 @@
 **/.pytest_cache/*
 server/cdc
 **/milvus-cdc-build/*
+*.log

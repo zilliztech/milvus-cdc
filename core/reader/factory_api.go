@@ -21,20 +21,16 @@ import (
 
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/paramtable"
+
 	"github.com/zilliztech/milvus-cdc/core/config"
-	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
-//go:generate mockery --name=FactoryCreator --filename=factory_creator_mock.go --output=../mocks --with-expecter
 type FactoryCreator interface {
-	util.CDCMark
 	NewPmsFactory(cfg *config.PulsarConfig) msgstream.Factory
 	NewKmsFactory(cfg *config.KafkaConfig) msgstream.Factory
 }
 
-type DefaultFactoryCreator struct {
-	util.CDCMark
-}
+type DefaultFactoryCreator struct{}
 
 func NewDefaultFactoryCreator() FactoryCreator {
 	return &DefaultFactoryCreator{}
@@ -44,14 +40,16 @@ func (d *DefaultFactoryCreator) NewPmsFactory(cfg *config.PulsarConfig) msgstrea
 	return msgstream.NewPmsFactory(
 		&paramtable.ServiceParam{
 			PulsarCfg: paramtable.PulsarConfig{
-				Address:        config.NewParamItem(cfg.Address),
-				WebAddress:     config.NewParamItem(cfg.WebAddress),
-				WebPort:        config.NewParamItem(strconv.Itoa(cfg.WebPort)),
-				MaxMessageSize: config.NewParamItem(cfg.MaxMessageSize),
-				AuthPlugin:     config.NewParamItem(""),
-				AuthParams:     config.NewParamItem("{}"),
-				Tenant:         config.NewParamItem(cfg.Tenant),
-				Namespace:      config.NewParamItem(cfg.Namespace),
+				Address:             config.NewParamItem(cfg.Address),
+				WebAddress:          config.NewParamItem(cfg.WebAddress),
+				WebPort:             config.NewParamItem(strconv.Itoa(cfg.WebPort)),
+				MaxMessageSize:      config.NewParamItem(cfg.MaxMessageSize),
+				AuthPlugin:          config.NewParamItem(""),
+				AuthParams:          config.NewParamItem("{}"),
+				Tenant:              config.NewParamItem(cfg.Tenant),
+				Namespace:           config.NewParamItem(cfg.Namespace),
+				RequestTimeout:      config.NewParamItem("60"),
+				EnableClientMetrics: config.NewParamItem("false"),
 			},
 			MQCfg: paramtable.MQConfig{
 				ReceiveBufSize: config.NewParamItem("16"),
@@ -72,6 +70,7 @@ func (d *DefaultFactoryCreator) NewKmsFactory(cfg *config.KafkaConfig) msgstream
 				SecurityProtocol:    config.NewParamItem(""),
 				ConsumerExtraConfig: config.NewParamGroup(),
 				ProducerExtraConfig: config.NewParamGroup(),
+				ReadTimeout:         config.NewParamItem("10"),
 			},
 			MQCfg: paramtable.MQConfig{
 				ReceiveBufSize: config.NewParamItem("16"),

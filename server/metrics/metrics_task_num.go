@@ -17,13 +17,12 @@
 package metrics
 
 import (
+	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/zilliztech/milvus-cdc/core/util"
-	"github.com/zilliztech/milvus-cdc/server/model/meta"
 	"go.uber.org/zap"
-)
 
-var log = util.Log
+	"github.com/zilliztech/milvus-cdc/server/model/meta"
+)
 
 type TaskNumMetric struct {
 	metricDesc *prometheus.Desc

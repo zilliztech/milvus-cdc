@@ -18,10 +18,7 @@ package reader
 
 import "github.com/zilliztech/milvus-cdc/core/util"
 
-//go:generate mockery --name=Monitor --filename=monitor_mock.go --output=../mocks
 type Monitor interface {
-	util.CDCMark
-
 	OnFailUnKnowCollection(key string, err error)
 	OnFailGetCollectionInfo(collectionID int64, collectionName string, err error)
 	OnFailReadStream(collectionID int64, collectionName string, vchannel string, err error)

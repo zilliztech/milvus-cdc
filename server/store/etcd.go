@@ -2,13 +2,16 @@ package store
 
 import (
 	"context"
+	"time"
+
 	"github.com/cockroachdb/errors"
 	"github.com/goccy/go-json"
-	"github.com/zilliztech/milvus-cdc/core/util"
-	"github.com/zilliztech/milvus-cdc/server/model/meta"
+	"github.com/milvus-io/milvus/pkg/log"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
-	"time"
+
+	"github.com/zilliztech/milvus-cdc/core/util"
+	"github.com/zilliztech/milvus-cdc/server/model/meta"
 )
 
 var (
@@ -27,7 +30,7 @@ type EtcdMetaStore struct {
 var _ MetaStoreFactory = &EtcdMetaStore{}
 
 func NewEtcdMetaStore(ctx context.Context, endpoints []string, rootPath string) (*EtcdMetaStore, error) {
-	log := util.Log.With(zap.Strings("endpoints", endpoints))
+	log := log.With(zap.Strings("endpoints", endpoints)).Logger
 	etcdClient, err := clientv3.New(clientv3.Config{
 		Endpoints:   endpoints,
 		DialTimeout: 5 * time.Second,
@@ -95,7 +98,7 @@ func NewTaskInfoEtcdStore(ctx context.Context, etcdClient *clientv3.Client, root
 		etcdClient: etcdClient,
 		txnMap:     txnMap,
 	}
-	t.log = util.Log.With(zap.String("meta_store", "etcd"), zap.String("table", "task_info"), zap.String("root_path", rootPath))
+	t.log = log.With(zap.String("meta_store", "etcd"), zap.String("table", "task_info"), zap.String("root_path", rootPath)).Logger
 	err := EtcdStatus(ctx, etcdClient)
 	if err != nil {
 		t.log.Warn("unavailable etcd server, please check it", zap.Error(err))
@@ -208,7 +211,7 @@ func NewTaskCollectionPositionEtcdStore(ctx context.Context, etcdClient *clientv
 		etcdClient: etcdClient,
 		txnMap:     txnMap,
 	}
-	t.log = util.Log.With(zap.String("meta_store", "etcd"), zap.String("table", "task_collection_position"), zap.String("root_path", rootPath))
+	t.log = log.With(zap.String("meta_store", "etcd"), zap.String("table", "task_collection_position"), zap.String("root_path", rootPath)).Logger
 	err := EtcdStatus(ctx, etcdClient)
 	if err != nil {
 		t.log.Warn("unavailable etcd server, please check it", zap.Error(err))
