@@ -16,120 +16,121 @@
 
 package reader
 
-import (
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
-	"github.com/zilliztech/milvus-cdc/core/config"
-)
-
-func CollectionInfoOption(collectionName string, positions map[string]*commonpb.KeyDataPair) config.Option[*MilvusCollectionReader] {
-	return config.OptionFunc[*MilvusCollectionReader](func(object *MilvusCollectionReader) {
-		object.collections = append(object.collections, CollectionInfo{
-			collectionName: collectionName,
-			positions:      positions,
-		})
-	})
-}
-
-func KafKaOption(options ...config.Option[*config.KafkaConfig]) config.Option[*MilvusCollectionReader] {
-	return config.OptionFunc[*MilvusCollectionReader](func(object *MilvusCollectionReader) {
-		object.mqConfig = config.MilvusMQConfig{Kafka: config.NewKafkaConfig(options...)}
-	})
-}
-
-func PulsarOption(options ...config.Option[*config.PulsarConfig]) config.Option[*MilvusCollectionReader] {
-	return config.OptionFunc[*MilvusCollectionReader](func(object *MilvusCollectionReader) {
-		object.mqConfig = config.MilvusMQConfig{Pulsar: config.NewPulsarConfig(options...)}
-	})
-}
-
-func MqOption(p config.PulsarConfig, k config.KafkaConfig) config.Option[*MilvusCollectionReader] {
-	return config.OptionFunc[*MilvusCollectionReader](func(object *MilvusCollectionReader) {
-		object.mqConfig = config.MilvusMQConfig{Pulsar: p, Kafka: k}
-	})
-}
-
-func EtcdOption(c config.MilvusEtcdConfig) config.Option[*MilvusCollectionReader] {
-	return config.OptionFunc[*MilvusCollectionReader](func(object *MilvusCollectionReader) {
-		object.etcdConfig = c
-	})
-}
-
-// MonitorOption the implement object of Monitor should include DefaultMonitor for the better compatibility
-func MonitorOption(m Monitor) config.Option[*MilvusCollectionReader] {
-	return config.OptionFunc[*MilvusCollectionReader](func(object *MilvusCollectionReader) {
-		object.monitor = m
-	})
-}
-
-func ChanLenOption(l int) config.Option[*MilvusCollectionReader] {
-	return config.OptionFunc[*MilvusCollectionReader](func(object *MilvusCollectionReader) {
-		if l > 0 {
-			object.dataChanLen = l
-		}
-	})
-}
-
-func FactoryCreatorOption(f FactoryCreator) config.Option[*MilvusCollectionReader] {
-	return config.OptionFunc[*MilvusCollectionReader](func(object *MilvusCollectionReader) {
-		if f != nil {
-			object.factoryCreator = f
-		}
-	})
-}
-
-func ShouldReadFuncOption(f ShouldReadFunc) config.Option[*MilvusCollectionReader] {
-	return config.OptionFunc[*MilvusCollectionReader](func(object *MilvusCollectionReader) {
-		if f != nil {
-			object.shouldReadFunc = f
-		}
-	})
-}
-
-func DBOption(db int64) config.Option[*MilvusCollectionReader] {
-	return config.OptionFunc[*MilvusCollectionReader](func(object *MilvusCollectionReader) {
-		object.dbID = db
-	})
-}
-
-func MqChannelOption(p config.PulsarConfig, k config.KafkaConfig) config.Option[*ChannelReader] {
-	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
-		object.mqConfig = config.MilvusMQConfig{Pulsar: p, Kafka: k}
-	})
-}
-
-func FactoryChannelOption(f FactoryCreator) config.Option[*ChannelReader] {
-	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
-		if f != nil {
-			object.factoryCreator = f
-		}
-	})
-}
-
-func ChannelNameOption(c string) config.Option[*ChannelReader] {
-	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
-		if c != "" {
-			object.channelName = c
-		}
-	})
-}
-
-func SubscriptionPositionChannelOption(p mqwrapper.SubscriptionInitialPosition) config.Option[*ChannelReader] {
-	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
-		object.subscriptionPosition = p
-	})
-}
-
-func SeekPositionChannelOption(p string) config.Option[*ChannelReader] {
-	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
-		object.seekPosition = p
-	})
-}
-
-func DataChanChannelOption(l int) config.Option[*ChannelReader] {
-	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
-		if l > 0 {
-			object.dataChanLen = l
-		}
-	})
-}
+// import (
+// 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+// 	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
+//
+// 	"github.com/zilliztech/milvus-cdc/core/config"
+// )
+//
+// func CollectionInfoOption(collectionName string, positions map[string]*commonpb.KeyDataPair) config.Option[*CollectionReader] {
+// 	return config.OptionFunc[*CollectionReader](func(object *CollectionReader) {
+// 		object.collections = append(object.collections, CollectionInfo{
+// 			collectionName: collectionName,
+// 			positions:      positions,
+// 		})
+// 	})
+// }
+//
+// func KafKaOption(options ...config.Option[*config.KafkaConfig]) config.Option[*CollectionReader] {
+// 	return config.OptionFunc[*CollectionReader](func(object *CollectionReader) {
+// 		object.mqConfig = config.MilvusMQConfig{Kafka: config.NewKafkaConfig(options...)}
+// 	})
+// }
+//
+// func PulsarOption(options ...config.Option[*config.PulsarConfig]) config.Option[*CollectionReader] {
+// 	return config.OptionFunc[*CollectionReader](func(object *CollectionReader) {
+// 		object.mqConfig = config.MilvusMQConfig{Pulsar: config.NewPulsarConfig(options...)}
+// 	})
+// }
+//
+// func MqOption(p config.PulsarConfig, k config.KafkaConfig) config.Option[*CollectionReader] {
+// 	return config.OptionFunc[*CollectionReader](func(object *CollectionReader) {
+// 		object.mqConfig = config.MilvusMQConfig{Pulsar: p, Kafka: k}
+// 	})
+// }
+//
+// func EtcdOption(c config.MilvusEtcdConfig) config.Option[*CollectionReader] {
+// 	return config.OptionFunc[*CollectionReader](func(object *CollectionReader) {
+// 		object.etcdConfig = c
+// 	})
+// }
+//
+// // MonitorOption the implement object of Monitor should include DefaultMonitor for the better compatibility
+// func MonitorOption(m Monitor) config.Option[*CollectionReader] {
+// 	return config.OptionFunc[*CollectionReader](func(object *CollectionReader) {
+// 		object.monitor = m
+// 	})
+// }
+//
+// func ChanLenOption(l int) config.Option[*CollectionReader] {
+// 	return config.OptionFunc[*CollectionReader](func(object *CollectionReader) {
+// 		if l > 0 {
+// 			object.dataChanLen = l
+// 		}
+// 	})
+// }
+//
+// func FactoryCreatorOption(f FactoryCreator) config.Option[*CollectionReader] {
+// 	return config.OptionFunc[*CollectionReader](func(object *CollectionReader) {
+// 		if f != nil {
+// 			object.factoryCreator = f
+// 		}
+// 	})
+// }
+//
+// func ShouldReadFuncOption(f ShouldReadFunc) config.Option[*CollectionReader] {
+// 	return config.OptionFunc[*CollectionReader](func(object *CollectionReader) {
+// 		if f != nil {
+// 			object.shouldReadFunc = f
+// 		}
+// 	})
+// }
+//
+// func DBOption(db int64) config.Option[*CollectionReader] {
+// 	return config.OptionFunc[*CollectionReader](func(object *CollectionReader) {
+// 		object.dbID = db
+// 	})
+// }
+//
+// func MqChannelOption(p config.PulsarConfig, k config.KafkaConfig) config.Option[*ChannelReader] {
+// 	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
+// 		object.mqConfig = config.MilvusMQConfig{Pulsar: p, Kafka: k}
+// 	})
+// }
+//
+// func FactoryChannelOption(f FactoryCreator) config.Option[*ChannelReader] {
+// 	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
+// 		if f != nil {
+// 			object.factoryCreator = f
+// 		}
+// 	})
+// }
+//
+// func ChannelNameOption(c string) config.Option[*ChannelReader] {
+// 	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
+// 		if c != "" {
+// 			object.channelName = c
+// 		}
+// 	})
+// }
+//
+// func SubscriptionPositionChannelOption(p mqwrapper.SubscriptionInitialPosition) config.Option[*ChannelReader] {
+// 	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
+// 		object.subscriptionPosition = p
+// 	})
+// }
+//
+// func SeekPositionChannelOption(p string) config.Option[*ChannelReader] {
+// 	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
+// 		object.seekPosition = p
+// 	})
+// }
+//
+// func DataChanChannelOption(l int) config.Option[*ChannelReader] {
+// 	return config.OptionFunc[*ChannelReader](func(object *ChannelReader) {
+// 		if l > 0 {
+// 			object.dataChanLen = l
+// 		}
+// 	})
+// }

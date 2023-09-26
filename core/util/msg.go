@@ -21,10 +21,12 @@ import (
 	"fmt"
 	"reflect"
 
+	"go.uber.org/zap"
+
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
+	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"go.uber.org/zap"
 )
 
 var (
@@ -201,7 +203,7 @@ func AppendFieldData(dst []*schemapb.FieldData, src []*schemapb.FieldData, idx i
 					dstScalar.GetStringData().Data = append(dstScalar.GetStringData().Data, srcScalar.StringData.Data[idx])
 				}
 			default:
-				Log.Error("Not supported field type", zap.String("field type", fieldData.Type.String()))
+				log.Error("Not supported field type", zap.String("field type", fieldData.Type.String()))
 			}
 		case *schemapb.FieldData_Vectors:
 			dim := fieldType.Vectors.Dim
@@ -243,7 +245,7 @@ func AppendFieldData(dst []*schemapb.FieldData, src []*schemapb.FieldData, idx i
 					dstVector.GetFloatVector().Data = append(dstVector.GetFloatVector().Data, srcVector.FloatVector.Data[idx*dim:(idx+1)*dim]...)
 				}
 			default:
-				Log.Error("Not supported field type", zap.String("field type", fieldData.Type.String()))
+				log.Error("Not supported field type", zap.String("field type", fieldData.Type.String()))
 			}
 		}
 	}
@@ -255,7 +257,7 @@ func DeleteFieldData(dst []*schemapb.FieldData) {
 		switch fieldType := fieldData.Field.(type) {
 		case *schemapb.FieldData_Scalars:
 			if dst[i] == nil || dst[i].GetScalars() == nil {
-				Log.Info("empty field data can't be deleted")
+				log.Info("empty field data can't be deleted")
 				return
 			}
 			dstScalar := dst[i].GetScalars()
@@ -273,11 +275,11 @@ func DeleteFieldData(dst []*schemapb.FieldData) {
 			case *schemapb.ScalarField_StringData:
 				dstScalar.GetStringData().Data = dstScalar.GetStringData().Data[:len(dstScalar.GetStringData().Data)-1]
 			default:
-				Log.Error("wrong field type added", zap.String("field type", fieldData.Type.String()))
+				log.Error("wrong field type added", zap.String("field type", fieldData.Type.String()))
 			}
 		case *schemapb.FieldData_Vectors:
 			if dst[i] == nil || dst[i].GetVectors() == nil {
-				Log.Info("empty field data can't be deleted")
+				log.Info("empty field data can't be deleted")
 				return
 			}
 			dim := fieldType.Vectors.Dim
@@ -289,7 +291,7 @@ func DeleteFieldData(dst []*schemapb.FieldData) {
 			case *schemapb.VectorField_FloatVector:
 				dstVector.GetFloatVector().Data = dstVector.GetFloatVector().Data[:len(dstVector.GetFloatVector().Data)-int(dim)]
 			default:
-				Log.Error("wrong field type added", zap.String("field type", fieldData.Type.String()))
+				log.Error("wrong field type added", zap.String("field type", fieldData.Type.String()))
 			}
 		}
 	}

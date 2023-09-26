@@ -22,6 +22,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/milvus-io/milvus/pkg/log"
 	"go.uber.org/zap"
 )
 
@@ -47,7 +48,7 @@ func ToPhysicalChannel(vchannel string) string {
 func Base64Encode(obj any) string {
 	objByte, err := json.Marshal(obj)
 	if err != nil {
-		Log.Warn("fail to marshal obj", zap.Any("obj", obj))
+		log.Warn("fail to marshal obj", zap.Any("obj", obj))
 		return ""
 	}
 	return base64.StdEncoding.EncodeToString(objByte)

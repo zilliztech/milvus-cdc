@@ -19,16 +19,18 @@ import (
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 	"github.com/milvus-io/milvus/pkg/common"
+	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 	"github.com/milvus-io/milvus/pkg/util/commonpbutil"
 	"github.com/milvus-io/milvus/pkg/util/paramtable"
-	"github.com/zilliztech/milvus-cdc/core/config"
-	"github.com/zilliztech/milvus-cdc/core/pb"
-	"github.com/zilliztech/milvus-cdc/core/util"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"sigs.k8s.io/yaml"
+
+	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/pb"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 // cdc 在同步前需要确定之前是否已经同步了该channel，处理channel复用出现的case，
@@ -36,7 +38,7 @@ import (
 // 如果一个正在watch的流出现了createCollectionMsg，这之后需要查询下这个collection是否被watch了
 
 var (
-	log       = util.Log
+	// log       = util.Log
 	milvusCli client.Client
 	etcdCli   *clientv3.Client
 
@@ -586,7 +588,7 @@ func SendMsgPack(pChannel string, vchannnels []string, collectionID int64, parti
 	for _, position := range pack.EndPositions {
 		position.ChannelName = pChannel
 	}
-	err := milvusCli.ReplicateMessage(ctx, pChannel,
+	_, err := milvusCli.ReplicateMessage(ctx, pChannel,
 		pack.BeginTs, pack.EndTs,
 		msgBytesArr,
 		pack.StartPositions, pack.EndPositions,
@@ -693,7 +695,7 @@ func SendMsgPack2(sourceChannel, pChannel string, pack *msgstream.MsgPack) {
 	for _, position := range pack.EndPositions {
 		position.ChannelName = pChannel
 	}
-	err := milvusCli.ReplicateMessage(ctx, pChannel,
+	_, err := milvusCli.ReplicateMessage(ctx, pChannel,
 		pack.BeginTs, pack.EndTs,
 		msgBytesArr,
 		pack.StartPositions, pack.EndPositions,

@@ -4,8 +4,7 @@ metaStoreConfig:
   storeType: etcd
   etcdEndpoints:
     - localhost:2379
-#  mysqlSourceUrl: root:root@tcp(127.0.0.1:3306)/milvus-cdc?charset=utf8
-  mysqlSourceUrl: milvuscdc:1qaz@WSX@tcp(dev-vdc-mysql.cluster-c0ybmd1el2xt.us-west-2.rds.amazonaws.com:3306)/milvuscdc?charset=utf8
+  mysqlSourceUrl: root:root@tcp(127.0.0.1:3306)/milvus-cdc?charset=utf8
   rootPath: cdc
 sourceConfig:
   etcdAddress:

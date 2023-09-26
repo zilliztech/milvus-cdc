@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 
-	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 )
 
@@ -22,5 +21,3 @@ type MetaStoreFactory interface {
 	// Txn return commit function and error
 	Txn(ctx context.Context) (any, func(err error) error, error)
 }
-
-var log = util.Log

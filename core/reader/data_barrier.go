@@ -20,10 +20,12 @@ import (
 	"fmt"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"go.uber.org/zap"
+
 	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/util"
-	"go.uber.org/zap"
 )
 
 type MeetFunc func(m map[string]*model.CDCData)
@@ -116,7 +118,7 @@ func (d *DataBarrierManager) addDropCollectionData(channelName string, data *mod
 		dropCollectionCdcData.Extra[model.DropCollectionMsgsKey] = otherDropData
 		d.sendFunc(dropCollectionCdcData)
 	}))
-	//log.Info("drop collection debug", zap.Int64("collection_id", msg.CollectionID), zap.String("channel_name", channelName))
+	// log.Info("drop collection debug", zap.Int64("collection_id", msg.CollectionID), zap.String("channel_name", channelName))
 	return barrier.AddData(channelName, data)
 }
 
@@ -137,7 +139,7 @@ func (d *DataBarrierManager) addDropPartitionData(channelName string, data *mode
 		dropPartitionCdcData.Extra[model.DropPartitionMsgsKey] = otherDropData
 		d.sendFunc(dropPartitionCdcData)
 	}))
-	//log.Info("drop partition debug", zap.Int64("collection_id", msg.CollectionID),
+	// log.Info("drop partition debug", zap.Int64("collection_id", msg.CollectionID),
 	//	zap.Int64("partition_id", msg.PartitionID), zap.String("partition_name", msg.PartitionName),
 	//	zap.String("channel_name", channelName))
 	return barrier.AddData(channelName, data)

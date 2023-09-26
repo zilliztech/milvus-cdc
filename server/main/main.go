@@ -19,13 +19,18 @@ package main
 import (
 	"os"
 
-	"github.com/zilliztech/milvus-cdc/core/util"
-	"github.com/zilliztech/milvus-cdc/server"
+	"github.com/milvus-io/milvus/pkg/log"
+	"github.com/milvus-io/milvus/pkg/util/paramtable"
 	"go.uber.org/zap"
 	"sigs.k8s.io/yaml"
+
+	"github.com/zilliztech/milvus-cdc/server"
 )
 
 func main() {
+	// TODO check it
+	paramtable.Init()
+
 	s := &server.CDCServer{}
 
 	// parse config file
@@ -33,7 +38,7 @@ func main() {
 	var serverConfig server.CDCServerConfig
 	err := yaml.Unmarshal(fileContent, &serverConfig)
 	if err != nil {
-		util.Log.Panic("Failed to parse config file", zap.Error(err))
+		log.Panic("Failed to parse config file", zap.Error(err))
 	}
 	s.Run(&serverConfig)
 }

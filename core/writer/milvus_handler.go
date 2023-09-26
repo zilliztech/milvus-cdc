@@ -23,13 +23,16 @@ import (
 
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
+	"github.com/milvus-io/milvus/pkg/log"
+	"go.uber.org/zap"
+
+	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/util"
-	"go.uber.org/zap"
 )
 
 type MilvusDataHandler struct {
-	DefaultDataHandler
+	api.DataHandler
 
 	address         string
 	username        string
@@ -38,16 +41,16 @@ type MilvusDataHandler struct {
 	ignorePartition bool // sometimes the has partition api is a deny api
 	connectTimeout  int
 
-	factory MilvusClientFactory
+	// factory MilvusClientFactory
 	// TODO support db
-	milvus MilvusClientAPI
+	milvus client.Client
 }
 
 // NewMilvusDataHandler options must include AddressOption
 func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*MilvusDataHandler, error) {
 	handler := &MilvusDataHandler{
 		connectTimeout: 5,
-		factory:        NewDefaultMilvusClientFactory(),
+		// factory:        NewDefaultMilvusClientFactory(),
 	}
 	for _, option := range options {
 		option.Apply(handler)
@@ -60,16 +63,22 @@ func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*Milvus
 	timeoutContext, cancel := context.WithTimeout(context.Background(), time.Duration(handler.connectTimeout)*time.Second)
 	defer cancel()
 
-	switch {
-	case handler.username != "" && handler.enableTLS:
-		handler.milvus, err = handler.factory.NewGrpcClientWithTLSAuth(timeoutContext,
-			handler.address, handler.username, handler.password)
-	case handler.username != "":
-		handler.milvus, err = handler.factory.NewGrpcClientWithAuth(timeoutContext,
-			handler.address, handler.username, handler.password)
-	default:
-		handler.milvus, err = handler.factory.NewGrpcClient(timeoutContext, handler.address)
-	}
+	// switch {
+	// case handler.username != "" && handler.enableTLS:
+	// 	handler.milvus, err = handler.factory.NewGrpcClientWithTLSAuth(timeoutContext,
+	// 		handler.address, handler.username, handler.password)
+	// case handler.username != "":
+	// 	handler.milvus, err = handler.factory.NewGrpcClientWithAuth(timeoutContext,
+	// 		handler.address, handler.username, handler.password)
+	// default:
+	// 	handler.milvus, err = handler.factory.NewGrpcClient(timeoutContext, handler.address)
+	// }
+	handler.milvus, err = client.NewClient(timeoutContext, client.Config{
+		Address:       handler.address,
+		Username:      handler.username,
+		Password:      handler.password,
+		EnableTLSAuth: handler.enableTLS,
+	})
 	if err != nil {
 		log.Warn("fail to new the milvus client", zap.Error(err))
 		return nil, err
@@ -77,7 +86,7 @@ func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*Milvus
 	return handler, nil
 }
 
-func (m *MilvusDataHandler) CreateCollection(ctx context.Context, param *CreateCollectionParam) error {
+func (m *MilvusDataHandler) CreateCollection(ctx context.Context, param *api.CreateCollectionParam) error {
 	var options []client.CreateCollectionOption
 	for _, property := range param.Properties {
 		options = append(options, client.WithCollectionProperty(property.GetKey(), property.GetValue()))
@@ -86,11 +95,11 @@ func (m *MilvusDataHandler) CreateCollection(ctx context.Context, param *CreateC
 	return m.milvus.CreateCollection(ctx, param.Schema, param.ShardsNum, options...)
 }
 
-func (m *MilvusDataHandler) DropCollection(ctx context.Context, param *DropCollectionParam) error {
+func (m *MilvusDataHandler) DropCollection(ctx context.Context, param *api.DropCollectionParam) error {
 	return m.milvus.DropCollection(ctx, param.CollectionName)
 }
 
-func (m *MilvusDataHandler) Insert(ctx context.Context, param *InsertParam) error {
+func (m *MilvusDataHandler) Insert(ctx context.Context, param *api.InsertParam) error {
 	partitionName := param.PartitionName
 	if m.ignorePartition {
 		partitionName = ""
@@ -99,7 +108,7 @@ func (m *MilvusDataHandler) Insert(ctx context.Context, param *InsertParam) erro
 	return err
 }
 
-func (m *MilvusDataHandler) Delete(ctx context.Context, param *DeleteParam) error {
+func (m *MilvusDataHandler) Delete(ctx context.Context, param *api.DeleteParam) error {
 	partitionName := param.PartitionName
 	if m.ignorePartition {
 		partitionName = ""
@@ -107,43 +116,48 @@ func (m *MilvusDataHandler) Delete(ctx context.Context, param *DeleteParam) erro
 	return m.milvus.DeleteByPks(ctx, param.CollectionName, partitionName, param.Column)
 }
 
-func (m *MilvusDataHandler) CreatePartition(ctx context.Context, param *CreatePartitionParam) error {
+func (m *MilvusDataHandler) CreatePartition(ctx context.Context, param *api.CreatePartitionParam) error {
 	if m.ignorePartition {
 		return nil
 	}
 	return m.milvus.CreatePartition(ctx, param.CollectionName, param.PartitionName)
 }
 
-func (m *MilvusDataHandler) DropPartition(ctx context.Context, param *DropPartitionParam) error {
+func (m *MilvusDataHandler) DropPartition(ctx context.Context, param *api.DropPartitionParam) error {
 	if m.ignorePartition {
 		return nil
 	}
 	return m.milvus.DropPartition(ctx, param.CollectionName, param.PartitionName)
 }
 
-func (m *MilvusDataHandler) CreateIndex(ctx context.Context, param *CreateIndexParam) error {
+func (m *MilvusDataHandler) CreateIndex(ctx context.Context, param *api.CreateIndexParam) error {
 	indexEntity := entity.NewGenericIndex(param.IndexName, "", util.ConvertKVPairToMap(param.ExtraParams))
 	return m.milvus.CreateIndex(ctx, param.CollectionName, param.FieldName, indexEntity, true, client.WithIndexName(param.IndexName))
 }
 
-func (m *MilvusDataHandler) DropIndex(ctx context.Context, param *DropIndexParam) error {
+func (m *MilvusDataHandler) DropIndex(ctx context.Context, param *api.DropIndexParam) error {
 	return m.milvus.DropIndex(ctx, param.CollectionName, param.FieldName, client.WithIndexName(param.IndexName))
 }
 
-func (m *MilvusDataHandler) LoadCollection(ctx context.Context, param *LoadCollectionParam) error {
+func (m *MilvusDataHandler) LoadCollection(ctx context.Context, param *api.LoadCollectionParam) error {
 	// TODO resource group
-	//return m.milvus.LoadCollection(ctx, param.CollectionName, true, client.WithReplicaNumber(param.ReplicaNumber), client.WithResourceGroups(param.ResourceGroups))
+	// return m.milvus.LoadCollection(ctx, param.CollectionName, true, client.WithReplicaNumber(param.ReplicaNumber), client.WithResourceGroups(param.ResourceGroups))
 	return m.milvus.LoadCollection(ctx, param.CollectionName, true, client.WithReplicaNumber(param.ReplicaNumber))
 }
 
-func (m *MilvusDataHandler) ReleaseCollection(ctx context.Context, param *ReleaseCollectionParam) error {
+func (m *MilvusDataHandler) ReleaseCollection(ctx context.Context, param *api.ReleaseCollectionParam) error {
 	return m.milvus.ReleaseCollection(ctx, param.CollectionName)
 }
 
-func (m *MilvusDataHandler) CreateDatabase(ctx context.Context, param *CreateDataBaseParam) error {
+func (m *MilvusDataHandler) CreateDatabase(ctx context.Context, param *api.CreateDataBaseParam) error {
 	return m.milvus.CreateDatabase(ctx, param.DbName)
 }
 
-func (m *MilvusDataHandler) DropDatabase(ctx context.Context, param *DropDataBaseParam) error {
+func (m *MilvusDataHandler) DropDatabase(ctx context.Context, param *api.DropDataBaseParam) error {
 	return m.milvus.DropDatabase(ctx, param.DbName)
+}
+
+func (m *MilvusDataHandler) ReplicateMessage(ctx context.Context, param *api.ReplicateMessageParam) error {
+	_, err := m.milvus.ReplicateMessage(ctx, param.ChannelName, param.BeginTs, param.EndTs, param.MsgsBytes, param.StartPositions, param.EndPositions)
+	return err
 }

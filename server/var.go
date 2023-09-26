@@ -16,10 +16,10 @@
 
 package server
 
-import (
-	"github.com/zilliztech/milvus-cdc/core/util"
-)
-
-var (
-	log = util.Log
-)
+// import (
+// 	"github.com/zilliztech/milvus-cdc/core/util"
+// )
+//
+// var (
+// 	log = util.Log
+// )
