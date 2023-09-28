@@ -77,6 +77,9 @@ type PulsarConfig struct {
 	// support tenant
 	Tenant    string
 	Namespace string
+
+	AuthPlugin string
+	AuthParams string
 }
 
 func NewPulsarConfig(options ...Option[*PulsarConfig]) PulsarConfig {
