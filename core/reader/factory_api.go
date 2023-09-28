@@ -17,12 +17,15 @@
 package reader
 
 import (
+	"encoding/json"
 	"strconv"
+	"strings"
 
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/paramtable"
 
 	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 type FactoryCreator interface {
@@ -37,6 +40,20 @@ func NewDefaultFactoryCreator() FactoryCreator {
 }
 
 func (d *DefaultFactoryCreator) NewPmsFactory(cfg *config.PulsarConfig) msgstream.Factory {
+	authParams := "{}"
+	if cfg.AuthParams != "" {
+		jsonMap := make(map[string]string)
+		params := strings.Split(cfg.AuthParams, ",")
+		for _, param := range params {
+			kv := strings.Split(param, ":")
+			if len(kv) == 2 {
+				jsonMap[kv[0]] = kv[1]
+			}
+		}
+
+		jsonData, _ := json.Marshal(&jsonMap)
+		authParams = util.ToString(jsonData)
+	}
 	return msgstream.NewPmsFactory(
 		&paramtable.ServiceParam{
 			PulsarCfg: paramtable.PulsarConfig{
@@ -44,8 +61,8 @@ func (d *DefaultFactoryCreator) NewPmsFactory(cfg *config.PulsarConfig) msgstrea
 				WebAddress:          config.NewParamItem(cfg.WebAddress),
 				WebPort:             config.NewParamItem(strconv.Itoa(cfg.WebPort)),
 				MaxMessageSize:      config.NewParamItem(cfg.MaxMessageSize),
-				AuthPlugin:          config.NewParamItem(""),
-				AuthParams:          config.NewParamItem("{}"),
+				AuthPlugin:          config.NewParamItem(cfg.AuthPlugin),
+				AuthParams:          config.NewParamItem(authParams),
 				Tenant:              config.NewParamItem(cfg.Tenant),
 				Namespace:           config.NewParamItem(cfg.Namespace),
 				RequestTimeout:      config.NewParamItem("60"),
