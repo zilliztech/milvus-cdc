@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/zilliztech/milvus-cdc/core/pb"
+
+	"github.com/milvus-io/milvus/pkg/log"
 )
 
 // MetaOp meta operation
@@ -19,6 +21,7 @@ type MetaOp interface {
 	UnsubscribeEvent(taskID string, eventType WatchEventType)
 
 	GetAllCollection(ctx context.Context, filter CollectionFilter) ([]*pb.CollectionInfo, error)
+	GetAllPartition(ctx context.Context, filter PartitionFilter) ([]*pb.PartitionInfo, error)
 	GetCollectionNameByID(ctx context.Context, id int64) string
 }
 
@@ -37,3 +40,42 @@ const (
 	CollectionEventType WatchEventType = iota + 1
 	PartitionEventType
 )
+
+type DefaultMetaOp struct{}
+
+var _ MetaOp = (*DefaultMetaOp)(nil)
+
+func (d *DefaultMetaOp) WatchCollection(ctx context.Context, filter CollectionFilter) {
+	log.Warn("WatchCollection is not implemented, please check it")
+}
+
+func (d *DefaultMetaOp) WatchPartition(ctx context.Context, filter PartitionFilter) {
+	log.Warn("WatchPartition is not implemented, please check it")
+}
+
+func (d *DefaultMetaOp) SubscribeCollectionEvent(taskID string, consumer CollectionEventConsumer) {
+	log.Warn("SubscribeCollectionEvent is not implemented, please check it")
+}
+
+func (d *DefaultMetaOp) SubscribePartitionEvent(taskID string, consumer PartitionEventConsumer) {
+	log.Warn("SubscribePartitionEvent is not implemented, please check it")
+}
+
+func (d *DefaultMetaOp) UnsubscribeEvent(taskID string, eventType WatchEventType) {
+	log.Warn("UnsubscribeEvent is not implemented, please check it")
+}
+
+func (d *DefaultMetaOp) GetAllCollection(ctx context.Context, filter CollectionFilter) ([]*pb.CollectionInfo, error) {
+	log.Warn("GetAllCollection is not implemented, please check it")
+	return nil, nil
+}
+
+func (d *DefaultMetaOp) GetAllPartition(ctx context.Context, filter PartitionFilter) ([]*pb.PartitionInfo, error) {
+	log.Warn("GetAllPartition is not implemented, please check it")
+	return nil, nil
+}
+
+func (d *DefaultMetaOp) GetCollectionNameByID(ctx context.Context, id int64) string {
+	log.Warn("GetCollectionNameByID is not implemented, please check it")
+	return ""
+}

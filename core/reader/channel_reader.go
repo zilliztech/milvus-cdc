@@ -7,43 +7,43 @@ import (
 	"math/rand"
 	"sync"
 
-	"github.com/golang/protobuf/proto"
+	"go.uber.org/zap"
+
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
-	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
-	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 type ChannelReader struct {
 	api.DefaultReader
 
-	mqConfig             config.MilvusMQConfig
+	mqConfig             config.MQConfig
 	factoryCreator       FactoryCreator
 	channelName          string
 	subscriptionPosition mqwrapper.SubscriptionInitialPosition
 	seekPosition         string
 
 	msgStream   msgstream.MsgStream
-	dataChan    chan *model.CDCData
-	dataChanLen int
+	dataHandler func(*msgstream.MsgPack) bool // the return value is false means quit
 	isQuit      util.Value[bool]
 	startOnce   sync.Once
 	quitOnce    sync.Once
 }
 
-func NewChannelReader(options ...config.Option[*ChannelReader]) (*ChannelReader, error) {
+var _ api.Reader = (*ChannelReader)(nil)
+
+func NewChannelReader(channelName, seekPosition string, mqConfig config.MQConfig, dataHandler func(*msgstream.MsgPack) bool) (api.Reader, error) {
 	channelReader := &ChannelReader{
 		factoryCreator: NewDefaultFactoryCreator(),
-		dataChanLen:    100,
-	}
-	for _, option := range options {
-		option.Apply(channelReader)
+		channelName:    channelName,
+		seekPosition:   seekPosition,
+		mqConfig:       mqConfig,
+		dataHandler:    dataHandler,
 	}
 	channelReader.isQuit.Store(false)
 	err := channelReader.initMsgStream()
@@ -81,12 +81,9 @@ func (c *ChannelReader) initMsgStream() error {
 			stream.Close()
 			return err
 		}
-		msgPosition := &msgpb.MsgPosition{}
-		err = proto.Unmarshal(decodeBytes, msgPosition)
-		if err != nil {
-			log.Warn("fail to unmarshal the seek position", zap.Error(err))
-			stream.Close()
-			return err
+		msgPosition := &msgpb.MsgPosition{
+			ChannelName: c.channelName,
+			MsgID:       decodeBytes,
 		}
 		err = stream.Seek(context.Background(), []*msgstream.MsgPosition{msgPosition})
 		if err != nil {
@@ -98,31 +95,30 @@ func (c *ChannelReader) initMsgStream() error {
 	return nil
 }
 
-func (c *ChannelReader) StartRead(ctx context.Context) <-chan *model.CDCData {
+func (c *ChannelReader) StartRead(ctx context.Context) {
 	c.startOnce.Do(func() {
-		c.dataChan = make(chan *model.CDCData, c.dataChanLen)
 		msgChan := c.msgStream.Chan()
 		go func() {
 			for {
 				if c.isQuit.Load() {
-					close(c.dataChan)
+					log.Info("the channel reader is quit")
 					return
 				}
 				msgPack, ok := <-msgChan
 				if !ok || msgPack == nil {
+					log.Info("the msg pack is nil, the channel reader is quit")
 					return
 				}
-				for _, msg := range msgPack.Msgs {
-					log.Info("msgType", zap.Any("msg_type", msg.Type()))
-					c.dataChan <- &model.CDCData{
-						Msg: msg,
-					}
+				if c.dataHandler == nil {
+					log.Panic("the data handler is nil")
+				}
+				if !c.dataHandler(msgPack) {
+					log.Warn("the data handler return false, the channel reader is quit")
+					return
 				}
 			}
 		}()
 	})
-
-	return c.dataChan
 }
 
 func (c *ChannelReader) QuitRead(ctx context.Context) {

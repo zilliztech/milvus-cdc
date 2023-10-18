@@ -19,6 +19,8 @@ sourceConfig:
     maxMessageSize: 5242880
     tenant: public
     namespace: default
+#    authPlugin: org.apache.pulsar.client.impl.auth.AuthenticationToken
+#    authParams: token:xxx
 #  kafka:
 #    address: 127.0.0.1:9092
 enableReverse: false

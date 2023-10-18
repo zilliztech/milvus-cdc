@@ -9,11 +9,12 @@ import (
 type Reader interface {
 	StartRead(ctx context.Context)
 	QuitRead(ctx context.Context)
-	GetChannelChan() <-chan string
 }
 
 // DefaultReader All CDCReader implements should combine it
 type DefaultReader struct{}
+
+var _ Reader = (*DefaultReader)(nil)
 
 // StartRead the return value is nil,
 // and if you receive the data from the nil chan, will block forever, not panic

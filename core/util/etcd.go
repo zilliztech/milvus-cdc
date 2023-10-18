@@ -18,10 +18,10 @@ package util
 
 import (
 	"context"
-	"path"
 	"time"
 
 	"github.com/milvus-io/milvus/pkg/log"
+	"github.com/milvus-io/milvus/pkg/util/retry"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 )
@@ -74,25 +74,13 @@ func GetEtcdClient(endpoints []string) (KVApi, error) {
 	return etcdCli, err
 }
 
-func GetCollectionPrefix(rootPath string, metaSubPath string, collectionKey string) string {
-	return path.Join(rootPath, metaSubPath, collectionKey)
-}
-
-func GetPartitionPrefix(rootPath string, metaSubPath string, partitionKey string) string {
-	return path.Join(rootPath, metaSubPath, partitionKey)
-}
-
-func GetFieldPrefix(rootPath string, metaSubPath string, fieldKey string) string {
-	return path.Join(rootPath, metaSubPath, fieldKey)
-}
-
 func EtcdPut(etcdCli KVApi, key, val string, opts ...clientv3.OpOption) error {
 	ctx, cancel := context.WithTimeout(context.Background(), EtcdOpTimeout)
 	defer cancel()
-	return Do(ctx, func() error {
+	return retry.Do(ctx, func() error {
 		_, err := etcdCli.Put(ctx, key, val, opts...)
 		return err
-	}, Attempts(EtcdOpRetryTime))
+	}, retry.Attempts(EtcdOpRetryTime))
 }
 
 func EtcdGetWithContext(ctx context.Context, etcdCli KVApi, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error) {
@@ -101,10 +89,10 @@ func EtcdGetWithContext(ctx context.Context, etcdCli KVApi, key string, opts ...
 
 	ctx, cancel := context.WithTimeout(ctx, EtcdOpTimeout)
 	defer cancel()
-	err = Do(ctx, func() error {
+	err = retry.Do(ctx, func() error {
 		resp, err = etcdCli.Get(ctx, key, opts...)
 		return err
-	}, Attempts(EtcdOpRetryTime))
+	}, retry.Attempts(EtcdOpRetryTime))
 	return resp, err
 }
 
@@ -117,21 +105,21 @@ func EtcdDelete(etcdCli KVApi, key string, opts ...clientv3.OpOption) error {
 	ctx, cancel := context.WithTimeout(context.Background(), EtcdOpTimeout)
 	defer cancel()
 
-	return Do(ctx, func() error {
+	return retry.Do(ctx, func() error {
 		_, err := etcdCli.Delete(ctx, key, opts...)
 		return err
-	}, Attempts(EtcdOpRetryTime))
+	}, retry.Attempts(EtcdOpRetryTime))
 }
 
 func EtcdTxn(etcdCli KVApi, fun func(txn clientv3.Txn) error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), EtcdOpTimeout)
 	defer cancel()
 
-	return Do(ctx, func() error {
+	return retry.Do(ctx, func() error {
 		etcdTxn := etcdCli.Txn(ctx)
 		err := fun(etcdTxn)
 		return err
-	}, Attempts(EtcdOpRetryTime))
+	}, retry.Attempts(EtcdOpRetryTime))
 }
 
 func EtcdStatus(etcdCli KVApi) error {

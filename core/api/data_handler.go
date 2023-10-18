@@ -22,14 +22,18 @@ type DataHandler interface {
 	DropIndex(ctx context.Context, param *DropIndexParam) error
 	LoadCollection(ctx context.Context, param *LoadCollectionParam) error
 	ReleaseCollection(ctx context.Context, param *ReleaseCollectionParam) error
-	CreateDatabase(ctx context.Context, param *CreateDataBaseParam) error
-	DropDatabase(ctx context.Context, param *DropDataBaseParam) error
+	Flush(ctx context.Context, param *FlushParam) error
+	CreateDatabase(ctx context.Context, param *CreateDatabaseParam) error
+	DropDatabase(ctx context.Context, param *DropDatabaseParam) error
 
 	ReplicateMessage(ctx context.Context, param *ReplicateMessageParam) error
-	// NOTE: please add the implements for the DataHandlerWrapper class when adding new interfaces
+
+	DescribeCollection(ctx context.Context, param *DescribeCollectionParam) error
 }
 
 type DefaultDataHandler struct{}
+
+var _ DataHandler = (*DefaultDataHandler)(nil)
 
 func (d *DefaultDataHandler) CreateCollection(ctx context.Context, param *CreateCollectionParam) error {
 	log.Warn("CreateCollection is not implemented, please check it")
@@ -81,12 +85,17 @@ func (d *DefaultDataHandler) ReleaseCollection(ctx context.Context, param *Relea
 	return nil
 }
 
-func (d *DefaultDataHandler) CreateDatabase(ctx context.Context, param *CreateDataBaseParam) error {
+func (d *DefaultDataHandler) Flush(ctx context.Context, param *FlushParam) error {
+	log.Warn("Flush is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) CreateDatabase(ctx context.Context, param *CreateDatabaseParam) error {
 	log.Warn("CreateDatabase is not implemented, please check it")
 	return nil
 }
 
-func (d *DefaultDataHandler) DropDatabase(ctx context.Context, param *DropDataBaseParam) error {
+func (d *DefaultDataHandler) DropDatabase(ctx context.Context, param *DropDatabaseParam) error {
 	log.Warn("DropDatabase is not implemented, please check it")
 	return nil
 }
@@ -96,7 +105,17 @@ func (d *DefaultDataHandler) ReplicateMessage(ctx context.Context, param *Replic
 	return nil
 }
 
+func (d *DefaultDataHandler) DescribeCollection(ctx context.Context, param *DescribeCollectionParam) error {
+	log.Warn("DescribeCollection is not implemented, please check it")
+	return nil
+}
+
+type MsgBaseParam struct {
+	Base *commonpb.MsgBase
+}
+
 type CreateCollectionParam struct {
+	MsgBaseParam
 	Schema           *entity.Schema
 	ShardsNum        int32
 	ConsistencyLevel commonpb.ConsistencyLevel
@@ -104,6 +123,7 @@ type CreateCollectionParam struct {
 }
 
 type DropCollectionParam struct {
+	MsgBaseParam
 	CollectionName string
 }
 
@@ -120,11 +140,13 @@ type DeleteParam struct {
 }
 
 type CreatePartitionParam struct {
+	MsgBaseParam
 	CollectionName string
 	PartitionName  string
 }
 
 type DropPartitionParam struct {
+	MsgBaseParam
 	CollectionName string
 	PartitionName  string
 }
@@ -145,17 +167,28 @@ type ReleaseCollectionParam struct {
 	milvuspb.ReleaseCollectionRequest
 }
 
-type CreateDataBaseParam struct {
+type CreateDatabaseParam struct {
 	milvuspb.CreateDatabaseRequest
 }
 
-type DropDataBaseParam struct {
+type DropDatabaseParam struct {
 	milvuspb.DropDatabaseRequest
 }
 
+type FlushParam struct {
+	milvuspb.FlushRequest
+}
+
 type ReplicateMessageParam struct {
+	MsgBaseParam
 	ChannelName                  string
 	BeginTs, EndTs               uint64
 	MsgsBytes                    [][]byte
 	StartPositions, EndPositions []*msgpb.MsgPosition
+
+	TargetMsgPosition string
+}
+
+type DescribeCollectionParam struct {
+	Name string
 }

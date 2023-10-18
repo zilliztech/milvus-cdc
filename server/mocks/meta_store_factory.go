@@ -46,7 +46,7 @@ type MetaStoreFactory_GetTaskCollectionPositionMetaStore_Call struct {
 }
 
 // GetTaskCollectionPositionMetaStore is a helper method to define mock.On call
-//  - ctx context.Context
+//   - ctx context.Context
 func (_e *MetaStoreFactory_Expecter) GetTaskCollectionPositionMetaStore(ctx interface{}) *MetaStoreFactory_GetTaskCollectionPositionMetaStore_Call {
 	return &MetaStoreFactory_GetTaskCollectionPositionMetaStore_Call{Call: _e.mock.On("GetTaskCollectionPositionMetaStore", ctx)}
 }
@@ -90,7 +90,7 @@ type MetaStoreFactory_GetTaskInfoMetaStore_Call struct {
 }
 
 // GetTaskInfoMetaStore is a helper method to define mock.On call
-//  - ctx context.Context
+//   - ctx context.Context
 func (_e *MetaStoreFactory_Expecter) GetTaskInfoMetaStore(ctx interface{}) *MetaStoreFactory_GetTaskInfoMetaStore_Call {
 	return &MetaStoreFactory_GetTaskInfoMetaStore_Call{Call: _e.mock.On("GetTaskInfoMetaStore", ctx)}
 }
@@ -153,7 +153,7 @@ type MetaStoreFactory_Txn_Call struct {
 }
 
 // Txn is a helper method to define mock.On call
-//  - ctx context.Context
+//   - ctx context.Context
 func (_e *MetaStoreFactory_Expecter) Txn(ctx interface{}) *MetaStoreFactory_Txn_Call {
 	return &MetaStoreFactory_Txn_Call{Call: _e.mock.On("Txn", ctx)}
 }

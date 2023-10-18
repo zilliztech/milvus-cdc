@@ -57,10 +57,10 @@ github.com/DataDog/zstd v1.5.0/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwS
 github.com/Joker/hpp v1.0.0/go.mod h1:8x5n+M1Hp5hC0g8okX3sR3vFQwynaX/UgSOM9MeBKzY=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/Shopify/goreferrer v0.0.0-20181106222321-ec9c9a553398/go.mod h1:a1uqRtAwp2Xwc6WNPJEufxJ7fx3npB4UV/JOLmbu5I0=
-github.com/SimFG/milvus-sdk-go/v2 v2.0.0-20230919094145-06acf1ab753c h1:1S40miUo1RfuucrFheszLHW9j4nqR3aFFH0QUAifRAA=
-github.com/SimFG/milvus-sdk-go/v2 v2.0.0-20230919094145-06acf1ab753c/go.mod h1:O1gKEbj3snNwETxglX0y3nIZNdQnWP57txQ1nphpM1o=
-github.com/SimFG/milvus/pkg v0.0.0-20230925083123-8c1cd0c4b615 h1:dErrHuWnWHWxSbC58BnTwZW1wLNDi9WqwbMbINNQS2w=
-github.com/SimFG/milvus/pkg v0.0.0-20230925083123-8c1cd0c4b615/go.mod h1:SGW0KrIpHihP4GmWVfiQDW3p/YsQijrv0aeu5tNvyE8=
+github.com/SimFG/milvus-sdk-go/v2 v2.0.0-20231010112258-f76dd9347d7b h1:5+2dlnqgHRzU54IRqof/7jKnWOxnXwGcekp4qPPCf+I=
+github.com/SimFG/milvus-sdk-go/v2 v2.0.0-20231010112258-f76dd9347d7b/go.mod h1:nYoDpTft4al6sL3d7lVnxsyk0O3aYtEkoxLF9tmrfiQ=
+github.com/SimFG/milvus/pkg v0.0.0-20231008113216-a4162509f610 h1:5pZBLefW0Q7FTATTXpDYVnJqeAcr4nautrC+mAW5WZQ=
+github.com/SimFG/milvus/pkg v0.0.0-20231008113216-a4162509f610/go.mod h1:8rKhAg2CoNAKgjEKZJayz4kbd2Ja41S/rY6/4uMG8Kg=
 github.com/actgardner/gogen-avro/v10 v10.1.0/go.mod h1:o+ybmVjEa27AAr35FRqU98DJu1fXES56uXniYFv4yDA=
 github.com/actgardner/gogen-avro/v10 v10.2.1/go.mod h1:QUhjeHPchheYmMDni/Nx7VB0RsT/ee8YIgGY/xpEQgQ=
 github.com/actgardner/gogen-avro/v9 v9.1.0/go.mod h1:nyTj6wPqDJoxM3qdnjcLv+EnMDSDFqE0qDpva2QRmKc=
@@ -475,8 +475,8 @@ github.com/matttproud/golang_protobuf_extensions v1.0.4/go.mod h1:BSXmuO+STAnVfr
 github.com/mediocregopher/radix/v3 v3.4.2/go.mod h1:8FL3F6UQRXHXIBSPUs5h0RybMF8i4n7wVopoX3x7Bv8=
 github.com/microcosm-cc/bluemonday v1.0.2/go.mod h1:iVP4YcDBq+n/5fb23BhYFvIMq/leAFZyRl6bYmGDlGc=
 github.com/miekg/dns v1.0.14/go.mod h1:W1PPwlIAgtquWBMBEV9nkV9Cazfe8ScdGz/Lj7v3Nrg=
-github.com/milvus-io/milvus-proto/go-api/v2 v2.3.2-0.20230919092633-6ef446ad2aab h1:XJtS30t72wLCnhI9EzaWCA8Hr5zROHj2/S+YYV4+hIs=
-github.com/milvus-io/milvus-proto/go-api/v2 v2.3.2-0.20230919092633-6ef446ad2aab/go.mod h1:1OIl0v5PQeNxIJhCvY+K55CBUOYDZevw9g9380u1Wek=
+github.com/milvus-io/milvus-proto/go-api/v2 v2.3.2-0.20231008032233-5d64d443769d h1:K8yyzz8BCBm+wirhRgySyB8wN+sw33eB3VsLz6Slu5s=
+github.com/milvus-io/milvus-proto/go-api/v2 v2.3.2-0.20231008032233-5d64d443769d/go.mod h1:1OIl0v5PQeNxIJhCvY+K55CBUOYDZevw9g9380u1Wek=
 github.com/milvus-io/pulsar-client-go v0.6.10 h1:eqpJjU+/QX0iIhEo3nhOqMNXL+TyInAs1IAHZCrCM/A=
 github.com/milvus-io/pulsar-client-go v0.6.10/go.mod h1:lQqCkgwDF8YFYjKA+zOheTk1tev2B+bKj5j7+nm8M1w=
 github.com/minio/highwayhash v1.0.2 h1:Aak5U0nElisjDCfPSG79Tgzkn2gl66NxOMspRrKnA/g=

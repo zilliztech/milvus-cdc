@@ -22,9 +22,7 @@ import (
 	modelrequest "github.com/zilliztech/milvus-cdc/server/model/request"
 )
 
-var (
-	requestHandlers map[string]*requestHandler
-)
+var requestHandlers map[string]*requestHandler
 
 type requestHandler struct {
 	generateModel func() any
@@ -91,6 +89,18 @@ func init() {
 					return nil, errors.New("fail to cast the request to the get model")
 				}
 				return api.Get(getRequest)
+			},
+		},
+		modelrequest.GetPosition: {
+			generateModel: func() any {
+				return &modelrequest.GetPositionRequest{}
+			},
+			handle: func(api CDCService, request any) (any, error) {
+				getPositionRequest, ok := request.(*modelrequest.GetPositionRequest)
+				if !ok {
+					return nil, errors.New("fail to cast the request to the get position model")
+				}
+				return api.GetPosition(getPositionRequest)
 			},
 		},
 		modelrequest.List: {

@@ -21,12 +21,11 @@ import (
 	"fmt"
 	"reflect"
 
-	"go.uber.org/zap"
-
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"go.uber.org/zap"
 )
 
 var (
@@ -309,7 +308,7 @@ func GetSizeOfIDs(data *schemapb.IDs) int {
 	case *schemapb.IDs_StrId:
 		result = len(data.GetStrId().GetData())
 	default:
-		//TODO::
+		// TODO::
 	}
 
 	return result

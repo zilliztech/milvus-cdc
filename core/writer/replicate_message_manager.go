@@ -53,12 +53,6 @@ func (r *replicateMessageHandler) startHandleMessageLoop() {
 				return
 			}
 			messageParam := message.Param
-			// for _, position := range messageParam.StartPositions {
-			// 	position.ChannelName = messageParam.ChannelName
-			// }
-			// for _, position := range messageParam.EndPositions {
-			// 	position.ChannelName = messageParam.ChannelName
-			// }
 			err := r.handler.ReplicateMessage(context.Background(), messageParam)
 			if err != nil {
 				message.FailFunc(message.Param, err)

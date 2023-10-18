@@ -17,8 +17,6 @@
 package config
 
 import (
-	"strconv"
-
 	"github.com/milvus-io/milvus/pkg/config"
 	"github.com/milvus-io/milvus/pkg/util/paramtable"
 )
@@ -50,21 +48,11 @@ type MQConfig struct {
 }
 
 type KafkaConfig struct {
-	Address string
-}
-
-func NewKafkaConfig(options ...Option[*KafkaConfig]) KafkaConfig {
-	var k KafkaConfig
-	for _, option := range options {
-		option.Apply(&k)
-	}
-	return k
-}
-
-func KafkaAddressOption(address string) Option[*KafkaConfig] {
-	return OptionFunc[*KafkaConfig](func(object *KafkaConfig) {
-		object.Address = address
-	})
+	Address          string
+	SaslUsername     string
+	SaslPassword     string
+	SaslMechanisms   string
+	SecurityProtocol string
 }
 
 type PulsarConfig struct {
@@ -80,39 +68,4 @@ type PulsarConfig struct {
 
 	AuthPlugin string
 	AuthParams string
-}
-
-func NewPulsarConfig(options ...Option[*PulsarConfig]) PulsarConfig {
-	p := PulsarConfig{}
-	for _, option := range options {
-		option.Apply(&p)
-	}
-	return p
-}
-
-func PulsarAddressOption(address string) Option[*PulsarConfig] {
-	return OptionFunc[*PulsarConfig](func(object *PulsarConfig) {
-		object.Address = address
-	})
-}
-
-func PulsarWebAddressOption(address string, port int) Option[*PulsarConfig] {
-	return OptionFunc[*PulsarConfig](func(object *PulsarConfig) {
-		object.WebAddress = address
-		object.WebPort = port
-	})
-}
-
-// PulsarMaxMessageSizeOption size unit: Bytes
-func PulsarMaxMessageSizeOption(size int64) Option[*PulsarConfig] {
-	return OptionFunc[*PulsarConfig](func(object *PulsarConfig) {
-		object.MaxMessageSize = strconv.FormatInt(size, 10)
-	})
-}
-
-func PulsarTenantOption(tenant string, namespace string) Option[*PulsarConfig] {
-	return OptionFunc[*PulsarConfig](func(object *PulsarConfig) {
-		object.Tenant = tenant
-		object.Namespace = namespace
-	})
 }

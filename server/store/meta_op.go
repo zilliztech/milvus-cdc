@@ -20,14 +20,13 @@ import (
 	"context"
 
 	"github.com/cockroachdb/errors"
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/samber/lo"
-	"go.uber.org/zap"
-
 	servererror "github.com/zilliztech/milvus-cdc/server/error"
 	"github.com/zilliztech/milvus-cdc/server/metrics"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
+	"go.uber.org/zap"
+
+	"github.com/milvus-io/milvus/pkg/log"
 )
 
 func GetTaskInfo(taskInfoStore MetaStore[*meta.TaskInfo], taskID string) (*meta.TaskInfo, error) {
@@ -106,7 +105,7 @@ func UpdateTaskFailedReason(taskInfoStore MetaStore[*meta.TaskInfo], taskID stri
 	return nil
 }
 
-func UpdateTaskCollectionPosition(taskPositionStore MetaStore[*meta.TaskCollectionPosition], taskID string, collectionID int64, collectionName string, pChannelName string, position *commonpb.KeyDataPair) error {
+func UpdateTaskCollectionPosition(taskPositionStore MetaStore[*meta.TaskCollectionPosition], taskID string, collectionID int64, collectionName string, pChannelName string, position, opPosition, targetPosition *meta.PositionInfo) error {
 	ctx := context.Background()
 	positions, err := taskPositionStore.Get(ctx, &meta.TaskCollectionPosition{TaskID: taskID, CollectionID: collectionID}, nil)
 	if err != nil {
@@ -119,18 +118,38 @@ func UpdateTaskCollectionPosition(taskPositionStore MetaStore[*meta.TaskCollecti
 			TaskID:         taskID,
 			CollectionID:   collectionID,
 			CollectionName: collectionName,
-			Positions: map[string]*commonpb.KeyDataPair{
+			Positions: map[string]*meta.PositionInfo{
 				pChannelName: position,
 			},
+		}
+		if opPosition != nil {
+			metaPosition.OpPositions = map[string]*meta.PositionInfo{
+				pChannelName: opPosition,
+			}
+		}
+		if targetPosition != nil {
+			metaPosition.TargetPositions = map[string]*meta.PositionInfo{
+				targetPosition.DataPair.GetKey(): targetPosition,
+			}
 		}
 		return taskPositionStore.Put(ctx, metaPosition, nil)
 	}
 
 	metaPosition := positions[0]
 	if metaPosition.Positions == nil {
-		metaPosition.Positions = make(map[string]*commonpb.KeyDataPair)
+		metaPosition.Positions = make(map[string]*meta.PositionInfo)
+	}
+	if metaPosition.OpPositions == nil {
+		metaPosition.OpPositions = make(map[string]*meta.PositionInfo)
+	}
+	if metaPosition.TargetPositions == nil {
+		metaPosition.TargetPositions = make(map[string]*meta.PositionInfo)
 	}
 	metaPosition.Positions[pChannelName] = position
+	metaPosition.OpPositions[pChannelName] = opPosition
+	if targetPosition != nil {
+		metaPosition.TargetPositions[targetPosition.DataPair.GetKey()] = targetPosition
+	}
 	return taskPositionStore.Put(ctx, metaPosition, nil)
 }
 
