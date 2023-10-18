@@ -79,10 +79,19 @@ func (t *TaskInfo) CollectionNames() []string {
 	return names
 }
 
+type PositionInfo struct {
+	Time     int64
+	DataPair *commonpb.KeyDataPair
+}
+
 type TaskCollectionPosition struct {
 	TaskID         string
 	CollectionID   int64
 	CollectionName string
 	// Positions key -> channel name, value -> check point
-	Positions map[string]*commonpb.KeyDataPair
+	Positions map[string]*PositionInfo
+	// OpPositions latest op positions
+	OpPositions map[string]*PositionInfo
+	// TargetPositions target instance positions
+	TargetPositions map[string]*PositionInfo
 }

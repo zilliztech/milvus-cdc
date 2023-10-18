@@ -21,11 +21,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/util/paramtable"
-
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/util"
+
+	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/util/paramtable"
 )
 
 type FactoryCreator interface {
@@ -81,10 +81,10 @@ func (d *DefaultFactoryCreator) NewKmsFactory(cfg *config.KafkaConfig) msgstream
 		&paramtable.ServiceParam{
 			KafkaCfg: paramtable.KafkaConfig{
 				Address:             config.NewParamItem(cfg.Address),
-				SaslUsername:        config.NewParamItem(""),
-				SaslPassword:        config.NewParamItem(""),
-				SaslMechanisms:      config.NewParamItem(""),
-				SecurityProtocol:    config.NewParamItem(""),
+				SaslUsername:        config.NewParamItem(cfg.SaslUsername),
+				SaslPassword:        config.NewParamItem(cfg.SaslPassword),
+				SaslMechanisms:      config.NewParamItem(cfg.SaslMechanisms),
+				SecurityProtocol:    config.NewParamItem(cfg.SaslMechanisms),
 				ConsumerExtraConfig: config.NewParamGroup(),
 				ProducerExtraConfig: config.NewParamGroup(),
 				ReadTimeout:         config.NewParamItem("10"),

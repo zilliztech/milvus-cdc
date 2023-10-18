@@ -11,12 +11,13 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/golang/protobuf/proto"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
+
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/common"
 	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/util/retry"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/pb"
@@ -47,7 +48,8 @@ type EtcdOp struct {
 }
 
 func NewEtcdOp(endpoints []string,
-	rootPath, metaPath, defaultPartitionName string) (api.MetaOp, error) {
+	rootPath, metaPath, defaultPartitionName string,
+) (api.MetaOp, error) {
 	etcdOp := &EtcdOp{
 		endpoints:            endpoints,
 		rootPath:             rootPath,
@@ -152,7 +154,6 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 							}
 							return true
 						})
-						log.Info("the collection hasn't been consumed", zap.Int64("collection_id", info.ID))
 					}
 				case <-ctx.Done():
 					log.Info("watch collection context done")
@@ -215,7 +216,7 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 							continue
 						}
 						// TODO checkout it
-						log.Debug("partition info", zap.Int64("collection_id", info.CollectionId))
+						log.Debug("partition info", zap.Int64("collection_id", info.CollectionID))
 
 						// collectionID := e.getCollectionIDFromPartitionKey(partitionKey)
 						// if collectionID == 0 {
@@ -241,7 +242,6 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 							}
 							return true
 						})
-						log.Info("the partition hasn't been consumed", zap.String("key", partitionKey))
 					}
 				case <-ctx.Done():
 					log.Info("watch partition context done")
@@ -376,4 +376,31 @@ func (e *EtcdOp) GetCollectionNameByID(ctx context.Context, id int64) string {
 		}
 	}
 	return collectionName
+}
+
+func (e *EtcdOp) GetAllPartition(ctx context.Context, filter api.PartitionFilter) ([]*pb.PartitionInfo, error) {
+	resp, err := util.EtcdGetWithContext(ctx, e.etcdClient, e.partitionPrefix()+"/", clientv3.WithPrefix())
+	if err != nil {
+		log.Warn("fail to get all partition data", zap.Error(err))
+		return nil, err
+	}
+	var existedPartitionInfos []*pb.PartitionInfo
+	for _, kv := range resp.Kvs {
+		info := &pb.PartitionInfo{}
+		err = proto.Unmarshal(kv.Value, info)
+		if err != nil {
+			log.Warn("fail to unmarshal partition info", zap.String("key", util.ToString(kv.Key)), zap.String("value", util.Base64Encode(kv.Value)), zap.Error(err))
+			continue
+		}
+		if info.State != pb.PartitionState_PartitionCreated || info.PartitionName == e.defaultPartitionName {
+			log.Info("not created partition", zap.String("key", util.ToString(kv.Key)), zap.String("partition_name", info.PartitionName))
+			continue
+		}
+		if filter != nil && filter(info) {
+			log.Info("the partition info is filtered", zap.String("key", util.ToString(kv.Key)), zap.String("partition_name", info.PartitionName))
+			continue
+		}
+		existedPartitionInfos = append(existedPartitionInfos, info)
+	}
+	return existedPartitionInfos, nil
 }

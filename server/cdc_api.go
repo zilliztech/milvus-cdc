@@ -25,6 +25,7 @@ type CDCService interface {
 	Pause(request *request.PauseRequest) (*request.PauseResponse, error)
 	Resume(request *request.ResumeRequest) (*request.ResumeResponse, error)
 	Get(request *request.GetRequest) (*request.GetResponse, error)
+	GetPosition(req *request.GetPositionRequest) (*request.GetPositionResponse, error)
 	List(request *request.ListRequest) (*request.ListResponse, error)
 }
 
@@ -35,7 +36,6 @@ func NewBaseCDC() *BaseCDC {
 }
 
 func (b *BaseCDC) ReloadTask() {
-
 }
 
 func (b *BaseCDC) Create(request *request.CreateRequest) (*request.CreateResponse, error) {
@@ -55,6 +55,10 @@ func (b *BaseCDC) Resume(request *request.ResumeRequest) (*request.ResumeRespons
 }
 
 func (b *BaseCDC) Get(request *request.GetRequest) (*request.GetResponse, error) {
+	return nil, nil
+}
+
+func (b *BaseCDC) GetPosition(req *request.GetPositionRequest) (*request.GetPositionResponse, error) {
 	return nil, nil
 }
 

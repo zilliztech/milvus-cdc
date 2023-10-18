@@ -24,3 +24,19 @@ type GetRequest struct {
 type GetResponse struct {
 	Task
 }
+
+type GetPositionRequest struct {
+	TaskID string `json:"task_id" mapstructure:"task_id"`
+}
+
+type Position struct {
+	ChannelName string `json:"channel_name" mapstructure:"channel_name"`
+	Time        int64  `json:"time" mapstructure:"time"`
+	MsgID       string `json:"msg_id" mapstructure:"msg_id"`
+}
+
+type GetPositionResponse struct {
+	Positions       []Position `json:"positions" mapstructure:"positions"`
+	OpPositions     []Position `json:"op_positions" mapstructure:"op_positions"`
+	TargetPositions []Position `json:"target_positions" mapstructure:"target_positions"`
+}

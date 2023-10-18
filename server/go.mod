@@ -7,7 +7,7 @@ require (
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/goccy/go-json v0.10.2
 	github.com/google/uuid v1.3.0
-	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.2-0.20230919092633-6ef446ad2aab
+	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.2-0.20231008032233-5d64d443769d
 	github.com/milvus-io/milvus/pkg v0.0.2-0.20230823021022-7af0f7d90cee
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/prometheus/client_golang v1.14.0
@@ -147,8 +147,8 @@ require (
 
 replace (
 	github.com/apache/pulsar-client-go => github.com/milvus-io/pulsar-client-go v0.6.10
-	github.com/milvus-io/milvus-sdk-go/v2 => github.com/SimFG/milvus-sdk-go/v2 v2.0.0-20230919094145-06acf1ab753c
-	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20230925083123-8c1cd0c4b615
+	github.com/milvus-io/milvus-sdk-go/v2 => github.com/SimFG/milvus-sdk-go/v2 v2.0.0-20231010112258-f76dd9347d7b
+	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20231008113216-a4162509f610
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => ./../rocksdb
 	github.com/zilliztech/milvus-cdc/core => ../core

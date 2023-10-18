@@ -16,131 +16,32 @@
 
 package reader
 
-import (
-	"fmt"
-
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/milvus-io/milvus/pkg/log"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"go.uber.org/zap"
-
-	"github.com/zilliztech/milvus-cdc/core/model"
-	"github.com/zilliztech/milvus-cdc/core/util"
-)
-
-type MeetFunc func(m map[string]*model.CDCData)
-
-type DataBarrier struct {
-	total    int
-	cur      util.Value[int]
-	m        util.Map[string, *model.CDCData]
-	meetFunc MeetFunc
+type Barrier struct {
+	Dest        int
+	BarrierChan chan uint64
+	CloseChan   chan struct{}
 }
 
-func NewDataBarrier(count int, meetFunc MeetFunc) *DataBarrier {
-	m := &DataBarrier{
-		total:    count,
-		meetFunc: meetFunc,
+func NewBarrier(count int, f func(msgTs uint64, b *Barrier)) *Barrier {
+	barrier := &Barrier{
+		Dest:        count,
+		BarrierChan: make(chan uint64, count),
+		CloseChan:   make(chan struct{}),
 	}
-	m.cur.Store(0)
-	return m
-}
 
-// AddData it will return true if the barrier is meet
-func (m *DataBarrier) AddData(channelName string, data *model.CDCData) bool {
-	m.m.Store(channelName, data)
-	m.cur.CompareAndSwapWithFunc(func(old int) int {
-		return old + 1
-	})
-	if m.cur.Load() == m.total {
-		m.meetFunc(m.m.GetUnsafeMap())
-		return true
-	}
-	return false
-}
-
-type SendDataFunc func(data *model.CDCData)
-
-type DataBarrierManager struct {
-	total    int
-	m        util.Map[string, *DataBarrier]
-	sendFunc SendDataFunc
-}
-
-func NewDataBarrierManager(count int, dataFunc SendDataFunc) *DataBarrierManager {
-	return &DataBarrierManager{
-		total:    count,
-		sendFunc: dataFunc,
-	}
-}
-
-func (d *DataBarrierManager) IsBarrierData(data *model.CDCData) bool {
-	msgType := data.Msg.Type()
-	return msgType == commonpb.MsgType_DropCollection || msgType == commonpb.MsgType_DropPartition
-}
-
-func (d *DataBarrierManager) IsEmpty() bool {
-	empty := true
-	d.m.Range(func(_ string, _ *DataBarrier) bool {
-		empty = false
-		return false
-	})
-	return empty
-}
-
-func (d *DataBarrierManager) AddData(channelName string, data *model.CDCData) bool {
-	switch data.Msg.(type) {
-	case *msgstream.DropCollectionMsg:
-		return d.addDropCollectionData(channelName, data)
-	case *msgstream.DropPartitionMsg:
-		return d.addDropPartitionData(channelName, data)
-	default:
-		log.Warn("the msg type not support", zap.String("type", data.Msg.Type().String()),
-			zap.Any("channel", channelName), zap.Any("data", data))
-	}
-	return false
-}
-
-func (d *DataBarrierManager) addDropCollectionData(channelName string, data *model.CDCData) bool {
-	msg := data.Msg.(*msgstream.DropCollectionMsg)
-	barrier, _ := d.m.LoadOrStore(fmt.Sprintf("drop_collection_%d", msg.CollectionID), NewDataBarrier(d.total, func(m map[string]*model.CDCData) {
-		dropCollectionCdcData := &model.CDCData{
-			Extra: make(map[string]any),
-		}
-		var otherDropData []*msgstream.DropCollectionMsg
-		for _, cdcData := range m {
-			if dropCollectionCdcData.Msg == nil {
-				dropCollectionCdcData.Msg = cdcData.Msg
-			} else {
-				otherDropData = append(otherDropData, cdcData.Msg.(*msgstream.DropCollectionMsg))
+	go func() {
+		current := 0
+		var msgTs uint64
+		for current < barrier.Dest {
+			select {
+			case <-barrier.CloseChan:
+				return
+			case msgTs = <-barrier.BarrierChan:
+				current++
 			}
 		}
-		dropCollectionCdcData.Extra[model.DropCollectionMsgsKey] = otherDropData
-		d.sendFunc(dropCollectionCdcData)
-	}))
-	// log.Info("drop collection debug", zap.Int64("collection_id", msg.CollectionID), zap.String("channel_name", channelName))
-	return barrier.AddData(channelName, data)
-}
+		f(msgTs, barrier)
+	}()
 
-func (d *DataBarrierManager) addDropPartitionData(channelName string, data *model.CDCData) bool {
-	msg := data.Msg.(*msgstream.DropPartitionMsg)
-	barrier, _ := d.m.LoadOrStore(fmt.Sprintf("drop_partition_%d_%d", msg.CollectionID, msg.PartitionID), NewDataBarrier(d.total, func(m map[string]*model.CDCData) {
-		dropPartitionCdcData := &model.CDCData{
-			Extra: make(map[string]any),
-		}
-		var otherDropData []*msgstream.DropPartitionMsg
-		for _, cdcData := range m {
-			if dropPartitionCdcData.Msg == nil {
-				dropPartitionCdcData.Msg = cdcData.Msg
-			} else {
-				otherDropData = append(otherDropData, cdcData.Msg.(*msgstream.DropPartitionMsg))
-			}
-		}
-		dropPartitionCdcData.Extra[model.DropPartitionMsgsKey] = otherDropData
-		d.sendFunc(dropPartitionCdcData)
-	}))
-	// log.Info("drop partition debug", zap.Int64("collection_id", msg.CollectionID),
-	//	zap.Int64("partition_id", msg.PartitionID), zap.String("partition_name", msg.PartitionName),
-	//	zap.String("channel_name", channelName))
-	return barrier.AddData(channelName, data)
+	return barrier
 }

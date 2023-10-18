@@ -7,6 +7,7 @@ import (
 )
 
 // MetaStore M -> MetaObject, T -> txn Object
+//
 //go:generate mockery --name=MetaStore --filename=meta_store_mock.go --output=../mocks
 type MetaStore[M any] interface {
 	Put(ctx context.Context, metaObj M, txn any) error

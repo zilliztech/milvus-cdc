@@ -26,12 +26,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/samber/lo"
-	"go.uber.org/zap"
-
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/pb"
@@ -43,6 +38,12 @@ import (
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 	"github.com/zilliztech/milvus-cdc/server/model/request"
 	"github.com/zilliztech/milvus-cdc/server/store"
+	"go.uber.org/zap"
+
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
+	"github.com/milvus-io/milvus/pkg/log"
+	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 )
 
 const (
@@ -119,7 +120,6 @@ func NewMetaCDC(serverConfig *CDCServerConfig) *MetaCDC {
 	cdc.collectionNames.data = make(map[string][]string)
 	cdc.collectionNames.excludeData = make(map[string][]string)
 	cdc.cdcTasks.data = make(map[string]*meta.TaskInfo)
-	// cdc.factoryCreator = NewCDCFactory
 	cdc.replicateEntityMap.data = make(map[string]*ReplicateEntity)
 	return cdc
 }
@@ -232,9 +232,9 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		existCollectionNames := e.collectionNames.data[milvusAddress]
 		excludeCollectionNames = make([]string, len(existCollectionNames))
 		copy(excludeCollectionNames, existCollectionNames)
-		if !lo.Contains(excludeCollectionNames, util.RPCRequestCollectionName) {
-			excludeCollectionNames = append(excludeCollectionNames, util.RPCRequestCollectionName)
-		}
+		// if !lo.Contains(excludeCollectionNames, util.RPCRequestCollectionName) {
+		// 	excludeCollectionNames = append(excludeCollectionNames, util.RPCRequestCollectionName)
+		// }
 		e.collectionNames.excludeData[milvusAddress] = excludeCollectionNames
 	}
 	e.collectionNames.data[milvusAddress] = append(e.collectionNames.data[milvusAddress], newCollectionNames...)
@@ -266,6 +266,33 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		ExcludeCollections:    excludeCollectionNames,
 		WriterCacheConfig:     req.BufferConfig,
 		State:                 meta.TaskStateInitial,
+	}
+	if len(req.Positions) != 0 {
+		positions := make(map[string]*meta.PositionInfo, len(req.Positions))
+		for s, s2 := range req.Positions {
+			positionDataBytes, err := base64.StdEncoding.DecodeString(s2)
+			if err != nil {
+				return nil, servererror.NewServerError(errors.WithMessage(err, "fail to decode the position data"))
+			}
+			p := &meta.PositionInfo{
+				DataPair: &commonpb.KeyDataPair{
+					Key:  s,
+					Data: positionDataBytes,
+				},
+			}
+			positions[s] = p
+		}
+		metaPosition := &meta.TaskCollectionPosition{
+			TaskID:          info.TaskID,
+			CollectionID:    TmpCollectionID,
+			CollectionName:  TmpCollectionName,
+			Positions:       positions,
+			TargetPositions: positions,
+		}
+		err = e.metaStoreFactory.GetTaskCollectionPositionMetaStore(ctx).Put(ctx, metaPosition, nil)
+		if err != nil {
+			return nil, servererror.NewServerError(errors.WithMessage(err, "fail to put the task collection position to etcd"))
+		}
 	}
 	err = e.metaStoreFactory.GetTaskInfoMetaStore(ctx).Put(ctx, info, nil)
 	if err != nil {
@@ -306,15 +333,22 @@ func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 		return servererror.NewClientError("the cache size is less zero")
 	}
 
+	// if req.RPCChannelInfo.Name == "" {
+	// 	if err := e.checkCollectionInfos(req.CollectionInfos); err != nil {
+	// 		return err
+	// 	}
+	// } else {
+	// 	if len(req.CollectionInfos) > 0 {
+	// 		return servererror.NewClientError("the collection info should be empty when the rpc channel is not empty")
+	// 	}
+	// 	req.CollectionInfos = []model.CollectionInfo{{Name: util.RPCRequestCollectionName}}
+	// }
+
+	if err := e.checkCollectionInfos(req.CollectionInfos); err != nil {
+		return err
+	}
 	if req.RPCChannelInfo.Name == "" {
-		if err := e.checkCollectionInfos(req.CollectionInfos); err != nil {
-			return err
-		}
-	} else {
-		if len(req.CollectionInfos) > 0 {
-			return servererror.NewClientError("the collection info should be empty when the rpc channel is not empty")
-		}
-		req.CollectionInfos = []model.CollectionInfo{{Name: util.RPCRequestCollectionName}}
+		return servererror.NewClientError("the rpc channel name is empty")
 	}
 
 	_, err := cdcwriter.NewMilvusDataHandler(
@@ -445,10 +479,10 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 						log.Warn("the replicate api event channel has closed")
 						return
 					}
-					log.Info("receive the replicate api event", zap.Any("event", replicateAPIEvent))
 					err := entity.writerObj.HandleReplicateAPIEvent(context.Background(), replicateAPIEvent)
 					if err != nil {
-						log.Warn("fail to handle the replicate api event", zap.Error(err))
+						// TODO
+						log.Panic("fail to handle the replicate api event", zap.Error(err))
 					}
 				}
 			}()
@@ -469,22 +503,35 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 								log.Warn("the data channel has closed")
 								return
 							}
-							// TODO debug info, should be deleted
 							pChannel := msgPack.EndPositions[0].GetChannelName()
-							position, err := entity.writerObj.HandleReplicateMessage(context.Background(), pChannel, msgPack)
-							msgTime, _ := util.ParseHybridTs(msgPack.EndTs)
-							if msgPack.Msgs != nil && len(msgPack.Msgs) > 0 && msgPack.Msgs[0].Type() == commonpb.MsgType_Insert {
-								log.Info("insert", zap.Time("timestamp", time.UnixMilli(msgTime)))
-							}
-							log.Info("timestamp", zap.String("channel", c), zap.Time("timestamp", time.UnixMilli(msgTime)), zap.String("position", base64.StdEncoding.EncodeToString(msgPack.EndPositions[0].GetMsgID())))
+							position, targetPosition, err := entity.writerObj.HandleReplicateMessage(context.Background(), pChannel, msgPack)
 							if err != nil {
-								log.Warn("fail to handle the replicate message", zap.Error(err))
+								// TODO
+								log.Panic("fail to handle the replicate message", zap.Error(err))
+								continue
+							}
+							msgTime, _ := util.ParseHybridTs(msgPack.EndTs)
+							metaPosition := &meta.PositionInfo{
+								Time: msgTime,
+								DataPair: &commonpb.KeyDataPair{
+									Key:  c,
+									Data: position,
+								},
+							}
+							var metaOpPosition *meta.PositionInfo
+							if msgPack.Msgs != nil && len(msgPack.Msgs) > 0 && msgPack.Msgs[0].Type() != commonpb.MsgType_TimeTick {
+								metaOpPosition = metaPosition
+							}
+							metaTargetPosition := &meta.PositionInfo{
+								Time: msgTime,
+								DataPair: &commonpb.KeyDataPair{
+									Key:  pChannel,
+									Data: targetPosition,
+								},
 							}
 							if position != nil {
-								writeCallback.UpdateTaskCollectionPosition(TmpCollectionID, TmpCollectionName, c, &commonpb.KeyDataPair{
-									Key:  c,
-									Data: position.GetData(),
-								})
+								writeCallback.UpdateTaskCollectionPosition(TmpCollectionID, TmpCollectionName, c,
+									metaPosition, metaOpPosition, metaTargetPosition)
 							}
 						}
 					}(channelName)
@@ -514,23 +561,50 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 	channelSeekPosition := make(map[string]*msgpb.MsgPosition)
 	if len(taskPositions) == 1 {
 		log.Info("task seek position", zap.Any("position", taskPositions[0].Positions))
-		for _, dataPair := range taskPositions[0].Positions {
+		for _, p := range taskPositions[0].Positions {
+			dataPair := p.DataPair
 			channelSeekPosition[dataPair.GetKey()] = &msgpb.MsgPosition{
 				ChannelName: dataPair.GetKey(),
 				MsgID:       dataPair.GetData(),
 			}
 		}
 	}
-	taskReader, err := cdcreader.NewCollectionReader(info.TaskID, replicateEntity.channelManager, replicateEntity.metaOp, channelSeekPosition, GetShouldReadFunc(info))
+	collectionReader, err := cdcreader.NewCollectionReader(info.TaskID, replicateEntity.channelManager, replicateEntity.metaOp, channelSeekPosition, GetShouldReadFunc(info))
 	if err != nil {
 		log.Warn("fail to new the collection reader", zap.Error(err))
 		return servererror.NewServerError(errors.WithMessage(err, "fail to new the collection reader"))
 	}
+	channelReader, err := cdcreader.NewChannelReader(info.RPCRequestChannelInfo.Name,
+		info.RPCRequestChannelInfo.Position, config.MQConfig{
+			Pulsar: e.config.SourceConfig.Pulsar,
+			Kafka:  e.config.SourceConfig.Kafka,
+		}, func(pack *msgstream.MsgPack) bool {
+			positionBytes, err := replicateEntity.writerObj.HandleOpMessagePack(ctx, pack)
+			if err != nil {
+				// TODO
+				log.Panic("fail to handle the op message pack", zap.Error(err))
+				return false
+			}
+			msgTime, _ := util.ParseHybridTs(pack.EndTs)
+			channelName := info.RPCRequestChannelInfo.Name
+			metaPosition := &meta.PositionInfo{
+				Time: msgTime,
+				DataPair: &commonpb.KeyDataPair{
+					Key:  channelName,
+					Data: positionBytes,
+				},
+			}
+			writeCallback := NewWriteCallback(e.metaStoreFactory, e.rootPath, info.TaskID)
+			writeCallback.UpdateTaskCollectionPosition(TmpCollectionID, TmpCollectionName, channelName,
+				metaPosition, metaPosition, nil)
+			return true
+		})
 	readCtx, cancelReadFunc := context.WithCancel(context.Background())
 	e.replicateEntityMap.Lock()
-	replicateEntity.readerObj = taskReader
+	// replicateEntity.readerObj = collectionReader
 	replicateEntity.quitFunc = func() {
-		taskReader.QuitRead(readCtx)
+		collectionReader.QuitRead(readCtx)
+		channelReader.QuitRead(readCtx)
 		cancelReadFunc()
 	}
 	e.replicateEntityMap.Unlock()
@@ -546,7 +620,8 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 			return servererror.NewServerError(errors.WithMessage(err, "fail to update the task meta, task_id: "+info.TaskID))
 		}
 	}
-	taskReader.StartRead(readCtx)
+	collectionReader.StartRead(readCtx)
+	channelReader.StartRead(readCtx)
 	return nil
 }
 
@@ -643,6 +718,39 @@ func (e *MetaCDC) Get(req *request.GetRequest) (*request.GetResponse, error) {
 	return &request.GetResponse{
 		Task: request.GetTask(taskInfo),
 	}, nil
+}
+
+func (e *MetaCDC) GetPosition(req *request.GetPositionRequest) (*request.GetPositionResponse, error) {
+	ctx := context.Background()
+	positions, err := e.metaStoreFactory.GetTaskCollectionPositionMetaStore(ctx).Get(ctx, &meta.TaskCollectionPosition{TaskID: req.TaskID}, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp := &request.GetPositionResponse{}
+	if len(positions) > 0 {
+		for s, info := range positions[0].Positions {
+			resp.Positions = append(resp.Positions, request.Position{
+				ChannelName: s,
+				Time:        info.Time,
+				MsgID:       base64.StdEncoding.EncodeToString(info.DataPair.GetData()),
+			})
+		}
+		for s, info := range positions[0].OpPositions {
+			resp.OpPositions = append(resp.OpPositions, request.Position{
+				ChannelName: s,
+				Time:        info.Time,
+				MsgID:       base64.StdEncoding.EncodeToString(info.DataPair.GetData()),
+			})
+		}
+		for s, info := range positions[0].TargetPositions {
+			resp.TargetPositions = append(resp.TargetPositions, request.Position{
+				ChannelName: s,
+				Time:        info.Time,
+				MsgID:       base64.StdEncoding.EncodeToString(info.DataPair.GetData()),
+			})
+		}
+	}
+	return resp, nil
 }
 
 func (e *MetaCDC) List(req *request.ListRequest) (*request.ListResponse, error) {

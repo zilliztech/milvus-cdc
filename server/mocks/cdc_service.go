@@ -52,7 +52,7 @@ type CDCService_Create_Call struct {
 }
 
 // Create is a helper method to define mock.On call
-//  - _a0 *request.CreateRequest
+//   - _a0 *request.CreateRequest
 func (_e *CDCService_Expecter) Create(_a0 interface{}) *CDCService_Create_Call {
 	return &CDCService_Create_Call{Call: _e.mock.On("Create", _a0)}
 }
@@ -106,7 +106,7 @@ type CDCService_Delete_Call struct {
 }
 
 // Delete is a helper method to define mock.On call
-//  - _a0 *request.DeleteRequest
+//   - _a0 *request.DeleteRequest
 func (_e *CDCService_Expecter) Delete(_a0 interface{}) *CDCService_Delete_Call {
 	return &CDCService_Delete_Call{Call: _e.mock.On("Delete", _a0)}
 }
@@ -160,7 +160,7 @@ type CDCService_Get_Call struct {
 }
 
 // Get is a helper method to define mock.On call
-//  - _a0 *request.GetRequest
+//   - _a0 *request.GetRequest
 func (_e *CDCService_Expecter) Get(_a0 interface{}) *CDCService_Get_Call {
 	return &CDCService_Get_Call{Call: _e.mock.On("Get", _a0)}
 }
@@ -214,7 +214,7 @@ type CDCService_List_Call struct {
 }
 
 // List is a helper method to define mock.On call
-//  - _a0 *request.ListRequest
+//   - _a0 *request.ListRequest
 func (_e *CDCService_Expecter) List(_a0 interface{}) *CDCService_List_Call {
 	return &CDCService_List_Call{Call: _e.mock.On("List", _a0)}
 }
@@ -268,7 +268,7 @@ type CDCService_Pause_Call struct {
 }
 
 // Pause is a helper method to define mock.On call
-//  - _a0 *request.PauseRequest
+//   - _a0 *request.PauseRequest
 func (_e *CDCService_Expecter) Pause(_a0 interface{}) *CDCService_Pause_Call {
 	return &CDCService_Pause_Call{Call: _e.mock.On("Pause", _a0)}
 }
@@ -354,7 +354,7 @@ type CDCService_Resume_Call struct {
 }
 
 // Resume is a helper method to define mock.On call
-//  - _a0 *request.ResumeRequest
+//   - _a0 *request.ResumeRequest
 func (_e *CDCService_Expecter) Resume(_a0 interface{}) *CDCService_Resume_Call {
 	return &CDCService_Resume_Call{Call: _e.mock.On("Resume", _a0)}
 }

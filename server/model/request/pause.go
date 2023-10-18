@@ -21,5 +21,4 @@ type PauseRequest struct {
 	TaskID string `json:"task_id" mapstructure:"task_id"`
 }
 
-type PauseResponse struct {
-}
+type PauseResponse struct{}

@@ -19,12 +19,12 @@ package server
 import (
 	"context"
 
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus/pkg/log"
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/metrics"
+	"github.com/zilliztech/milvus-cdc/server/model/meta"
 	"github.com/zilliztech/milvus-cdc/server/store"
 )
 
@@ -74,7 +74,7 @@ func NewWriteCallback(factory store.MetaStoreFactory, rootPath string, taskID st
 // 	}
 // }
 
-func (w *WriteCallback) UpdateTaskCollectionPosition(collectionID int64, collectionName string, pChannelName string, position *commonpb.KeyDataPair) {
+func (w *WriteCallback) UpdateTaskCollectionPosition(collectionID int64, collectionName string, pChannelName string, position, opPosition, targetPosition *meta.PositionInfo) {
 	if position == nil {
 		return
 	}
@@ -84,7 +84,7 @@ func (w *WriteCallback) UpdateTaskCollectionPosition(collectionID int64, collect
 		collectionID,
 		collectionName,
 		pChannelName,
-		position)
+		position, opPosition, targetPosition)
 	if err != nil {
 		w.log.Warn("fail to update the collection position",
 			zap.Int64("collection_id", collectionID),

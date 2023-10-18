@@ -3,23 +3,80 @@ run:
     - pb
     - mocks
 
-linters-settings:
-  golint:
-    min-confidence: 0.8
-
-  misspell:
-    locale: US
-
 linters:
   disable-all: true
   enable:
-    - typecheck
-    - goimports
-    - misspell
+    - gosimple
     - govet
     - ineffassign
-    - gosimple
+    - staticcheck
+    - decorder
+    - depguard
+    - gofmt
+    - goimports
+    - gosec
     - revive
+    - unconvert
+    - misspell
+    - typecheck
+    - durationcheck
+    - forbidigo
+    - gci
+    - whitespace
+    - gofumpt
+    - gocritic
+
+linters-settings:
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(github.com/milvus-io)
+    custom-order: true
+  gofumpt:
+    lang-version: "1.18"
+    module-path: github.com/milvus-io
+  goimports:
+    local-prefixes: github.com/milvus-io
+  revive:
+    rules:
+      - name: unused-parameter
+        disabled: true
+      - name: var-naming
+        severity: warning
+        disabled: false
+        arguments:
+          - ["ID"] # Allow list
+      - name: context-as-argument
+        severity: warning
+        disabled: false
+        arguments:
+          - allowTypesBefore: "*testing.T"
+      - name: datarace
+        severity: warning
+        disabled: false
+      - name: duplicated-imports
+        severity: warning
+        disabled: false
+      - name: waitgroup-by-value
+        severity: warning
+        disabled: false
+      - name: indent-error-flow
+        severity: warning
+        disabled: false
+        arguments:
+          - "preserveScope"
+      - name: range-val-in-closure
+        severity: warning
+        disabled: false
+      - name: range-val-address
+        severity: warning
+        disabled: false
+      - name: string-of-int
+        severity: warning
+        disabled: false
+  misspell:
+    locale: US
 
 issues:
   exclude-use-default: false

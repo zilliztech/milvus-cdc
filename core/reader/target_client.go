@@ -53,6 +53,17 @@ func (t *TargetClient) GetCollectionInfo(ctx context.Context, collectionName str
 	collectionInfo.PChannels = collection.PhysicalChannels
 	collectionInfo.VChannels = collection.VirtualChannels
 
+	tmpCollectionInfo, err := t.GetPartitionInfo(ctx, collectionName)
+	if err != nil {
+		log.Warn("fail to get partition info", zap.Error(err))
+		return nil, err
+	}
+	collectionInfo.Partitions = tmpCollectionInfo.Partitions
+	return collectionInfo, nil
+}
+
+func (t *TargetClient) GetPartitionInfo(ctx context.Context, collectionName string) (*model.CollectionInfo, error) {
+	collectionInfo := &model.CollectionInfo{}
 	partition, err := t.client.ShowPartitions(ctx, collectionName)
 	if err != nil || len(partition) == 0 {
 		log.Warn("failed to show partitions", zap.Error(err))

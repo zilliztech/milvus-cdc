@@ -12,11 +12,13 @@ type SourceCollectionInfo struct {
 }
 
 type TargetCollectionInfo struct {
-	CollectionID  int64
-	PartitionInfo map[string]int64
-	PChannel      string
-	VChannel      string
-	BarrierChan   chan<- struct{}
+	CollectionID         int64
+	CollectionName       string
+	PartitionInfo        map[string]int64
+	PChannel             string
+	VChannel             string
+	BarrierChan          chan<- uint64
+	PartitionBarrierChan map[int64]chan<- uint64
 }
 
 type HandlerOpts struct {

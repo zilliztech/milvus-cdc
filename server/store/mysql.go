@@ -9,9 +9,9 @@ import (
 	"github.com/cockroachdb/errors"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/goccy/go-json"
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/milvus-io/milvus/pkg/log"
 	"go.uber.org/zap"
+
+	"github.com/milvus-io/milvus/pkg/log"
 
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
@@ -344,7 +344,7 @@ func (m *TaskCollectionPositionMysqlStore) Get(ctx context.Context, metaObj *met
 	}
 
 	var taskPositions []*meta.TaskCollectionPosition
-	//var taskPositionValue string
+	// var taskPositionValue string
 	var rows *sql.Rows
 	var err error
 
@@ -381,7 +381,7 @@ func (m *TaskCollectionPositionMysqlStore) Get(ctx context.Context, metaObj *met
 			m.log.Warn("fail to scan task position", zap.Error(err))
 			return nil, err
 		}
-		taskPosition.Positions = make(map[string]*commonpb.KeyDataPair)
+		taskPosition.Positions = make(map[string]*meta.PositionInfo)
 		err = json.Unmarshal(util.ToBytes(taskPositionValue), &taskPosition.Positions)
 		if err != nil {
 			m.log.Warn("fail to unmarshal task position", zap.Error(err))

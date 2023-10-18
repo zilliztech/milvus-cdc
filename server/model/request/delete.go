@@ -21,5 +21,4 @@ type DeleteRequest struct {
 	TaskID string `json:"task_id" mapstructure:"task_id"`
 }
 
-type DeleteResponse struct {
-}
+type DeleteResponse struct{}

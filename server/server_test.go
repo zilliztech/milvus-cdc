@@ -92,8 +92,10 @@ func TestCDCHandler(t *testing.T) {
 			t:          t,
 			exceptCode: http.StatusInternalServerError,
 		}
-		handler.ServeHTTP(responseWriter, &http.Request{Method: http.MethodPost,
-			Body: &MockReaderCloser{err: errors.New("FOO")}})
+		handler.ServeHTTP(responseWriter, &http.Request{
+			Method: http.MethodPost,
+			Body:   &MockReaderCloser{err: errors.New("FOO")},
+		})
 		assert.Contains(t, string(responseWriter.resp), "fail to read the request body")
 	})
 
@@ -102,8 +104,10 @@ func TestCDCHandler(t *testing.T) {
 			t:          t,
 			exceptCode: http.StatusInternalServerError,
 		}
-		handler.ServeHTTP(responseWriter, &http.Request{Method: http.MethodPost,
-			Body: io.NopCloser(bytes.NewReader([]byte("fooooo")))})
+		handler.ServeHTTP(responseWriter, &http.Request{
+			Method: http.MethodPost,
+			Body:   io.NopCloser(bytes.NewReader([]byte("fooooo"))),
+		})
 		assert.Contains(t, string(responseWriter.resp), "fail to unmarshal the request")
 	})
 
@@ -116,8 +120,10 @@ func TestCDCHandler(t *testing.T) {
 			RequestType: "foo",
 		}
 		requestBytes, _ := json.Marshal(cdcRequest)
-		handler.ServeHTTP(responseWriter, &http.Request{Method: http.MethodPost,
-			Body: io.NopCloser(bytes.NewReader(requestBytes))})
+		handler.ServeHTTP(responseWriter, &http.Request{
+			Method: http.MethodPost,
+			Body:   io.NopCloser(bytes.NewReader(requestBytes)),
+		})
 		assert.Contains(t, string(responseWriter.resp), "invalid 'request_type' param")
 	})
 
@@ -133,8 +139,10 @@ func TestCDCHandler(t *testing.T) {
 			},
 		}
 		requestBytes, _ := json.Marshal(cdcRequest)
-		handler.ServeHTTP(responseWriter, &http.Request{Method: http.MethodPost,
-			Body: io.NopCloser(bytes.NewReader(requestBytes))})
+		handler.ServeHTTP(responseWriter, &http.Request{
+			Method: http.MethodPost,
+			Body:   io.NopCloser(bytes.NewReader(requestBytes)),
+		})
 		assert.Contains(t, string(responseWriter.resp), "fail to decode the create request")
 	})
 
@@ -151,8 +159,10 @@ func TestCDCHandler(t *testing.T) {
 			RequestData: map[string]any{},
 		}
 		requestBytes, _ := json.Marshal(cdcRequest)
-		handler.ServeHTTP(responseWriter, &http.Request{Method: http.MethodPost,
-			Body: io.NopCloser(bytes.NewReader(requestBytes))})
+		handler.ServeHTTP(responseWriter, &http.Request{
+			Method: http.MethodPost,
+			Body:   io.NopCloser(bytes.NewReader(requestBytes)),
+		})
 		assert.Contains(t, string(responseWriter.resp), "fail to handle the create request")
 	})
 
@@ -169,8 +179,10 @@ func TestCDCHandler(t *testing.T) {
 			RequestData: map[string]any{},
 		}
 		requestBytes, _ := json.Marshal(cdcRequest)
-		handler.ServeHTTP(responseWriter, &http.Request{Method: http.MethodPost,
-			Body: io.NopCloser(bytes.NewReader(requestBytes))})
+		handler.ServeHTTP(responseWriter, &http.Request{
+			Method: http.MethodPost,
+			Body:   io.NopCloser(bytes.NewReader(requestBytes)),
+		})
 		assert.Contains(t, string(responseWriter.resp), "fail to handle the create request")
 	})
 
@@ -190,8 +202,10 @@ func TestCDCHandler(t *testing.T) {
 			RequestData: map[string]any{},
 		}
 		requestBytes, _ := json.Marshal(cdcRequest)
-		handler.ServeHTTP(responseWriter, &http.Request{Method: http.MethodPost,
-			Body: io.NopCloser(bytes.NewReader(requestBytes))})
+		handler.ServeHTTP(responseWriter, &http.Request{
+			Method: http.MethodPost,
+			Body:   io.NopCloser(bytes.NewReader(requestBytes)),
+		})
 		assert.Contains(t, string(responseWriter.resp), taskID)
 	})
 }

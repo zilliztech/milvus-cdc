@@ -21,5 +21,4 @@ type ResumeRequest struct {
 	TaskID string `json:"task_id" mapstructure:"task_id"`
 }
 
-type ResumeResponse struct {
-}
+type ResumeResponse struct{}

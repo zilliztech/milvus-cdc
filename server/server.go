@@ -46,31 +46,6 @@ func (c *CDCServer) Run(config *CDCServerConfig) {
 	c.api = GetCDCApi(c.serverConfig)
 	c.api.ReloadTask()
 	cdcHandler := c.getCDCHandler()
-	// {
-	//	channelReader, err := reader.NewChannelReader(
-	//		coreconfig.MilvusMQConfig{Pulsar: c.serverConfig.SourceConfig.Pulsar, Kafka: c.serverConfig.SourceConfig.Kafka},
-	//		"by-dev-rpc-request",
-	//		0,
-	//		"",
-	//		100,
-	//	)
-	//	if err != nil {
-	//		log.Warn("fail to create channel reader", zap.Error(err))
-	//	} else {
-	//		dataChan := channelReader.StartRead(context.Background())
-	//		go func() {
-	//			for {
-	//				select {
-	//				case data := <-dataChan:
-	//					if data == nil {
-	//						continue
-	//					}
-	//					log.Info("receive data from channel", zap.Any("data", data))
-	//				}
-	//			}
-	//		}()
-	//	}
-	// }
 	http.Handle("/cdc", cdcHandler)
 	log.Info("start server...")
 	err := http.ListenAndServe(c.serverConfig.Address, nil)

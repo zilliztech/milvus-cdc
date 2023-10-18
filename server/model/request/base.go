@@ -22,12 +22,13 @@ import (
 )
 
 const (
-	Create = "create"
-	Delete = "delete"
-	Pause  = "pause"
-	Resume = "resume"
-	Get    = "get"
-	List   = "list"
+	Create      = "create"
+	Delete      = "delete"
+	Pause       = "pause"
+	Resume      = "resume"
+	Get         = "get"
+	GetPosition = "position"
+	List        = "list"
 )
 
 //go:generate easytags $GOFILE json,mapstructure
