@@ -17,83 +17,13 @@
 package util
 
 import (
-	"time"
-
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/samber/lo"
 )
-
-const MsgIDNeedFill int64 = 0
-
-type MsgBaseOptions func(*commonpb.MsgBase)
-
-func WithMsgType(msgType commonpb.MsgType) MsgBaseOptions {
-	return func(msgBase *commonpb.MsgBase) {
-		msgBase.MsgType = msgType
-	}
-}
-
-func WithMsgID(msgID int64) MsgBaseOptions {
-	return func(msgBase *commonpb.MsgBase) {
-		msgBase.MsgID = msgID
-	}
-}
-
-func WithTimeStamp(ts uint64) MsgBaseOptions {
-	return func(msgBase *commonpb.MsgBase) {
-		msgBase.Timestamp = ts
-	}
-}
-
-func WithSourceID(sourceID int64) MsgBaseOptions {
-	return func(msgBase *commonpb.MsgBase) {
-		msgBase.SourceID = sourceID
-	}
-}
-
-func WithTargetID(targetID int64) MsgBaseOptions {
-	return func(msgBase *commonpb.MsgBase) {
-		msgBase.TargetID = targetID
-	}
-}
-
-func GetNowTimestamp() uint64 {
-	return uint64(time.Now().Unix())
-}
-
-func FillMsgBaseFromClient(sourceID int64, options ...MsgBaseOptions) MsgBaseOptions {
-	return func(msgBase *commonpb.MsgBase) {
-		if msgBase.Timestamp == 0 {
-			msgBase.Timestamp = GetNowTimestamp()
-		}
-		if msgBase.SourceID == 0 {
-			msgBase.SourceID = sourceID
-		}
-		for _, op := range options {
-			op(msgBase)
-		}
-	}
-}
-
-func newMsgBaseDefault() *commonpb.MsgBase {
-	return &commonpb.MsgBase{
-		MsgType: commonpb.MsgType_Undefined,
-		MsgID:   MsgIDNeedFill,
-	}
-}
-
-func NewMsgBase(options ...MsgBaseOptions) *commonpb.MsgBase {
-	msgBase := newMsgBaseDefault()
-	for _, op := range options {
-		op(msgBase)
-	}
-	return msgBase
-}
 
 func ConvertKVPairToMap(pair []*commonpb.KeyValuePair) map[string]string {
 	m := make(map[string]string)
-	lo.ForEach(pair, func(pair *commonpb.KeyValuePair, _ int) {
-		m[pair.Key] = pair.Value
-	})
+	for _, p := range pair {
+		m[p.Key] = p.Value
+	}
 	return m
 }

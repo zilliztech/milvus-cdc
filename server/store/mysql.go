@@ -9,9 +9,8 @@ import (
 	"github.com/cockroachdb/errors"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/goccy/go-json"
-	"go.uber.org/zap"
-
 	"github.com/milvus-io/milvus/pkg/log"
+	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"

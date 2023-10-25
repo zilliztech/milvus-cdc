@@ -15,7 +15,7 @@ static-check:
 	@(env bash $(PWD)/scripts/run_go_lint.sh)
 
 # TODO use the array to generate the name list
-CORE_API := DataHandler MessageManager MetaOp Reader ChannelManager Writer FactoryCreator
+CORE_API := DataHandler MessageManager MetaOp Reader ChannelManager TargetAPI Writer FactoryCreator
 
 generate-mockery:
 	@echo "Generating mockery server mocks..."

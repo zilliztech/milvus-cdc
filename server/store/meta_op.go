@@ -20,13 +20,13 @@ import (
 	"context"
 
 	"github.com/cockroachdb/errors"
+	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/samber/lo"
+	"go.uber.org/zap"
+
 	servererror "github.com/zilliztech/milvus-cdc/server/error"
 	"github.com/zilliztech/milvus-cdc/server/metrics"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
-	"go.uber.org/zap"
-
-	"github.com/milvus-io/milvus/pkg/log"
 )
 
 func GetTaskInfo(taskInfoStore MetaStore[*meta.TaskInfo], taskID string) (*meta.TaskInfo, error) {
