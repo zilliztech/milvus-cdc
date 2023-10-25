@@ -6,15 +6,15 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
-	"github.com/zilliztech/milvus-cdc/core/api"
-	"go.uber.org/zap"
-
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/retry"
+	"go.uber.org/zap"
+
+	"github.com/zilliztech/milvus-cdc/core/api"
 )
 
 var _ api.Writer = (*ChannelWriter)(nil)

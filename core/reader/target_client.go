@@ -25,7 +25,7 @@ type TargetConfig struct {
 	EnableTLS bool
 }
 
-func NewTarget(ctx context.Context, config TargetConfig) (*TargetClient, error) {
+func NewTarget(ctx context.Context, config TargetConfig) (api.TargetAPI, error) {
 	targetClient := &TargetClient{}
 	var err error
 	targetClient.client, err = client.NewClient(ctx, client.Config{

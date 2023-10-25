@@ -3,13 +3,13 @@ package api
 import (
 	"context"
 
-	"github.com/zilliztech/milvus-cdc/core/model"
-	"github.com/zilliztech/milvus-cdc/core/pb"
-
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+
+	"github.com/zilliztech/milvus-cdc/core/model"
+	"github.com/zilliztech/milvus-cdc/core/pb"
 )
 
 // ChannelManager a target must promise a manager
@@ -38,7 +38,7 @@ type ReplicateAPIEvent struct {
 type ReplicateAPIEventType int
 
 const (
-	ReplicateCreateCollection = iota + 1
+	ReplicateCreateCollection ReplicateAPIEventType = iota + 1
 	ReplicateDropCollection
 	ReplicateCreatePartition
 	ReplicateDropPartition

@@ -11,13 +11,12 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/golang/protobuf/proto"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.uber.org/zap"
-
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/common"
 	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/util/retry"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/pb"
@@ -41,6 +40,7 @@ type EtcdOp struct {
 	collectionID2Name    util.Map[int64, string]
 	watchCollectionOnce  sync.Once
 	watchPartitionOnce   sync.Once
+	retryOptions         []retry.Option
 
 	// task id -> api.CollectionFilter
 	subscribeCollectionEvent util.Map[string, api.CollectionEventConsumer]
@@ -55,6 +55,7 @@ func NewEtcdOp(endpoints []string,
 		rootPath:             rootPath,
 		metaSubPath:          metaPath,
 		defaultPartitionName: defaultPartitionName,
+		retryOptions:         util.GetRetryOptionsFor25s(),
 	}
 
 	// set default value
@@ -140,7 +141,7 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 
 						err = retry.Do(ctx, func() error {
 							return e.fillCollectionField(info)
-						}, retry.Attempts(5), retry.Sleep(time.Second))
+						}, e.retryOptions...)
 						if err != nil {
 							log.Warn("fail to fill collection field in the watch process", zap.String("key", collectionKey), zap.Error(err))
 							continue
@@ -215,24 +216,6 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 							log.Info("partition filter", zap.String("partition name", info.PartitionName))
 							continue
 						}
-						// TODO checkout it
-						log.Debug("partition info", zap.Int64("collection_id", info.CollectionID))
-
-						// collectionID := e.getCollectionIDFromPartitionKey(partitionKey)
-						// if collectionID == 0 {
-						// 	log.Warn("fail to get the collection id", zap.String("key", partitionKey))
-						// 	continue
-						// }
-						// collectionName, ok := e.collectionID2Name.Load(collectionID)
-						// if !ok {
-						// 	collectionName = e.getCollectionNameByID(ctx, collectionID)
-						// 	if collectionName == "" {
-						// 		log.Warn("not found the collection", zap.Int64("collection_id", collectionID),
-						// 			zap.Int64("partition_id", info.PartitionID),
-						// 			zap.String("partition_name", info.PartitionName))
-						// 		continue
-						// 	}
-						// }
 
 						log.Debug("get a new partition in the watch process", zap.String("key", partitionKey))
 						e.subscribePartitionEvent.Range(func(key string, value api.PartitionEventConsumer) bool {
@@ -324,7 +307,7 @@ func (e *EtcdOp) GetAllCollection(ctx context.Context, filter api.CollectionFilt
 		err = e.fillCollectionField(info)
 		if err != nil {
 			log.Warn("fail to fill collection field", zap.String("key", util.ToString(kv.Key)), zap.Error(err))
-			return nil, err
+			continue
 		}
 		e.collectionID2Name.Store(info.ID, info.Schema.Name)
 		existedCollectionInfos = append(existedCollectionInfos, info)

@@ -1,5 +1,5 @@
 .DS_Store
-.vscode
+**/.vscode/*
 **/.idea/*
 **/dist/*
 **/*.log/*
@@ -9,3 +9,7 @@
 server/cdc
 **/milvus-cdc-build/*
 *.log
+coverage.out
+go.work
+go.work.sum
+**/bak/**

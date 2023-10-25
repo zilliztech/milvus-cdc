@@ -5,11 +5,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/zilliztech/milvus-cdc/core/model"
-	"github.com/zilliztech/milvus-cdc/core/pb"
-
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+
+	"github.com/zilliztech/milvus-cdc/core/model"
+	"github.com/zilliztech/milvus-cdc/core/pb"
 )
 
 func TestDefaultChannelManager_AddPartition(t *testing.T) {

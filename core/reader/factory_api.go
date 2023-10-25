@@ -21,11 +21,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/zilliztech/milvus-cdc/core/config"
-	"github.com/zilliztech/milvus-cdc/core/util"
-
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/paramtable"
+
+	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 type FactoryCreator interface {

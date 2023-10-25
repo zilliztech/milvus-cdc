@@ -20,10 +20,6 @@ import (
 	"github.com/milvus-io/milvus/pkg/log"
 )
 
-// var (
-// 	Log *zap.Logger
-// )
-
 func init() {
 	conf := &log.Config{
 		Level:  "info",
@@ -34,11 +30,6 @@ func init() {
 		},
 	}
 
-	// TODO delete it
-	// Log, _, _ = log.InitLogger(conf)
-	// Log = Log.WithOptions(zap.AddCallerSkip(-1))
-
-	// l, p, _ := log.InitLogger(conf, zap.AddCallerSkip(1))
 	l, p, _ := log.InitLogger(conf)
 	log.ReplaceGlobals(l, p)
 }

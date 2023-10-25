@@ -7,12 +7,11 @@ import (
 	"math/rand"
 	"sync"
 
-	"go.uber.org/zap"
-
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
+	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -37,9 +36,9 @@ type ChannelReader struct {
 
 var _ api.Reader = (*ChannelReader)(nil)
 
-func NewChannelReader(channelName, seekPosition string, mqConfig config.MQConfig, dataHandler func(*msgstream.MsgPack) bool) (api.Reader, error) {
+func NewChannelReader(channelName, seekPosition string, mqConfig config.MQConfig, dataHandler func(*msgstream.MsgPack) bool, creator FactoryCreator) (api.Reader, error) {
 	channelReader := &ChannelReader{
-		factoryCreator: NewDefaultFactoryCreator(),
+		factoryCreator: creator,
 		channelName:    channelName,
 		seekPosition:   seekPosition,
 		mqConfig:       mqConfig,
@@ -71,7 +70,11 @@ func (c *ChannelReader) initMsgStream() error {
 	}
 
 	consumeSubName := c.channelName + string(rand.Int31())
-	stream.AsConsumer(context.Background(), []string{c.channelName}, consumeSubName, c.subscriptionPosition)
+	err = stream.AsConsumer(context.Background(), []string{c.channelName}, consumeSubName, c.subscriptionPosition)
+	if err != nil {
+		log.Warn("fail to create the consumer", zap.Error(err))
+		return err
+	}
 	log.Info("consume channel", zap.String("channel", c.channelName))
 
 	if c.seekPosition != "" {
@@ -88,6 +91,7 @@ func (c *ChannelReader) initMsgStream() error {
 		err = stream.Seek(context.Background(), []*msgstream.MsgPosition{msgPosition})
 		if err != nil {
 			log.Warn("fail to seek the msg position", zap.Any("position", msgPosition), zap.Error(err))
+			stream.Close()
 			return err
 		}
 	}
@@ -110,7 +114,8 @@ func (c *ChannelReader) StartRead(ctx context.Context) {
 					return
 				}
 				if c.dataHandler == nil {
-					log.Panic("the data handler is nil")
+					log.Warn("the data handler is nil")
+					return
 				}
 				if !c.dataHandler(msgPack) {
 					log.Warn("the data handler return false, the channel reader is quit")

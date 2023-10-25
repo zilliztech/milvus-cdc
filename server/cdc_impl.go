@@ -26,7 +26,14 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
+	"github.com/milvus-io/milvus/pkg/log"
+	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/util/tsoutil"
 	"github.com/samber/lo"
+	"go.uber.org/zap"
+
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/pb"
@@ -38,12 +45,6 @@ import (
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 	"github.com/zilliztech/milvus-cdc/server/model/request"
 	"github.com/zilliztech/milvus-cdc/server/store"
-	"go.uber.org/zap"
-
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus/pkg/log"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 )
 
 const (
@@ -437,7 +438,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 		channelManager, err := cdcreader.NewReplicateChannelManager(config.MQConfig{
 			Pulsar: e.config.SourceConfig.Pulsar,
 			Kafka:  e.config.SourceConfig.Kafka,
-		}, milvusClient, bufferSize)
+		}, cdcreader.NewDefaultFactoryCreator(), milvusClient, bufferSize)
 		if err != nil {
 			log.Warn("fail to create replicate channel manager", zap.Error(err))
 			return nil, servererror.NewClientError("fail to create replicate channel manager")
@@ -510,7 +511,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 								log.Panic("fail to handle the replicate message", zap.Error(err))
 								continue
 							}
-							msgTime, _ := util.ParseHybridTs(msgPack.EndTs)
+							msgTime, _ := tsoutil.ParseHybridTs(msgPack.EndTs)
 							metaPosition := &meta.PositionInfo{
 								Time: msgTime,
 								DataPair: &commonpb.KeyDataPair{
@@ -585,7 +586,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 				log.Panic("fail to handle the op message pack", zap.Error(err))
 				return false
 			}
-			msgTime, _ := util.ParseHybridTs(pack.EndTs)
+			msgTime, _ := tsoutil.ParseHybridTs(pack.EndTs)
 			channelName := info.RPCRequestChannelInfo.Name
 			metaPosition := &meta.PositionInfo{
 				Time: msgTime,
@@ -598,7 +599,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 			writeCallback.UpdateTaskCollectionPosition(TmpCollectionID, TmpCollectionName, channelName,
 				metaPosition, metaPosition, nil)
 			return true
-		})
+		}, cdcreader.NewDefaultFactoryCreator())
 	readCtx, cancelReadFunc := context.WithCancel(context.Background())
 	e.replicateEntityMap.Lock()
 	// replicateEntity.readerObj = collectionReader

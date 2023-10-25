@@ -43,6 +43,9 @@ func TestValue(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, 20, v.Load())
+	v.CompareAndSwapWithFunc(func(old int) int {
+		return old + 1
+	})
 }
 
 func TestMap(t *testing.T) {
@@ -83,4 +86,15 @@ func TestMap(t *testing.T) {
 	assert.Len(t, unsafeMap, 2)
 	assert.Equal(t, "foo", unsafeMap[1])
 	assert.Equal(t, "hoo", unsafeMap[2])
+}
+
+func TestArray(t *testing.T) {
+	a := SafeArray[int]{}
+	a.Append(1)
+	a.Append(2)
+	assert.Equal(t, 1, a.Get(0))
+	a.Range(func(index int, value int) bool {
+		assert.Equal(t, index+1, value)
+		return true
+	})
 }

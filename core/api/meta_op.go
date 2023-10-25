@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	"github.com/zilliztech/milvus-cdc/core/pb"
-
 	"github.com/milvus-io/milvus/pkg/log"
+
+	"github.com/zilliztech/milvus-cdc/core/pb"
 )
 
 // MetaOp meta operation

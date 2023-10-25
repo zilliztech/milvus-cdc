@@ -9,12 +9,6 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
-	"github.com/zilliztech/milvus-cdc/core/api"
-	"github.com/zilliztech/milvus-cdc/core/config"
-	"github.com/zilliztech/milvus-cdc/core/model"
-	"github.com/zilliztech/milvus-cdc/core/pb"
-	"go.uber.org/zap"
-
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/log"
@@ -22,6 +16,13 @@ import (
 	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 	"github.com/milvus-io/milvus/pkg/util/commonpbutil"
 	"github.com/milvus-io/milvus/pkg/util/retry"
+	"go.uber.org/zap"
+
+	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/model"
+	"github.com/zilliztech/milvus-cdc/core/pb"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 var _ api.ChannelManager = (*replicateChannelManager)(nil)
@@ -30,6 +31,7 @@ type replicateChannelManager struct {
 	factory           msgstream.Factory
 	apiEventChan      chan *api.ReplicateAPIEvent
 	targetClient      api.TargetAPI
+	retryOptions      []retry.Option
 	messageBufferSize int
 
 	channelLock       sync.RWMutex
@@ -44,8 +46,7 @@ type replicateChannelManager struct {
 	channelChan chan string
 }
 
-func NewReplicateChannelManager(mqConfig config.MQConfig, client api.TargetAPI, messageBufferSize int) (api.ChannelManager, error) {
-	factoryCreator := NewDefaultFactoryCreator()
+func NewReplicateChannelManager(mqConfig config.MQConfig, factoryCreator FactoryCreator, client api.TargetAPI, messageBufferSize int) (api.ChannelManager, error) {
 	var factory msgstream.Factory
 	if mqConfig.Pulsar.Address != "" {
 		factory = factoryCreator.NewPmsFactory(&mqConfig.Pulsar)
@@ -60,6 +61,7 @@ func NewReplicateChannelManager(mqConfig config.MQConfig, client api.TargetAPI, 
 		factory:              factory,
 		apiEventChan:         make(chan *api.ReplicateAPIEvent, 10),
 		targetClient:         client,
+		retryOptions:         util.GetRetryOptionsFor25s(),
 		messageBufferSize:    messageBufferSize,
 		channelHandlerMap:    make(map[string]*replicateChannelHandler),
 		replicateCollections: make(map[int64]chan struct{}),
@@ -71,17 +73,18 @@ func NewReplicateChannelManager(mqConfig config.MQConfig, client api.TargetAPI, 
 func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
 	if _, err := r.targetClient.GetCollectionInfo(ctx, info.Schema.GetName()); err != nil {
 		select {
-		case r.apiEventChan <- &api.ReplicateAPIEvent{
-			EventType:      api.ReplicateCreateCollection,
-			CollectionInfo: info,
-			ReplicateInfo: &commonpb.ReplicateInfo{
-				IsReplicate:  true,
-				MsgTimestamp: info.CreateTime,
-			},
-		}:
 		case <-ctx.Done():
 			log.Warn("context is done in the start read collection")
 			return ctx.Err()
+		default:
+			r.apiEventChan <- &api.ReplicateAPIEvent{
+				EventType:      api.ReplicateCreateCollection,
+				CollectionInfo: info,
+				ReplicateInfo: &commonpb.ReplicateInfo{
+					IsReplicate:  true,
+					MsgTimestamp: info.CreateTime,
+				},
+			}
 		}
 	}
 
@@ -91,7 +94,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 	err = retry.Do(ctx, func() error {
 		targetInfo, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.Name)
 		return err
-	}, retry.Sleep(time.Second), retry.MaxSleepTime(10*time.Second), retry.Attempts(5))
+	}, r.retryOptions...)
 	if err != nil {
 		log.Warn("failed to get target collection info", zap.Error(err))
 		return err
@@ -290,10 +293,7 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 
 	channelHandler, ok := r.channelHandlerMap[sourceInfo.PChannelName]
 	if !ok {
-		channelHandler, err = newReplicateChannelHandler(sourceInfo, targetInfo, r.targetClient, r.apiEventChan, &model.HandlerOpts{
-			MessageBufferSize: r.messageBufferSize,
-			Factory:           r.factory,
-		})
+		channelHandler, err = newReplicateChannelHandler(sourceInfo, targetInfo, r.targetClient, &model.HandlerOpts{MessageBufferSize: r.messageBufferSize, Factory: r.factory})
 		if err != nil {
 			log.Warn("fail to new replicate channel handler",
 				zap.String("channel_name", sourceInfo.PChannelName), zap.Int64("collection_id", sourceInfo.CollectionID), zap.Error(err))
@@ -330,7 +330,6 @@ type replicateChannelHandler struct {
 	collectionRecords map[int64]*model.TargetCollectionInfo
 	collectionNames   map[string]int64
 	msgPackChan       chan *msgstream.MsgPack
-	apiEventChan      chan<- *api.ReplicateAPIEvent
 }
 
 func (r *replicateChannelHandler) AddCollection(collectionID int64, targetInfo *model.TargetCollectionInfo) {
@@ -371,7 +370,7 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 				return errors.Newf("not found the partition [%s]", partitionName)
 			}
 			return nil
-		}, retry.Attempts(6))
+		}, util.GetRetryOptionsFor25s()...)
 	}()
 }
 
@@ -437,10 +436,14 @@ func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) *m
 	i := 0
 	for !ok && i < 10 {
 		log.Warn("wait collection info",
-			zap.Any("current_collections", r.collectionRecords),
 			zap.Int64("msg_collection_id", collectionID))
 		time.Sleep(500 * time.Millisecond)
 		r.recordLock.RLock()
+		var xs []int64
+		for x := range r.collectionRecords {
+			xs = append(xs, x)
+		}
+		log.Info("collection records", zap.Any("xs", xs))
 		// TODO it needs to be considered when supporting the specific collection in a task
 		targetInfo, ok = r.collectionRecords[collectionID]
 		r.recordLock.RUnlock()
@@ -580,7 +583,6 @@ func newReplicateChannelHandler(
 	sourceInfo *model.SourceCollectionInfo,
 	targetInfo *model.TargetCollectionInfo,
 	targetClient api.TargetAPI,
-	apiEventChan chan<- *api.ReplicateAPIEvent,
 	opts *model.HandlerOpts,
 ) (*replicateChannelHandler, error) {
 	ctx := context.Background()
@@ -612,7 +614,6 @@ func newReplicateChannelHandler(
 		collectionRecords: make(map[int64]*model.TargetCollectionInfo),
 		collectionNames:   make(map[string]int64),
 		msgPackChan:       make(chan *msgstream.MsgPack, opts.MessageBufferSize),
-		apiEventChan:      apiEventChan,
 	}
 	channelHandler.AddCollection(sourceInfo.CollectionID, targetInfo)
 	channelHandler.startReadChannel()

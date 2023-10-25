@@ -21,14 +21,14 @@ import (
 	"errors"
 	"time"
 
-	"github.com/zilliztech/milvus-cdc/core/api"
-	"github.com/zilliztech/milvus-cdc/core/config"
-	"github.com/zilliztech/milvus-cdc/core/util"
-	"go.uber.org/zap"
-
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 	"github.com/milvus-io/milvus/pkg/log"
+	"go.uber.org/zap"
+
+	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 type MilvusDataHandler struct {

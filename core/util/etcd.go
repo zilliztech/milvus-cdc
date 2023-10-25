@@ -27,8 +27,6 @@ import (
 )
 
 var (
-	// TODO config
-
 	EtcdOpTimeout        = 10 * time.Second
 	EtcdOpRetryTime uint = 5
 )
