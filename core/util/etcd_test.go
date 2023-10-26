@@ -17,25 +17,71 @@
 package util
 
 import (
+	"context"
 	"testing"
 
-	"github.com/cockroachdb/errors"
 	"github.com/stretchr/testify/assert"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-func TestMockEtcdClient(t *testing.T) {
-	newEtcdClient = func(cfg clientv3.Config) (KVApi, error) {
-		return nil, errors.New("foo")
-	}
-	_, err := newEtcdClient(clientv3.Config{})
-	assert.Error(t, err)
-	MockEtcdClient(func(cfg clientv3.Config) (KVApi, error) {
-		return nil, nil
-	}, func() {
-		_, err := newEtcdClient(clientv3.Config{})
+func TestEtcdClient(t *testing.T) {
+	t.Run("empty endpoints", func(t *testing.T) {
+		_, err := GetEtcdClient(nil)
+		assert.Error(t, err)
+	})
+
+	t.Run("normal endpoints", func(t *testing.T) {
+		_, err := GetEtcdClient([]string{"127.0.0.1:2379"})
 		assert.NoError(t, err)
 	})
-	_, err = newEtcdClient(clientv3.Config{})
-	assert.Error(t, err)
+
+	t.Run("op", func(t *testing.T) {
+		prefix := "test-cdc/client"
+
+		c, err := GetEtcdClient([]string{"127.0.0.1:2379"})
+		assert.NoError(t, err)
+		defer c.Delete(context.Background(), prefix, clientv3.WithPrefix())
+
+		// put
+		{
+			err := EtcdPut(c, prefix+"/foo", "bar")
+			assert.NoError(t, err)
+		}
+
+		// get
+		{
+			resp, err := EtcdGetWithContext(context.Background(), c, prefix+"/foo")
+			assert.NoError(t, err)
+			assert.Equal(t, "bar", string(resp.Kvs[0].Value))
+		}
+		{
+			resp, err := EtcdGet(c, prefix+"/foo")
+			assert.NoError(t, err)
+			assert.Equal(t, "bar", string(resp.Kvs[0].Value))
+		}
+
+		// delete
+		{
+			err := EtcdDelete(c, prefix+"/foo")
+			assert.NoError(t, err)
+		}
+
+		// txn
+		{
+			_ = EtcdPut(c, prefix+"/foo", "bar")
+			err := EtcdTxn(c, func(txn clientv3.Txn) error {
+				resp, err := txn.If(clientv3.Compare(clientv3.Version(prefix+"/foo"), ">", 0)).Then(clientv3.OpDelete(prefix + "/foo")).Commit()
+				assert.NoError(t, err)
+				assert.True(t, resp.Succeeded)
+				return nil
+			})
+			assert.NoError(t, err)
+		}
+
+		// status
+		{
+			err := EtcdStatus(c)
+			assert.NoError(t, err)
+		}
+	})
 }

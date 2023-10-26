@@ -40,6 +40,7 @@ import (
 	cdcreader "github.com/zilliztech/milvus-cdc/core/reader"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	cdcwriter "github.com/zilliztech/milvus-cdc/core/writer"
+	serverapi "github.com/zilliztech/milvus-cdc/server/api"
 	servererror "github.com/zilliztech/milvus-cdc/server/error"
 	"github.com/zilliztech/milvus-cdc/server/model"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
@@ -63,7 +64,7 @@ type ReplicateEntity struct {
 
 type MetaCDC struct {
 	BaseCDC
-	metaStoreFactory store.MetaStoreFactory
+	metaStoreFactory serverapi.MetaStoreFactory
 	rootPath         string
 	config           *CDCServerConfig
 
@@ -91,7 +92,7 @@ func NewMetaCDC(serverConfig *CDCServerConfig) *MetaCDC {
 	}
 
 	rootPath := serverConfig.MetaStoreConfig.RootPath
-	var factory store.MetaStoreFactory
+	var factory serverapi.MetaStoreFactory
 	var err error
 	switch serverConfig.MetaStoreConfig.StoreType {
 	case "mysql":
@@ -637,7 +638,7 @@ func (e *MetaCDC) Delete(req *request.DeleteRequest) (*request.DeleteResponse, e
 	var err error
 
 	var info *meta.TaskInfo
-	info, err = store.DeleteTask(e.metaStoreFactory, e.rootPath, req.TaskID)
+	info, err = store.DeleteTask(e.metaStoreFactory, req.TaskID)
 	if err != nil {
 		return nil, servererror.NewServerError(errors.WithMessage(err, "fail to delete the task meta, task_id: "+req.TaskID))
 	}

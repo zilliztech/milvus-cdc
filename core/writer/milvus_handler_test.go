@@ -36,6 +36,11 @@ import (
 )
 
 func TestDataHandler(t *testing.T) {
+	{
+		_, err := NewMilvusDataHandler()
+		assert.Error(t, err)
+	}
+
 	listen, err := net.Listen("tcp", ":50051")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)

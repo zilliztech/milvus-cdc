@@ -69,6 +69,9 @@ func TestMap(t *testing.T) {
 	v, ok = m.Load(3)
 	assert.Equal(t, "", v)
 	assert.False(t, ok)
+	v, ok = m.Load(1)
+	assert.Equal(t, "foo", v)
+	assert.True(t, ok)
 	size := 0
 	m.Range(func(key int, value string) bool {
 		size++

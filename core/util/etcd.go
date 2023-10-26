@@ -44,6 +44,7 @@ var newEtcdClient = func(cfg clientv3.Config) (KVApi, error) {
 	return clientv3.New(cfg)
 }
 
+// deprecated
 func MockEtcdClient(new func(cfg clientv3.Config) (KVApi, error), f func()) {
 	origin := newEtcdClient
 	newEtcdClient = new

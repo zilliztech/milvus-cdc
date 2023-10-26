@@ -26,7 +26,7 @@ import (
 
 func TestRequestHandle(t *testing.T) {
 	assertion := assert.New(t)
-	assertion.Len(requestHandlers, 6)
+	assertion.Len(requestHandlers, 7)
 
 	baseApi := NewBaseCDC()
 

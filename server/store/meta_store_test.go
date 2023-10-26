@@ -4,13 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/pingcap/log"
 	"github.com/stretchr/testify/assert"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 
-	"github.com/zilliztech/milvus-cdc/core/util"
+	"github.com/zilliztech/milvus-cdc/server/api"
 	"github.com/zilliztech/milvus-cdc/server/model"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 )
@@ -45,6 +47,13 @@ func TestTxnMap(t *testing.T) {
 }
 
 func TestMysql(t *testing.T) {
+	{
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancelFunc()
+		_, err := NewMySQLMetaStore(ctx, "root:123456@tcp(127.0.0.1:33060)/milvuscdc?charset=utf8", "/cdc")
+		assert.Error(t, err)
+	}
+
 	ctx := context.Background()
 	mysqlStore, err := NewMySQLMetaStore(ctx, "root:123456@tcp(127.0.0.1:3306)/milvuscdc?charset=utf8", "/cdc")
 	assert.NoError(t, err)
@@ -54,15 +63,29 @@ func TestMysql(t *testing.T) {
 }
 
 func TestEtcd(t *testing.T) {
+	// nil endpoints
+	{
+		_, err := NewEtcdMetaStore(context.Background(), nil, "/cdc")
+		assert.Error(t, err)
+	}
+	// error endpoints
+	{
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancelFunc()
+		_, err := NewEtcdMetaStore(ctx, []string{"localhost:23790"}, "/cdc")
+		assert.Error(t, err)
+	}
+
 	ctx := context.Background()
-	etcdStore, err := NewEtcdMetaStore(ctx, []string{"localhost:2379"}, "/cdc")
+	etcdStore, err := NewEtcdMetaStore(ctx, []string{"localhost:2379"}, "/cdc-meta-test")
+	defer etcdStore.etcdClient.Delete(ctx, "/cdc-meta-test", clientv3.WithPrefix())
 	assert.NoError(t, err)
 
 	testTaskInfoMetaStore(ctx, t, etcdStore)
 	testTaskCollectionPositionMetaStore(ctx, t, etcdStore)
 }
 
-func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory MetaStoreFactory) {
+func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory api.MetaStoreFactory) {
 	var nilTxn any = nil
 	taskInfoStore := storeFactory.GetTaskInfoMetaStore(ctx)
 	{
@@ -91,7 +114,7 @@ func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory MetaS
 		taskInfos, err := taskInfoStore.Get(ctx, &meta.TaskInfo{}, nilTxn)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(taskInfos))
-		util.Log.Info("get all task info", zap.Any("tasks", taskInfos))
+		log.Info("get all task info", zap.Any("tasks", taskInfos))
 
 		taskInfos, err = taskInfoStore.Get(ctx, &meta.TaskInfo{TaskID: "no-invalid"}, nilTxn)
 		assert.NoError(t, err)
@@ -100,7 +123,7 @@ func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory MetaS
 		taskInfos, err = taskInfoStore.Get(ctx, &meta.TaskInfo{TaskID: "bdef5f5c-08e2-4261-a2a3-ff28380230e4"}, nilTxn)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(taskInfos))
-		util.Log.Info("get task info by task id", zap.Any("tasks", taskInfos))
+		log.Info("get task info by task id", zap.Any("tasks", taskInfos))
 	}
 	{
 		// delete taskinfo test
@@ -110,7 +133,7 @@ func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory MetaS
 		taskInfos, err := taskInfoStore.Get(ctx, &meta.TaskInfo{}, nilTxn)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(taskInfos))
-		util.Log.Info("get all task info after delete", zap.Any("tasks", taskInfos))
+		log.Info("get all task info after delete", zap.Any("tasks", taskInfos))
 
 		err = taskInfoStore.Delete(ctx, &meta.TaskInfo{TaskID: "45692f04-0103-48c9-87f7-c61c9a62f176"}, nilTxn)
 		assert.NoError(t, err)
@@ -142,6 +165,10 @@ func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory MetaS
 			}, txn)
 			assert.NoError(t, err)
 		}
+		{
+			_, err := taskInfoStore.Get(ctx, &meta.TaskInfo{TaskID: "11111"}, txn)
+			assert.NoError(t, err)
+		}
 		err = commitFunc(err)
 		assert.NoError(t, err)
 	}
@@ -165,9 +192,36 @@ func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory MetaS
 		err = commitFunc(err)
 		assert.NoError(t, err)
 	}
+	{
+		// invalid txn
+		{
+			err := taskInfoStore.Put(ctx, &meta.TaskInfo{
+				TaskID: "45692f04-0103-48c9-87f7-c61c9a62f176",
+				MilvusConnectParam: model.MilvusConnectParam{
+					Host: "127.0.0.1",
+					Port: 19530,
+				},
+				State: meta.TaskStateRunning,
+			}, 1)
+			assert.Error(t, err)
+		}
+		{
+			_, err := taskInfoStore.Get(ctx, &meta.TaskInfo{TaskID: "45692f04-0103-48c9-87f7-c61c9a62f176"}, 1)
+			assert.Error(t, err)
+		}
+		{
+			err := taskInfoStore.Delete(ctx, &meta.TaskInfo{TaskID: "45692f04-0103-48c9-87f7-c61c9a62f176"}, 1)
+			assert.Error(t, err)
+		}
+	}
+	// delete empty task id
+	{
+		err := taskInfoStore.Delete(ctx, &meta.TaskInfo{TaskID: ""}, nilTxn)
+		assert.Error(t, err)
+	}
 }
 
-func testTaskCollectionPositionMetaStore(ctx context.Context, t *testing.T, storeFactory MetaStoreFactory) {
+func testTaskCollectionPositionMetaStore(ctx context.Context, t *testing.T, storeFactory api.MetaStoreFactory) {
 	var nilTxn any = nil
 	taskCollectionPositionStore := storeFactory.GetTaskCollectionPositionMetaStore(ctx)
 	{
@@ -175,14 +229,20 @@ func testTaskCollectionPositionMetaStore(ctx context.Context, t *testing.T, stor
 			TaskID:         "bdef5f5c-08e2-4261-a2a3-ff28380230e4",
 			CollectionID:   1,
 			CollectionName: "foo",
-			Positions: map[string]*commonpb.KeyDataPair{
+			Positions: map[string]*meta.PositionInfo{
 				"pchan1": {
-					Key:  "key1",
-					Data: []byte("data1"),
+					Time: 1,
+					DataPair: &commonpb.KeyDataPair{
+						Key:  "key1",
+						Data: []byte("data1"),
+					},
 				},
 				"pchan2": {
-					Key:  "key2",
-					Data: []byte("data2"),
+					Time: 2,
+					DataPair: &commonpb.KeyDataPair{
+						Key:  "key2",
+						Data: []byte("data2"),
+					},
 				},
 			},
 		}, nilTxn)
@@ -192,14 +252,20 @@ func testTaskCollectionPositionMetaStore(ctx context.Context, t *testing.T, stor
 			TaskID:         "bdef5f5c-08e2-4261-a2a3-ff28380230e4",
 			CollectionID:   1,
 			CollectionName: "foo",
-			Positions: map[string]*commonpb.KeyDataPair{
+			Positions: map[string]*meta.PositionInfo{
 				"pchan3": {
-					Key:  "key3",
-					Data: []byte("data3"),
+					Time: 1,
+					DataPair: &commonpb.KeyDataPair{
+						Key:  "key3",
+						Data: []byte("data3"),
+					},
 				},
 				"pchan4": {
-					Key:  "key4",
-					Data: []byte("data4"),
+					Time: 2,
+					DataPair: &commonpb.KeyDataPair{
+						Key:  "key4",
+						Data: []byte("data4"),
+					},
 				},
 			},
 		}, nilTxn)
@@ -209,14 +275,20 @@ func testTaskCollectionPositionMetaStore(ctx context.Context, t *testing.T, stor
 			TaskID:         "45692f04-0103-48c9-87f7-c61c9a62f176",
 			CollectionID:   2,
 			CollectionName: "bar",
-			Positions: map[string]*commonpb.KeyDataPair{
+			Positions: map[string]*meta.PositionInfo{
 				"pchan3": {
-					Key:  "key3",
-					Data: []byte("data3"),
+					Time: 1,
+					DataPair: &commonpb.KeyDataPair{
+						Key:  "key3",
+						Data: []byte("data3"),
+					},
 				},
 				"pchan4": {
-					Key:  "key4",
-					Data: []byte("data4"),
+					Time: 2,
+					DataPair: &commonpb.KeyDataPair{
+						Key:  "key4",
+						Data: []byte("data4"),
+					},
 				},
 			},
 		}, nilTxn)
@@ -226,7 +298,7 @@ func testTaskCollectionPositionMetaStore(ctx context.Context, t *testing.T, stor
 		taskCollectionPositions, err := taskCollectionPositionStore.Get(ctx, &meta.TaskCollectionPosition{}, nilTxn)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(taskCollectionPositions))
-		util.Log.Info("get all task collection position", zap.Any("tasks", taskCollectionPositions))
+		log.Info("get all task collection position", zap.Any("tasks", taskCollectionPositions))
 
 		taskCollectionPositions, err = taskCollectionPositionStore.Get(ctx, &meta.TaskCollectionPosition{TaskID: "no-invalid"}, nilTxn)
 		assert.NoError(t, err)
@@ -235,7 +307,11 @@ func testTaskCollectionPositionMetaStore(ctx context.Context, t *testing.T, stor
 		taskCollectionPositions, err = taskCollectionPositionStore.Get(ctx, &meta.TaskCollectionPosition{TaskID: "bdef5f5c-08e2-4261-a2a3-ff28380230e4"}, nilTxn)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(taskCollectionPositions))
-		util.Log.Info("get task collection position by task id", zap.Any("tasks", taskCollectionPositions))
+		log.Info("get task collection position by task id", zap.Any("tasks", taskCollectionPositions))
+
+		taskCollectionPositions, err = taskCollectionPositionStore.Get(ctx, &meta.TaskCollectionPosition{TaskID: "bdef5f5c-08e2-4261-a2a3-ff28380230e4", CollectionID: 1}, nilTxn)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(taskCollectionPositions))
 	}
 
 	{
@@ -262,14 +338,20 @@ func testTaskCollectionPositionMetaStore(ctx context.Context, t *testing.T, stor
 				TaskID:         "bdef5f5c-08e2-4261-a2a3-ff28380230e4",
 				CollectionID:   1,
 				CollectionName: "foo",
-				Positions: map[string]*commonpb.KeyDataPair{
+				Positions: map[string]*meta.PositionInfo{
 					"pchan1": {
-						Key:  "key1",
-						Data: []byte("data1"),
+						Time: 1,
+						DataPair: &commonpb.KeyDataPair{
+							Key:  "key1",
+							Data: []byte("data1"),
+						},
 					},
 					"pchan2": {
-						Key:  "key2",
-						Data: []byte("data2"),
+						Time: 2,
+						DataPair: &commonpb.KeyDataPair{
+							Key:  "key2",
+							Data: []byte("data2"),
+						},
 					},
 				},
 			}, txn)
@@ -279,17 +361,26 @@ func testTaskCollectionPositionMetaStore(ctx context.Context, t *testing.T, stor
 				TaskID:         "45692f04-0103-48c9-87f7-c61c9a62f176",
 				CollectionID:   2,
 				CollectionName: "bar",
-				Positions: map[string]*commonpb.KeyDataPair{
+				Positions: map[string]*meta.PositionInfo{
 					"pchan3": {
-						Key:  "key3",
-						Data: []byte("data3"),
+						Time: 1,
+						DataPair: &commonpb.KeyDataPair{
+							Key:  "key3",
+							Data: []byte("data3"),
+						},
 					},
 					"pchan4": {
-						Key:  "key4",
-						Data: []byte("data4"),
+						Time: 2,
+						DataPair: &commonpb.KeyDataPair{
+							Key:  "key4",
+							Data: []byte("data4"),
+						},
 					},
 				},
 			}, txn)
+			assert.NoError(t, err)
+
+			_, err = taskCollectionPositionStore.Get(ctx, &meta.TaskCollectionPosition{TaskID: "bdef5f5c-08e2-4261-a2a3-ff28380230e4"}, txn)
 			assert.NoError(t, err)
 		}
 
@@ -317,5 +408,46 @@ func testTaskCollectionPositionMetaStore(ctx context.Context, t *testing.T, stor
 
 		err = commitFunc(err)
 		assert.NoError(t, err)
+	}
+
+	{
+		// invalid txn
+		{
+			err := taskCollectionPositionStore.Put(ctx, &meta.TaskCollectionPosition{
+				TaskID:         "bdef5f5c-08e2-4261-a2a3-ff28380230e4",
+				CollectionID:   1,
+				CollectionName: "foo",
+				Positions: map[string]*meta.PositionInfo{
+					"pchan1": {
+						Time: 1,
+						DataPair: &commonpb.KeyDataPair{
+							Key:  "key1",
+							Data: []byte("data1"),
+						},
+					},
+					"pchan2": {
+						Time: 2,
+						DataPair: &commonpb.KeyDataPair{
+							Key:  "key2",
+							Data: []byte("data2"),
+						},
+					},
+				},
+			}, 1)
+			assert.Error(t, err)
+		}
+		{
+			err := taskCollectionPositionStore.Delete(ctx, &meta.TaskCollectionPosition{TaskID: "bdef5f5c-08e2-4261-a2a3-ff28380230e4"}, 1)
+			assert.Error(t, err)
+		}
+		{
+			_, err := taskCollectionPositionStore.Get(ctx, &meta.TaskCollectionPosition{TaskID: "bdef5f5c-08e2-4261-a2a3-ff28380230e4"}, 1)
+			assert.Error(t, err)
+		}
+	}
+	// delete empty task id
+	{
+		err := taskCollectionPositionStore.Delete(ctx, &meta.TaskCollectionPosition{TaskID: ""}, 1)
+		assert.Error(t, err)
 	}
 }

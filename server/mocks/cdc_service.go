@@ -52,7 +52,7 @@ type CDCService_Create_Call struct {
 }
 
 // Create is a helper method to define mock.On call
-//   - _a0 *request.CreateRequest
+//  - _a0 *request.CreateRequest
 func (_e *CDCService_Expecter) Create(_a0 interface{}) *CDCService_Create_Call {
 	return &CDCService_Create_Call{Call: _e.mock.On("Create", _a0)}
 }
@@ -106,7 +106,7 @@ type CDCService_Delete_Call struct {
 }
 
 // Delete is a helper method to define mock.On call
-//   - _a0 *request.DeleteRequest
+//  - _a0 *request.DeleteRequest
 func (_e *CDCService_Expecter) Delete(_a0 interface{}) *CDCService_Delete_Call {
 	return &CDCService_Delete_Call{Call: _e.mock.On("Delete", _a0)}
 }
@@ -160,7 +160,7 @@ type CDCService_Get_Call struct {
 }
 
 // Get is a helper method to define mock.On call
-//   - _a0 *request.GetRequest
+//  - _a0 *request.GetRequest
 func (_e *CDCService_Expecter) Get(_a0 interface{}) *CDCService_Get_Call {
 	return &CDCService_Get_Call{Call: _e.mock.On("Get", _a0)}
 }
@@ -178,6 +178,60 @@ func (_c *CDCService_Get_Call) Return(_a0 *request.GetResponse, _a1 error) *CDCS
 }
 
 func (_c *CDCService_Get_Call) RunAndReturn(run func(*request.GetRequest) (*request.GetResponse, error)) *CDCService_Get_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetPosition provides a mock function with given fields: req
+func (_m *CDCService) GetPosition(req *request.GetPositionRequest) (*request.GetPositionResponse, error) {
+	ret := _m.Called(req)
+
+	var r0 *request.GetPositionResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(*request.GetPositionRequest) (*request.GetPositionResponse, error)); ok {
+		return rf(req)
+	}
+	if rf, ok := ret.Get(0).(func(*request.GetPositionRequest) *request.GetPositionResponse); ok {
+		r0 = rf(req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*request.GetPositionResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(*request.GetPositionRequest) error); ok {
+		r1 = rf(req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CDCService_GetPosition_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPosition'
+type CDCService_GetPosition_Call struct {
+	*mock.Call
+}
+
+// GetPosition is a helper method to define mock.On call
+//  - req *request.GetPositionRequest
+func (_e *CDCService_Expecter) GetPosition(req interface{}) *CDCService_GetPosition_Call {
+	return &CDCService_GetPosition_Call{Call: _e.mock.On("GetPosition", req)}
+}
+
+func (_c *CDCService_GetPosition_Call) Run(run func(req *request.GetPositionRequest)) *CDCService_GetPosition_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*request.GetPositionRequest))
+	})
+	return _c
+}
+
+func (_c *CDCService_GetPosition_Call) Return(_a0 *request.GetPositionResponse, _a1 error) *CDCService_GetPosition_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CDCService_GetPosition_Call) RunAndReturn(run func(*request.GetPositionRequest) (*request.GetPositionResponse, error)) *CDCService_GetPosition_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -214,7 +268,7 @@ type CDCService_List_Call struct {
 }
 
 // List is a helper method to define mock.On call
-//   - _a0 *request.ListRequest
+//  - _a0 *request.ListRequest
 func (_e *CDCService_Expecter) List(_a0 interface{}) *CDCService_List_Call {
 	return &CDCService_List_Call{Call: _e.mock.On("List", _a0)}
 }
@@ -268,7 +322,7 @@ type CDCService_Pause_Call struct {
 }
 
 // Pause is a helper method to define mock.On call
-//   - _a0 *request.PauseRequest
+//  - _a0 *request.PauseRequest
 func (_e *CDCService_Expecter) Pause(_a0 interface{}) *CDCService_Pause_Call {
 	return &CDCService_Pause_Call{Call: _e.mock.On("Pause", _a0)}
 }
@@ -354,7 +408,7 @@ type CDCService_Resume_Call struct {
 }
 
 // Resume is a helper method to define mock.On call
-//   - _a0 *request.ResumeRequest
+//  - _a0 *request.ResumeRequest
 func (_e *CDCService_Expecter) Resume(_a0 interface{}) *CDCService_Resume_Call {
 	return &CDCService_Resume_Call{Call: _e.mock.On("Resume", _a0)}
 }

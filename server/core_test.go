@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"sigs.k8s.io/yaml"

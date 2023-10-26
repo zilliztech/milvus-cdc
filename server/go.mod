@@ -10,6 +10,7 @@ require (
 	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.2-0.20231019101159-a0a6f5e7eff8
 	github.com/milvus-io/milvus/pkg v0.0.2-0.20231023021410-6b33420b3a1b
 	github.com/mitchellh/mapstructure v1.5.0
+	github.com/pingcap/log v1.1.1-0.20221015072633-39906604fb81
 	github.com/prometheus/client_golang v1.14.0
 	github.com/samber/lo v1.27.0
 	github.com/stretchr/testify v1.8.3

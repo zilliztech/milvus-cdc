@@ -23,21 +23,20 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/util"
+	"github.com/zilliztech/milvus-cdc/server/api"
 	"github.com/zilliztech/milvus-cdc/server/metrics"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 	"github.com/zilliztech/milvus-cdc/server/store"
 )
 
 type WriteCallback struct {
-	// writer.DefaultWriteCallBack
-
-	metaStoreFactory store.MetaStoreFactory
+	metaStoreFactory api.MetaStoreFactory
 	rootPath         string
 	taskID           string
 	log              *zap.Logger
 }
 
-func NewWriteCallback(factory store.MetaStoreFactory, rootPath string, taskID string) *WriteCallback {
+func NewWriteCallback(factory api.MetaStoreFactory, rootPath string, taskID string) *WriteCallback {
 	return &WriteCallback{
 		metaStoreFactory: factory,
 		rootPath:         rootPath,
@@ -45,34 +44,6 @@ func NewWriteCallback(factory store.MetaStoreFactory, rootPath string, taskID st
 		log:              log.With(zap.String("task_id", taskID)).Logger,
 	}
 }
-
-// func (w *WriteCallback) OnFail(data *model.CDCData, err error) {
-// 	w.log.Warn("fail to write the msg", zap.String("data", util.Base64Encode(data)), zap.Error(err))
-// 	metrics.WriterFailCountVec.WithLabelValues(w.taskID, metrics.WriteFailOnFail).Inc()
-// 	_ = store.UpdateTaskFailedReason(w.metaStoreFactory.GetTaskInfoMetaStore(context.Background()), w.taskID, err.Error())
-// }
-//
-// func (w *WriteCallback) OnSuccess(collectionID int64, channelInfos map[string]writer.CallbackChannelInfo) {
-// 	var msgType string
-// 	var count int
-// 	for channelName, info := range channelInfos {
-// 		if info.MsgType == commonpb.MsgType_Insert {
-// 			msgType = commonpb.MsgType_Insert.String()
-// 		} else if info.MsgType == commonpb.MsgType_Delete {
-// 			msgType = commonpb.MsgType_Delete.String()
-// 		}
-// 		count += info.MsgRowCount
-// 		sub := util.SubByNow(info.Ts)
-// 		metrics.WriterTimeDifferenceVec.WithLabelValues(w.taskID, strconv.FormatInt(collectionID, 10), channelName).Set(float64(sub))
-// 	}
-// 	if msgType != "" {
-// 		metrics.WriteMsgRowCountVec.WithLabelValues(w.taskID, strconv.FormatInt(collectionID, 10), msgType).Add(float64(count))
-// 	}
-// 	// means it's drop collection message
-// 	if len(channelInfos) > 1 {
-// 		metrics.StreamingCollectionCountVec.WithLabelValues(w.taskID, metrics.FinishStatusLabel).Inc()
-// 	}
-// }
 
 func (w *WriteCallback) UpdateTaskCollectionPosition(collectionID int64, collectionName string, pChannelName string, position, opPosition, targetPosition *meta.PositionInfo) {
 	if position == nil {
