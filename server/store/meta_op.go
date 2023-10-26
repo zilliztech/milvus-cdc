@@ -151,8 +151,12 @@ func UpdateTaskCollectionPosition(taskPositionStore api.MetaStore[*meta.TaskColl
 	if metaPosition.TargetPositions == nil {
 		metaPosition.TargetPositions = make(map[string]*meta.PositionInfo)
 	}
-	metaPosition.Positions[pChannelName] = position
-	metaPosition.OpPositions[pChannelName] = opPosition
+	if position != nil {
+		metaPosition.Positions[pChannelName] = position
+	}
+	if opPosition != nil {
+		metaPosition.OpPositions[pChannelName] = opPosition
+	}
 	if targetPosition != nil {
 		metaPosition.TargetPositions[targetPosition.DataPair.GetKey()] = targetPosition
 	}
