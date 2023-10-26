@@ -24,12 +24,13 @@ import (
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 
+	"github.com/zilliztech/milvus-cdc/server/api"
 	servererror "github.com/zilliztech/milvus-cdc/server/error"
 	"github.com/zilliztech/milvus-cdc/server/metrics"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 )
 
-func GetTaskInfo(taskInfoStore MetaStore[*meta.TaskInfo], taskID string) (*meta.TaskInfo, error) {
+func GetTaskInfo(taskInfoStore api.MetaStore[*meta.TaskInfo], taskID string) (*meta.TaskInfo, error) {
 	ctx := context.Background()
 	taskInfos, err := taskInfoStore.Get(ctx, &meta.TaskInfo{TaskID: taskID}, nil)
 	if err != nil {
@@ -43,7 +44,7 @@ func GetTaskInfo(taskInfoStore MetaStore[*meta.TaskInfo], taskID string) (*meta.
 	return taskInfos[0], nil
 }
 
-func GetAllTaskInfo(taskInfoStore MetaStore[*meta.TaskInfo]) ([]*meta.TaskInfo, error) {
+func GetAllTaskInfo(taskInfoStore api.MetaStore[*meta.TaskInfo]) ([]*meta.TaskInfo, error) {
 	ctx := context.Background()
 	taskInfos, err := taskInfoStore.Get(ctx, &meta.TaskInfo{}, nil)
 	if err != nil {
@@ -51,18 +52,21 @@ func GetAllTaskInfo(taskInfoStore MetaStore[*meta.TaskInfo]) ([]*meta.TaskInfo, 
 		return nil, err
 	}
 	if len(taskInfos) == 0 {
+		log.Warn("not found the task info")
 		return nil, servererror.NewNotFoundError("task info")
 	}
 	return taskInfos, nil
 }
 
-func UpdateTaskState(taskInfoStore MetaStore[*meta.TaskInfo], taskID string, newState meta.TaskState, oldStates []meta.TaskState) error {
+func UpdateTaskState(taskInfoStore api.MetaStore[*meta.TaskInfo], taskID string, newState meta.TaskState, oldStates []meta.TaskState) error {
 	ctx := context.Background()
 	infos, err := taskInfoStore.Get(ctx, &meta.TaskInfo{TaskID: taskID}, nil)
 	if err != nil {
+		log.Warn("fail to get the task info", zap.String("task_id", taskID), zap.Error(err))
 		return err
 	}
 	if len(infos) == 0 {
+		log.Warn("not found the task info", zap.String("task_id", taskID))
 		return errors.Errorf("not found the task info with task id %s", taskID)
 	}
 	info := infos[0]
@@ -84,7 +88,7 @@ func UpdateTaskState(taskInfoStore MetaStore[*meta.TaskInfo], taskID string, new
 	return nil
 }
 
-func UpdateTaskFailedReason(taskInfoStore MetaStore[*meta.TaskInfo], taskID string, reason string) error {
+func UpdateTaskFailedReason(taskInfoStore api.MetaStore[*meta.TaskInfo], taskID string, reason string) error {
 	ctx := context.Background()
 	infos, err := taskInfoStore.Get(ctx, &meta.TaskInfo{TaskID: taskID}, nil)
 	if err != nil {
@@ -105,7 +109,7 @@ func UpdateTaskFailedReason(taskInfoStore MetaStore[*meta.TaskInfo], taskID stri
 	return nil
 }
 
-func UpdateTaskCollectionPosition(taskPositionStore MetaStore[*meta.TaskCollectionPosition], taskID string, collectionID int64, collectionName string, pChannelName string, position, opPosition, targetPosition *meta.PositionInfo) error {
+func UpdateTaskCollectionPosition(taskPositionStore api.MetaStore[*meta.TaskCollectionPosition], taskID string, collectionID int64, collectionName string, pChannelName string, position, opPosition, targetPosition *meta.PositionInfo) error {
 	ctx := context.Background()
 	positions, err := taskPositionStore.Get(ctx, &meta.TaskCollectionPosition{TaskID: taskID, CollectionID: collectionID}, nil)
 	if err != nil {
@@ -121,6 +125,8 @@ func UpdateTaskCollectionPosition(taskPositionStore MetaStore[*meta.TaskCollecti
 			Positions: map[string]*meta.PositionInfo{
 				pChannelName: position,
 			},
+			OpPositions:     make(map[string]*meta.PositionInfo),
+			TargetPositions: make(map[string]*meta.PositionInfo),
 		}
 		if opPosition != nil {
 			metaPosition.OpPositions = map[string]*meta.PositionInfo{
@@ -153,7 +159,7 @@ func UpdateTaskCollectionPosition(taskPositionStore MetaStore[*meta.TaskCollecti
 	return taskPositionStore.Put(ctx, metaPosition, nil)
 }
 
-func DeleteTaskCollectionPosition(taskPositionStore MetaStore[*meta.TaskCollectionPosition], taskID string, collectionID int64) error {
+func DeleteTaskCollectionPosition(taskPositionStore api.MetaStore[*meta.TaskCollectionPosition], taskID string, collectionID int64) error {
 	err := taskPositionStore.Delete(context.Background(), &meta.TaskCollectionPosition{TaskID: taskID, CollectionID: collectionID}, nil)
 	if err != nil {
 		log.Warn("fail to delete the task position", zap.String("task_id", taskID), zap.Int64("collection_id", collectionID), zap.Error(err))
@@ -161,7 +167,7 @@ func DeleteTaskCollectionPosition(taskPositionStore MetaStore[*meta.TaskCollecti
 	return err
 }
 
-func DeleteTask(factory MetaStoreFactory, rootPath string, taskID string) (*meta.TaskInfo, error) {
+func DeleteTask(factory api.MetaStoreFactory, taskID string) (*meta.TaskInfo, error) {
 	ctx := context.Background()
 	infos, err := factory.GetTaskInfoMetaStore(ctx).Get(ctx, &meta.TaskInfo{TaskID: taskID}, nil)
 	if err != nil {

@@ -262,6 +262,9 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 				log.Warn("fail to release collection", zap.Any("msg", releaseCollectionMsg), zap.Error(err))
 				return nil, err
 			}
+		default:
+			log.Warn("unknown msg type", zap.Any("msg", msg))
+			return nil, errors.New("unknown msg type")
 		}
 		log.Info("finish to handle msg", zap.String("type", msg.Type().String()))
 	}

@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/util"
+	"github.com/zilliztech/milvus-cdc/server/api"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 )
 
@@ -27,7 +28,7 @@ type EtcdMetaStore struct {
 	txnMap                      map[any][]clientv3.Op
 }
 
-var _ MetaStoreFactory = &EtcdMetaStore{}
+var _ api.MetaStoreFactory = &EtcdMetaStore{}
 
 func NewEtcdMetaStore(ctx context.Context, endpoints []string, rootPath string) (*EtcdMetaStore, error) {
 	log := log.With(zap.Strings("endpoints", endpoints)).Logger
@@ -61,11 +62,11 @@ func NewEtcdMetaStore(ctx context.Context, endpoints []string, rootPath string) 
 	}, nil
 }
 
-func (e *EtcdMetaStore) GetTaskInfoMetaStore(ctx context.Context) MetaStore[*meta.TaskInfo] {
+func (e *EtcdMetaStore) GetTaskInfoMetaStore(ctx context.Context) api.MetaStore[*meta.TaskInfo] {
 	return e.taskInfoStore
 }
 
-func (e *EtcdMetaStore) GetTaskCollectionPositionMetaStore(ctx context.Context) MetaStore[*meta.TaskCollectionPosition] {
+func (e *EtcdMetaStore) GetTaskCollectionPositionMetaStore(ctx context.Context) api.MetaStore[*meta.TaskCollectionPosition] {
 	return e.taskCollectionPositionStore
 }
 
@@ -90,7 +91,7 @@ type TaskInfoEtcdStore struct {
 	txnMap     map[any][]clientv3.Op
 }
 
-var _ MetaStore[*meta.TaskInfo] = &TaskInfoEtcdStore{}
+var _ api.MetaStore[*meta.TaskInfo] = &TaskInfoEtcdStore{}
 
 func NewTaskInfoEtcdStore(ctx context.Context, etcdClient *clientv3.Client, rootPath string, txnMap map[any][]clientv3.Op) (*TaskInfoEtcdStore, error) {
 	t := &TaskInfoEtcdStore{
@@ -111,11 +112,11 @@ func (t *TaskInfoEtcdStore) Put(ctx context.Context, metaObj *meta.TaskInfo, txn
 	timeCtx, cancel := context.WithTimeout(ctx, EtcdOpTimeout)
 	defer cancel()
 	objBytes, err := json.Marshal(metaObj)
-	taskInfoKey := getTaskInfoKey(t.rootPath, metaObj.TaskID)
 	if err != nil {
 		t.log.Warn("fail to marshal task info", zap.Error(err))
 		return err
 	}
+	taskInfoKey := getTaskInfoKey(t.rootPath, metaObj.TaskID)
 	defer func() {
 		if err != nil {
 			t.log.Warn("fail to put task info", zap.Error(err))
@@ -203,7 +204,7 @@ type TaskCollectionPositionEtcdStore struct {
 	txnMap     map[any][]clientv3.Op
 }
 
-var _ MetaStore[*meta.TaskCollectionPosition] = &TaskCollectionPositionEtcdStore{}
+var _ api.MetaStore[*meta.TaskCollectionPosition] = &TaskCollectionPositionEtcdStore{}
 
 func NewTaskCollectionPositionEtcdStore(ctx context.Context, etcdClient *clientv3.Client, rootPath string, txnMap map[any][]clientv3.Op) (*TaskCollectionPositionEtcdStore, error) {
 	t := &TaskCollectionPositionEtcdStore{

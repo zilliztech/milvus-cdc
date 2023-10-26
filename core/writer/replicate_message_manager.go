@@ -48,10 +48,7 @@ type replicateMessageHandler struct {
 func (r *replicateMessageHandler) startHandleMessageLoop() {
 	go func() {
 		for {
-			message, ok := <-r.messageChan
-			if !ok {
-				return
-			}
+			message := <-r.messageChan
 			messageParam := message.Param
 			err := r.handler.ReplicateMessage(context.Background(), messageParam)
 			if err != nil {
@@ -67,7 +64,8 @@ func (r *replicateMessageHandler) handleMessage(message *api.ReplicateMessage) {
 	select {
 	case <-r.stopChan:
 		message.FailFunc(message.Param, errors.New("replicate message handler is closed"))
-	case r.messageChan <- message:
+	default:
+		r.messageChan <- message
 	}
 }
 

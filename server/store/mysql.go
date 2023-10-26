@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/util"
+	"github.com/zilliztech/milvus-cdc/server/api"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 )
 
@@ -65,13 +66,13 @@ func (s *MySQLMetaStore) init(ctx context.Context, dataSourceName string, rootPa
 	return nil
 }
 
-var _ MetaStoreFactory = &MySQLMetaStore{}
+var _ api.MetaStoreFactory = &MySQLMetaStore{}
 
-func (s *MySQLMetaStore) GetTaskInfoMetaStore(ctx context.Context) MetaStore[*meta.TaskInfo] {
+func (s *MySQLMetaStore) GetTaskInfoMetaStore(ctx context.Context) api.MetaStore[*meta.TaskInfo] {
 	return s.taskInfoStore
 }
 
-func (s *MySQLMetaStore) GetTaskCollectionPositionMetaStore(ctx context.Context) MetaStore[*meta.TaskCollectionPosition] {
+func (s *MySQLMetaStore) GetTaskCollectionPositionMetaStore(ctx context.Context) api.MetaStore[*meta.TaskCollectionPosition] {
 	return s.taskCollectionPositionStore
 }
 
@@ -106,7 +107,7 @@ type TaskInfoMysqlStore struct {
 	txnMap   map[any]func() *sql.Tx
 }
 
-var _ MetaStore[*meta.TaskInfo] = &TaskInfoMysqlStore{}
+var _ api.MetaStore[*meta.TaskInfo] = &TaskInfoMysqlStore{}
 
 func NewTaskInfoMysqlStore(ctx context.Context, db *sql.DB, rootPath string, txnMap map[any]func() *sql.Tx) (*TaskInfoMysqlStore, error) {
 	m := &TaskInfoMysqlStore{
@@ -262,7 +263,7 @@ type TaskCollectionPositionMysqlStore struct {
 	txnMap   map[any]func() *sql.Tx
 }
 
-var _ MetaStore[*meta.TaskCollectionPosition] = &TaskCollectionPositionMysqlStore{}
+var _ api.MetaStore[*meta.TaskCollectionPosition] = &TaskCollectionPositionMysqlStore{}
 
 func NewTaskCollectionPositionMysqlStore(ctx context.Context, db *sql.DB, rootPath string, txnMap map[any]func() *sql.Tx) (*TaskCollectionPositionMysqlStore, error) {
 	s := &TaskCollectionPositionMysqlStore{
@@ -284,6 +285,8 @@ func (m *TaskCollectionPositionMysqlStore) init(ctx context.Context, db *sql.DB,
 		    collection_id BIGINT NOT NULL,
 		    collection_name VARCHAR(255) NOT NULL,
 			task_position_value JSON NOT NULL,
+			op_position_value JSON,
+			target_position_value JSON,
 			PRIMARY KEY (task_position_key),
 			INDEX idx_key (task_position_key),
 			INDEX idx_task_id (task_id),
@@ -299,13 +302,12 @@ func (m *TaskCollectionPositionMysqlStore) init(ctx context.Context, db *sql.DB,
 }
 
 func (m *TaskCollectionPositionMysqlStore) Put(ctx context.Context, metaObj *meta.TaskCollectionPosition, txn any) error {
-	sqlStr := "INSERT INTO task_position (task_position_key, task_id, collection_id, collection_name, task_position_value) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE task_position_value = ?"
-	positionBytes, err := json.Marshal(metaObj.Positions)
+	sqlStr := "INSERT INTO task_position (task_position_key, task_id, collection_id, collection_name, task_position_value, op_position_value, target_position_value) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE task_position_value = ?, op_position_value = ?, target_position_value = ?"
+	positionBytes, _ := json.Marshal(metaObj.Positions)
+	opPositionBytes, _ := json.Marshal(metaObj.OpPositions)
+	targetPositionBytes, _ := json.Marshal(metaObj.TargetPositions)
+	var err error
 	taskPositionKey := getTaskCollectionPositionKey(m.rootPath, metaObj.TaskID, metaObj.CollectionID)
-	if err != nil {
-		m.log.Warn("fail to marshal task position", zap.Error(err))
-		return err
-	}
 	defer func() {
 		if err != nil {
 			m.log.Warn("fail to put task position", zap.Error(err))
@@ -321,15 +323,15 @@ func (m *TaskCollectionPositionMysqlStore) Put(ctx context.Context, metaObj *met
 			return err
 		}
 		defer stmt.Close()
-		_, err = stmt.ExecContext(ctx, taskPositionKey, metaObj.TaskID, metaObj.CollectionID, metaObj.CollectionName, util.ToString(positionBytes), util.ToString(positionBytes))
+		_, err = stmt.ExecContext(ctx, taskPositionKey, metaObj.TaskID, metaObj.CollectionID, metaObj.CollectionName, util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes), util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes))
 		return err
 	}
-	_, err = m.db.ExecContext(ctx, sqlStr, taskPositionKey, metaObj.TaskID, metaObj.CollectionID, metaObj.CollectionName, util.ToString(positionBytes), util.ToString(positionBytes))
+	_, err = m.db.ExecContext(ctx, sqlStr, taskPositionKey, metaObj.TaskID, metaObj.CollectionID, metaObj.CollectionName, util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes), util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes))
 	return err
 }
 
 func (m *TaskCollectionPositionMysqlStore) Get(ctx context.Context, metaObj *meta.TaskCollectionPosition, txn any) ([]*meta.TaskCollectionPosition, error) {
-	sqlStr := fmt.Sprintf("SELECT task_id, collection_id, collection_name, task_position_value FROM task_position WHERE task_position_key LIKE '%s%%'", getTaskCollectionPositionPrefix(m.rootPath))
+	sqlStr := fmt.Sprintf("SELECT task_id, collection_id, collection_name, task_position_value, op_position_value, target_position_value FROM task_position WHERE task_position_key LIKE '%s%%'", getTaskCollectionPositionPrefix(m.rootPath))
 	var sqlArgs []any
 	if metaObj.TaskID != "" || metaObj.CollectionID != 0 {
 		if metaObj.TaskID != "" {
@@ -375,7 +377,9 @@ func (m *TaskCollectionPositionMysqlStore) Get(ctx context.Context, metaObj *met
 	for rows.Next() {
 		var taskPosition meta.TaskCollectionPosition
 		var taskPositionValue string
-		err = rows.Scan(&taskPosition.TaskID, &taskPosition.CollectionID, &taskPosition.CollectionName, &taskPositionValue)
+		var opPositionValue string
+		var targetPositionValue string
+		err = rows.Scan(&taskPosition.TaskID, &taskPosition.CollectionID, &taskPosition.CollectionName, &taskPositionValue, &opPositionValue, &targetPositionValue)
 		if err != nil {
 			m.log.Warn("fail to scan task position", zap.Error(err))
 			return nil, err
@@ -384,6 +388,18 @@ func (m *TaskCollectionPositionMysqlStore) Get(ctx context.Context, metaObj *met
 		err = json.Unmarshal(util.ToBytes(taskPositionValue), &taskPosition.Positions)
 		if err != nil {
 			m.log.Warn("fail to unmarshal task position", zap.Error(err))
+			return nil, err
+		}
+		taskPosition.OpPositions = make(map[string]*meta.PositionInfo)
+		err = json.Unmarshal(util.ToBytes(opPositionValue), &taskPosition.OpPositions)
+		if err != nil {
+			m.log.Warn("fail to unmarshal op position", zap.Error(err))
+			return nil, err
+		}
+		taskPosition.TargetPositions = make(map[string]*meta.PositionInfo)
+		err = json.Unmarshal(util.ToBytes(targetPositionValue), &taskPosition.TargetPositions)
+		if err != nil {
+			m.log.Warn("fail to unmarshal target position", zap.Error(err))
 			return nil, err
 		}
 		taskPositions = append(taskPositions, &taskPosition)

@@ -592,7 +592,7 @@ func newReplicateChannelHandler(
 		log.Warn("fail to new the msg stream", zap.Error(err))
 		return nil, err
 	}
-	err = stream.AsConsumer(ctx, []string{sourceInfo.PChannelName}, sourceInfo.PChannelName+strconv.Itoa(rand.Int()), mqwrapper.SubscriptionPositionLatest)
+	err = stream.AsConsumer(ctx, []string{sourceInfo.PChannelName}, sourceInfo.PChannelName+strconv.Itoa(rand.Int()), mqwrapper.SubscriptionPositionUnknown)
 	if err != nil {
 		log.Warn("fail to consume the channel", zap.Error(err))
 		stream.Close()
