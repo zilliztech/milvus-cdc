@@ -16,7 +16,10 @@
 
 package server
 
-import "github.com/zilliztech/milvus-cdc/server/model/request"
+import (
+	"github.com/milvus-io/milvus/pkg/log"
+	"github.com/zilliztech/milvus-cdc/server/model/request"
+)
 
 type CDCService interface {
 	ReloadTask()
@@ -36,33 +39,41 @@ func NewBaseCDC() *BaseCDC {
 }
 
 func (b *BaseCDC) ReloadTask() {
+	log.Warn("ReloadTask is not implemented, please check it")
 }
 
 func (b *BaseCDC) Create(request *request.CreateRequest) (*request.CreateResponse, error) {
+	log.Warn("Create is not implemented, please check it")
 	return nil, nil
 }
 
 func (b *BaseCDC) Delete(request *request.DeleteRequest) (*request.DeleteResponse, error) {
+	log.Warn("Delete is not implemented, please check it")
 	return nil, nil
 }
 
 func (b *BaseCDC) Pause(request *request.PauseRequest) (*request.PauseResponse, error) {
+	log.Warn("Pause is not implemented, please check it")
 	return nil, nil
 }
 
 func (b *BaseCDC) Resume(request *request.ResumeRequest) (*request.ResumeResponse, error) {
+	log.Warn("Resume is not implemented, please check it")
 	return nil, nil
 }
 
 func (b *BaseCDC) Get(request *request.GetRequest) (*request.GetResponse, error) {
+	log.Warn("Get is not implemented, please check it")
 	return nil, nil
 }
 
 func (b *BaseCDC) GetPosition(req *request.GetPositionRequest) (*request.GetPositionResponse, error) {
+	log.Warn("GetPosition is not implemented, please check it")
 	return nil, nil
 }
 
 func (b *BaseCDC) List(request *request.ListRequest) (*request.ListResponse, error) {
+	log.Warn("List is not implemented, please check it")
 	return nil, nil
 }
 
