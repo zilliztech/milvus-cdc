@@ -65,6 +65,7 @@ type ReplicateEntity struct {
 type MetaCDC struct {
 	BaseCDC
 	metaStoreFactory serverapi.MetaStoreFactory
+	mqFactoryCreator cdcreader.FactoryCreator
 	rootPath         string
 	config           *CDCServerConfig
 
@@ -118,6 +119,7 @@ func NewMetaCDC(serverConfig *CDCServerConfig) *MetaCDC {
 	cdc := &MetaCDC{
 		metaStoreFactory: factory,
 		config:           serverConfig,
+		mqFactoryCreator: cdcreader.NewDefaultFactoryCreator(),
 	}
 	cdc.collectionNames.data = make(map[string][]string)
 	cdc.collectionNames.excludeData = make(map[string][]string)
@@ -142,33 +144,6 @@ func (e *MetaCDC) ReloadTask() {
 	if err != nil {
 		log.Panic("fail to get all task info", zap.Error(err))
 	}
-
-	// if reverse {
-	// 	var err error
-	// 	reverseTxn, commitFunc, err := e.metaStoreFactory.Txn(ctx)
-	// 	if err != nil {
-	// 		log.Panic("fail to new the reverse txn", zap.Error(err))
-	// 	}
-	// 	for _, taskInfo := range taskInfos {
-	// 		if taskInfo.MilvusConnectParam.Host == currentConfig.Host && taskInfo.MilvusConnectParam.Port == currentConfig.Port {
-	// 			taskInfo.MilvusConnectParam.Host = reverseConfig.Host
-	// 			taskInfo.MilvusConnectParam.Port = reverseConfig.Port
-	// 			taskInfo.MilvusConnectParam.Username = reverseConfig.Username
-	// 			taskInfo.MilvusConnectParam.Password = reverseConfig.Password
-	// 			taskInfo.MilvusConnectParam.EnableTLS = reverseConfig.EnableTLS
-	// 			if err = e.metaStoreFactory.GetTaskInfoMetaStore(ctx).Put(ctx, taskInfo, reverseTxn); err != nil {
-	// 				log.Panic("fail to put the task info to metastore when reversing", zap.Error(err))
-	// 			}
-	// 			// TODO need to use new target position in the future, not delete and receive the msg from the latest position
-	// 			if err = e.metaStoreFactory.GetTaskCollectionPositionMetaStore(ctx).Delete(ctx, &meta.TaskCollectionPosition{TaskID: taskInfo.TaskID}, reverseTxn); err != nil {
-	// 				log.Panic("fail to delete the task collection position to metastore when reversing", zap.Error(err))
-	// 			}
-	// 		}
-	// 	}
-	// 	if err = commitFunc(err); err != nil {
-	// 		log.Panic("fail to commit the reverse txn", zap.Error(err))
-	// 	}
-	// }
 
 	for _, taskInfo := range taskInfos {
 		milvusAddress := fmt.Sprintf("%s:%d", taskInfo.MilvusConnectParam.Host, taskInfo.MilvusConnectParam.Port)
@@ -234,9 +209,6 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		existCollectionNames := e.collectionNames.data[milvusAddress]
 		excludeCollectionNames = make([]string, len(existCollectionNames))
 		copy(excludeCollectionNames, existCollectionNames)
-		// if !lo.Contains(excludeCollectionNames, util.RPCRequestCollectionName) {
-		// 	excludeCollectionNames = append(excludeCollectionNames, util.RPCRequestCollectionName)
-		// }
 		e.collectionNames.excludeData[milvusAddress] = excludeCollectionNames
 	}
 	e.collectionNames.data[milvusAddress] = append(e.collectionNames.data[milvusAddress], newCollectionNames...)
@@ -335,17 +307,6 @@ func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 		return servererror.NewClientError("the cache size is less zero")
 	}
 
-	// if req.RPCChannelInfo.Name == "" {
-	// 	if err := e.checkCollectionInfos(req.CollectionInfos); err != nil {
-	// 		return err
-	// 	}
-	// } else {
-	// 	if len(req.CollectionInfos) > 0 {
-	// 		return servererror.NewClientError("the collection info should be empty when the rpc channel is not empty")
-	// 	}
-	// 	req.CollectionInfos = []model.CollectionInfo{{Name: util.RPCRequestCollectionName}}
-	// }
-
 	if err := e.checkCollectionInfos(req.CollectionInfos); err != nil {
 		return err
 	}
@@ -418,6 +379,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 	milvusAddress := fmt.Sprintf("%s:%d", milvusConnectParam.Host, milvusConnectParam.Port)
 	e.replicateEntityMap.RLock()
 	replicateEntity, ok := e.replicateEntityMap.data[milvusAddress]
+	log.Info("ok", zap.Any("ok", ok))
 	e.replicateEntityMap.RUnlock()
 
 	newReplicateEntity := func() (*ReplicateEntity, error) {
@@ -439,7 +401,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 		channelManager, err := cdcreader.NewReplicateChannelManager(config.MQConfig{
 			Pulsar: e.config.SourceConfig.Pulsar,
 			Kafka:  e.config.SourceConfig.Kafka,
-		}, cdcreader.NewDefaultFactoryCreator(), milvusClient, bufferSize)
+		}, e.mqFactoryCreator, milvusClient, bufferSize)
 		if err != nil {
 			log.Warn("fail to create replicate channel manager", zap.Error(err))
 			return nil, servererror.NewClientError("fail to create replicate channel manager")
@@ -600,7 +562,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 			writeCallback.UpdateTaskCollectionPosition(TmpCollectionID, TmpCollectionName, channelName,
 				metaPosition, metaPosition, nil)
 			return true
-		}, cdcreader.NewDefaultFactoryCreator())
+		}, e.mqFactoryCreator)
 	readCtx, cancelReadFunc := context.WithCancel(context.Background())
 	e.replicateEntityMap.Lock()
 	// replicateEntity.readerObj = collectionReader
@@ -726,7 +688,7 @@ func (e *MetaCDC) GetPosition(req *request.GetPositionRequest) (*request.GetPosi
 	ctx := context.Background()
 	positions, err := e.metaStoreFactory.GetTaskCollectionPositionMetaStore(ctx).Get(ctx, &meta.TaskCollectionPosition{TaskID: req.TaskID}, nil)
 	if err != nil {
-		return nil, err
+		return nil, servererror.NewServerError(err)
 	}
 	resp := &request.GetPositionResponse{}
 	if len(positions) > 0 {
