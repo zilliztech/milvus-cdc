@@ -7,6 +7,7 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
 	"github.com/zilliztech/milvus-cdc/server/mocks"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 )

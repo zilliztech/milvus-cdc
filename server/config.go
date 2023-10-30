@@ -35,7 +35,7 @@ type CDCServerConfig struct {
 type CDCMetaStoreConfig struct {
 	StoreType      string
 	EtcdEndpoints  []string
-	MysqlSourceUrl string
+	MysqlSourceURL string
 	RootPath       string
 }
 

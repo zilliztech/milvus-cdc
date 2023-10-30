@@ -56,11 +56,12 @@ func NewChannelReader(channelName, seekPosition string, mqConfig config.MQConfig
 
 func (c *ChannelReader) initMsgStream() error {
 	var factory msgstream.Factory
-	if c.mqConfig.Pulsar.Address != "" {
+	switch {
+	case c.mqConfig.Pulsar.Address != "":
 		factory = c.factoryCreator.NewPmsFactory(&c.mqConfig.Pulsar)
-	} else if c.mqConfig.Kafka.Address != "" {
+	case c.mqConfig.Kafka.Address != "":
 		factory = c.factoryCreator.NewKmsFactory(&c.mqConfig.Kafka)
-	} else {
+	default:
 		return errors.New("fail to get the msg stream, check the mqConfig param")
 	}
 	stream, err := factory.NewMsgStream(context.Background())

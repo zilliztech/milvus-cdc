@@ -194,17 +194,16 @@ func (m *TaskInfoMysqlStore) Get(ctx context.Context, metaObj *meta.TaskInfo, tx
 		defer stmt.Close()
 
 		rows, err = stmt.QueryContext(ctx, sqlArgs...)
+		if err != nil {
+			m.log.Warn("fail to get task info", zap.Error(err))
+			return nil, err
+		}
 	} else {
 		rows, err = m.db.QueryContext(ctx, sqlStr, sqlArgs...)
-	}
-
-	if err != nil {
-		//if err == sql.ErrNoRows {
-		//	m.log.Info("task info not found", zap.String("task_id", metaObj.TaskID))
-		//	return nil, nil
-		//}
-		m.log.Warn("fail to get task info", zap.Error(err))
-		return nil, err
+		if err != nil {
+			m.log.Warn("fail to get task info", zap.Error(err))
+			return nil, err
+		}
 	}
 
 	defer rows.Close()
@@ -361,17 +360,16 @@ func (m *TaskCollectionPositionMysqlStore) Get(ctx context.Context, metaObj *met
 		defer stmt.Close()
 
 		rows, err = stmt.QueryContext(ctx, sqlArgs...)
+		if err != nil {
+			m.log.Warn("fail to get task info", zap.Error(err))
+			return nil, err
+		}
 	} else {
 		rows, err = m.db.QueryContext(ctx, sqlStr, sqlArgs...)
-	}
-
-	if err != nil {
-		//if err == sql.ErrNoRows {
-		//	m.log.Info("task position not found", zap.String("task_id", metaObj.TaskID), zap.Int64("collection_id", metaObj.CollectionID))
-		//	return nil, nil
-		//}
-		m.log.Warn("fail to get task info", zap.Error(err))
-		return nil, err
+		if err != nil {
+			m.log.Warn("fail to get task info", zap.Error(err))
+			return nil, err
+		}
 	}
 
 	for rows.Next() {

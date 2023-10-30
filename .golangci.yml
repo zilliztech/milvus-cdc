@@ -31,13 +31,13 @@ linters-settings:
     sections:
       - standard
       - default
-      - prefix(github.com/milvus-io)
+      - prefix(github.com/zilliztech)
     custom-order: true
   gofumpt:
     lang-version: "1.18"
-    module-path: github.com/milvus-io
+    module-path: github.com/zilliztech
   goimports:
-    local-prefixes: github.com/milvus-io
+    local-prefixes: github.com/zilliztech
   revive:
     rules:
       - name: unused-parameter
@@ -86,6 +86,14 @@ issues:
     - should be of the form
     - should not use dot imports
     - which can be annoying to use
+    - is not allowed from list 'Main'
+    - param.FieldName is deprecated
+    - G103
+    - G102
+    - G404
+    - G201
+    - G114
+    - SA1019
   # Maximum issue count per one linter. Set to 0 to disable. Default is 50.
   max-issues-per-linter: 0
   # Maximum count of issues with same text. Set to 0 to disable. Default is 3.

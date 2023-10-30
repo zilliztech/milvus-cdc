@@ -48,11 +48,12 @@ type replicateChannelManager struct {
 
 func NewReplicateChannelManager(mqConfig config.MQConfig, factoryCreator FactoryCreator, client api.TargetAPI, messageBufferSize int) (api.ChannelManager, error) {
 	var factory msgstream.Factory
-	if mqConfig.Pulsar.Address != "" {
+	switch {
+	case mqConfig.Pulsar.Address != "":
 		factory = factoryCreator.NewPmsFactory(&mqConfig.Pulsar)
-	} else if mqConfig.Kafka.Address != "" {
+	case mqConfig.Kafka.Address != "":
 		factory = factoryCreator.NewKmsFactory(&mqConfig.Kafka)
-	} else {
+	default:
 		log.Warn("mqConfig is empty")
 		return nil, errors.New("fail to get the msg stream, check the mqConfig param")
 	}
@@ -417,7 +418,6 @@ func (r *replicateChannelHandler) Close() {
 
 func (r *replicateChannelHandler) startReadChannel() {
 	go func() {
-		// startTs := true
 		for {
 			msgPack, ok := <-r.stream.Chan()
 			if !ok {

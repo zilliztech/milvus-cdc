@@ -8,9 +8,10 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/zap"
+
 	"github.com/zilliztech/milvus-cdc/server/mocks"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
-	"go.uber.org/zap"
 )
 
 func TestJson(t *testing.T) {

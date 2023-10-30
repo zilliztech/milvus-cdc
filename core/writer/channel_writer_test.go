@@ -13,6 +13,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/mocks"
 	"github.com/zilliztech/milvus-cdc/core/pb"
@@ -223,7 +224,7 @@ func TestChannelWriter(t *testing.T) {
 			assert.Error(t, err)
 		}
 
-		// unkonwn msg type
+		// unknown msg type
 		{
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{

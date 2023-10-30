@@ -28,13 +28,13 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
+	sdkmocks "github.com/milvus-io/milvus-sdk-go/v2/mocks"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 
-	sdkmocks "github.com/milvus-io/milvus-sdk-go/v2/mocks"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	coremocks "github.com/zilliztech/milvus-cdc/core/mocks"
 	"github.com/zilliztech/milvus-cdc/core/pb"
@@ -46,7 +46,7 @@ import (
 
 var (
 	endpoints    = []string{"localhost:2379"}
-	mysqlUrl     = "root:123456@tcp(127.0.0.1:3306)/milvuscdc?charset=utf8"
+	mysqlURL     = "root:123456@tcp(127.0.0.1:3306)/milvuscdc?charset=utf8"
 	rootPath     = "cdc"
 	serverConfig = &CDCServerConfig{
 		MetaStoreConfig: CDCMetaStoreConfig{
@@ -141,7 +141,7 @@ func TestNewMetaCDC(t *testing.T) {
 				NewMetaCDC(&CDCServerConfig{
 					MetaStoreConfig: CDCMetaStoreConfig{
 						StoreType:      "mysql",
-						MysqlSourceUrl: "unknown",
+						MysqlSourceURL: "unknown",
 						RootPath:       "cdc-test",
 					},
 				})
@@ -153,7 +153,7 @@ func TestNewMetaCDC(t *testing.T) {
 			NewMetaCDC(&CDCServerConfig{
 				MetaStoreConfig: CDCMetaStoreConfig{
 					StoreType:      "mysql",
-					MysqlSourceUrl: mysqlUrl,
+					MysqlSourceURL: mysqlURL,
 					RootPath:       "cdc-test",
 				},
 				SourceConfig: MilvusSourceConfig{
@@ -543,8 +543,8 @@ func ClearEtcdData(rootPath string) {
 		Endpoints:   []string{"localhost:2379"},
 		DialTimeout: 5 * time.Second,
 	})
-	etcdCli.Delete(context.Background(), rootPath, clientv3.WithPrefix())
-	etcdCli.Close()
+	_, _ = etcdCli.Delete(context.Background(), rootPath, clientv3.WithPrefix())
+	_ = etcdCli.Close()
 }
 
 func TestShouldReadCollection(t *testing.T) {

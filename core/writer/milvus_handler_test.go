@@ -31,8 +31,9 @@ import (
 	"github.com/milvus-io/milvus-sdk-go/v2/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/zilliztech/milvus-cdc/core/api"
 	"google.golang.org/grpc"
+
+	"github.com/zilliztech/milvus-cdc/core/api"
 )
 
 func TestDataHandler(t *testing.T) {
