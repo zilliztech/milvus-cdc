@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
@@ -23,8 +24,6 @@ func TestNewBarrier(t *testing.T) {
 		})
 		b.BarrierChan <- 2
 		b.BarrierChan <- 2
-		assert.Eventually(t, func() bool {
-			return isExecuted.Load()
-		}, time.Second, time.Millisecond*100)
+		assert.Eventually(t, isExecuted.Load, time.Second, time.Millisecond*100)
 	})
 }

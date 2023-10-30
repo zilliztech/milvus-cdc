@@ -28,53 +28,53 @@ func TestRequestHandle(t *testing.T) {
 	assertion := assert.New(t)
 	assertion.Len(requestHandlers, 7)
 
-	baseApi := NewBaseCDC()
+	baseAPI := NewBaseCDC()
 
 	handler, ok := requestHandlers[request.Create]
 	assertion.True(ok)
 	assertion.IsType(&request.CreateRequest{}, handler.generateModel())
-	_, err := handler.handle(baseApi, &request.CreateRequest{})
+	_, err := handler.handle(baseAPI, &request.CreateRequest{})
 	assertion.NoError(err)
-	_, err = handler.handle(baseApi, &request.DeleteRequest{})
+	_, err = handler.handle(baseAPI, &request.DeleteRequest{})
 	assertion.Error(err)
 
 	handler, ok = requestHandlers[request.Delete]
 	assertion.True(ok)
 	assertion.IsType(&request.DeleteRequest{}, handler.generateModel())
-	_, err = handler.handle(baseApi, &request.DeleteRequest{})
+	_, err = handler.handle(baseAPI, &request.DeleteRequest{})
 	assertion.NoError(err)
-	_, err = handler.handle(baseApi, &request.CreateRequest{})
+	_, err = handler.handle(baseAPI, &request.CreateRequest{})
 	assertion.Error(err)
 
 	handler, ok = requestHandlers[request.Pause]
 	assertion.True(ok)
 	assertion.IsType(&request.PauseRequest{}, handler.generateModel())
-	_, err = handler.handle(baseApi, &request.PauseRequest{})
+	_, err = handler.handle(baseAPI, &request.PauseRequest{})
 	assertion.NoError(err)
-	_, err = handler.handle(baseApi, &request.ResumeRequest{})
+	_, err = handler.handle(baseAPI, &request.ResumeRequest{})
 	assertion.Error(err)
 
 	handler, ok = requestHandlers[request.Resume]
 	assertion.True(ok)
 	assertion.IsType(&request.ResumeRequest{}, handler.generateModel())
-	_, err = handler.handle(baseApi, &request.ResumeRequest{})
+	_, err = handler.handle(baseAPI, &request.ResumeRequest{})
 	assertion.NoError(err)
-	_, err = handler.handle(baseApi, &request.PauseRequest{})
+	_, err = handler.handle(baseAPI, &request.PauseRequest{})
 	assertion.Error(err)
 
 	handler, ok = requestHandlers[request.Get]
 	assertion.True(ok)
 	assertion.IsType(&request.GetRequest{}, handler.generateModel())
-	_, err = handler.handle(baseApi, &request.GetRequest{})
+	_, err = handler.handle(baseAPI, &request.GetRequest{})
 	assertion.NoError(err)
-	_, err = handler.handle(baseApi, &request.ListRequest{})
+	_, err = handler.handle(baseAPI, &request.ListRequest{})
 	assertion.Error(err)
 
 	handler, ok = requestHandlers[request.List]
 	assertion.True(ok)
 	assertion.IsType(&request.ListRequest{}, handler.generateModel())
-	_, err = handler.handle(baseApi, &request.ListRequest{})
+	_, err = handler.handle(baseAPI, &request.ListRequest{})
 	assertion.NoError(err)
-	_, err = handler.handle(baseApi, &request.GetRequest{})
+	_, err = handler.handle(baseAPI, &request.GetRequest{})
 	assertion.Error(err)
 }

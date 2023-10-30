@@ -13,6 +13,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/util/retry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/mocks"
@@ -271,12 +272,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream.EXPECT().Close().Return().Once()
 		stream.EXPECT().Seek(mock.Anything, mock.Anything).Return(nil).Once()
 		stream.EXPECT().Chan().Return(streamChan).Once()
-
-		apiEventChan := make(chan *api.ReplicateAPIEvent)
-		handler, err := func() (*replicateChannelHandler, error) {
-			var _ chan<- *api.ReplicateAPIEvent = apiEventChan
-			return newReplicateChannelHandler(&model.SourceCollectionInfo{PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, &model.TargetCollectionInfo{PChannel: "test_p"}, api.TargetAPI(nil), &model.HandlerOpts{Factory: factory})
-		}()
+		handler, err := newReplicateChannelHandler(&model.SourceCollectionInfo{PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, &model.TargetCollectionInfo{PChannel: "test_p"}, api.TargetAPI(nil), &model.HandlerOpts{Factory: factory})
 		assert.NoError(t, err)
 		time.Sleep(100 * time.Microsecond)
 		handler.Close()
@@ -293,7 +289,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 		stream.EXPECT().Close().Return().Once()
 		stream.EXPECT().Seek(mock.Anything, mock.Anything).Return(nil).Once()
-		stream.EXPECT().Chan().Return(streamChan).Once()
+		stream.EXPECT().Chan().Return(streamChan).Once().Maybe()
 
 		handler, err := newReplicateChannelHandler(&model.SourceCollectionInfo{
 			PChannelName: "test_p",

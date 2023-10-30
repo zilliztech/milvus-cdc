@@ -12,10 +12,11 @@ import (
 	"github.com/milvus-io/milvus/pkg/common"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 	"github.com/stretchr/testify/assert"
+	clientv3 "go.etcd.io/etcd/client/v3"
+
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	"github.com/zilliztech/milvus-cdc/core/util"
-	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // HINT: Before running these cases, you should start the etcd server
@@ -31,7 +32,7 @@ func TestEtcdOp(t *testing.T) {
 		retry.Attempts(1),
 	}
 	defer func() {
-		realOp.etcdClient.Delete(context.Background(), realOp.rootPath, clientv3.WithPrefix())
+		_, _ = realOp.etcdClient.Delete(context.Background(), realOp.rootPath, clientv3.WithPrefix())
 	}()
 
 	assert.Equal(t, fmt.Sprintf("%s/%s/%s", TestCasePrefix, realOp.metaSubPath, collectionPrefix), realOp.collectionPrefix())
@@ -43,10 +44,7 @@ func TestEtcdOp(t *testing.T) {
 		var success util.Value[bool]
 		success.Store(false)
 		etcdOp.WatchCollection(context.Background(), func(ci *pb.CollectionInfo) bool {
-			if strings.Contains(ci.Schema.Name, "test") {
-				return true
-			}
-			return false
+			return strings.Contains(ci.Schema.Name, "test")
 		})
 		etcdOp.SubscribeCollectionEvent("empty_event", func(ci *pb.CollectionInfo) bool {
 			return false
@@ -63,12 +61,12 @@ func TestEtcdOp(t *testing.T) {
 				State: pb.CollectionState_CollectionCreating,
 			}
 			collectionBytes, _ := proto.Marshal(collectionInfo)
-			realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/100008", string(collectionBytes))
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/100008", string(collectionBytes))
 		}
 
 		// invalid data
 		{
-			realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/100009", "hoo")
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/100009", "hoo")
 		}
 
 		// filted collection
@@ -80,7 +78,7 @@ func TestEtcdOp(t *testing.T) {
 				},
 			}
 			collectionBytes, _ := proto.Marshal(collectionInfo)
-			realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/100000", string(collectionBytes))
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/100000", string(collectionBytes))
 		}
 
 		// "no filed info"
@@ -93,7 +91,7 @@ func TestEtcdOp(t *testing.T) {
 				},
 			}
 			collectionBytes, _ := proto.Marshal(collectionInfo)
-			realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/100003", string(collectionBytes))
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/100003", string(collectionBytes))
 		}
 
 		// success
@@ -110,9 +108,9 @@ func TestEtcdOp(t *testing.T) {
 				FieldID: 100,
 				Name:    "age",
 			}
-			realOp.etcdClient.Put(context.Background(), realOp.fieldPrefix()+"/100002/1", getStringForMessage(field1))
-			realOp.etcdClient.Put(context.Background(), realOp.fieldPrefix()+"/100002/2", getStringForMessage(field2))
-			realOp.etcdClient.Put(context.Background(), realOp.fieldPrefix()+"/100002/100", getStringForMessage(field3))
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.fieldPrefix()+"/100002/1", getStringForMessage(field1))
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.fieldPrefix()+"/100002/2", getStringForMessage(field2))
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.fieldPrefix()+"/100002/100", getStringForMessage(field3))
 
 			collectionInfo := &pb.CollectionInfo{
 				ID:    100002,
@@ -122,11 +120,9 @@ func TestEtcdOp(t *testing.T) {
 				},
 			}
 			collectionBytes, _ := proto.Marshal(collectionInfo)
-			realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/100002", string(collectionBytes))
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/100002", string(collectionBytes))
 			time.Sleep(500 * time.Millisecond)
-			assert.Eventually(t, func() bool {
-				return success.Load()
-			}, time.Second, time.Millisecond*100)
+			assert.Eventually(t, success.Load, time.Second, time.Millisecond*100)
 		}
 
 		{
@@ -139,10 +135,7 @@ func TestEtcdOp(t *testing.T) {
 	// get all collection
 	{
 		collections, err := etcdOp.GetAllCollection(context.Background(), func(ci *pb.CollectionInfo) bool {
-			if strings.Contains(ci.Schema.Name, "test") {
-				return true
-			}
-			return false
+			return strings.Contains(ci.Schema.Name, "test")
 		})
 		assert.NoError(t, err)
 		assert.Len(t, collections, 1)
@@ -162,10 +155,7 @@ func TestEtcdOp(t *testing.T) {
 		success.Store(false)
 
 		etcdOp.WatchPartition(context.Background(), func(pi *pb.PartitionInfo) bool {
-			if strings.Contains(pi.PartitionName, "test") {
-				return true
-			}
-			return false
+			return strings.Contains(pi.PartitionName, "test")
 		})
 		etcdOp.SubscribePartitionEvent("empty_event", func(pi *pb.PartitionInfo) bool {
 			return false
@@ -179,11 +169,11 @@ func TestEtcdOp(t *testing.T) {
 			info := &pb.PartitionInfo{
 				State: pb.PartitionState_PartitionCreating,
 			}
-			realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/9/200005", getStringForMessage(info))
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/9/200005", getStringForMessage(info))
 		}
 		// "invalid data"
 		{
-			realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/9/200009", "foo")
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/9/200009", "foo")
 		}
 		// default partition
 		{
@@ -191,7 +181,7 @@ func TestEtcdOp(t *testing.T) {
 				State:         pb.PartitionState_PartitionCreated,
 				PartitionName: realOp.defaultPartitionName,
 			}
-			realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/9/200003", getStringForMessage(info))
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/9/200003", getStringForMessage(info))
 		}
 		// filled partition
 
@@ -200,7 +190,7 @@ func TestEtcdOp(t *testing.T) {
 				State:         pb.PartitionState_PartitionCreated,
 				PartitionName: "test345",
 			}
-			realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/9/200004", getStringForMessage(info))
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/9/200004", getStringForMessage(info))
 		}
 		// success
 		{
@@ -208,22 +198,17 @@ func TestEtcdOp(t *testing.T) {
 				State:         pb.PartitionState_PartitionCreated,
 				PartitionName: "foo",
 			}
-			realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/9/200005", getStringForMessage(info))
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/9/200005", getStringForMessage(info))
 
 			time.Sleep(500 * time.Millisecond)
-			assert.Eventually(t, func() bool {
-				return success.Load()
-			}, time.Second, time.Millisecond*100)
+			assert.Eventually(t, success.Load, time.Second, time.Millisecond*100)
 		}
 	}
 
 	// get all partition
 	{
 		partitions, err := etcdOp.GetAllPartition(context.Background(), func(pi *pb.PartitionInfo) bool {
-			if strings.Contains(pi.PartitionName, "test") {
-				return true
-			}
-			return false
+			return strings.Contains(pi.PartitionName, "test")
 		})
 		assert.NoError(t, err)
 		assert.Len(t, partitions, 1)
@@ -253,7 +238,7 @@ func TestEtcdOp(t *testing.T) {
 			assert.Equal(t, "", collectionName)
 		}
 		{
-			realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/800002", "foo")
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/800002", "foo")
 			collectionName := etcdOp.GetCollectionNameByID(context.Background(), 800002)
 			assert.Equal(t, "", collectionName)
 		}

@@ -54,8 +54,8 @@ type TargetAPI_GetCollectionInfo_Call struct {
 }
 
 // GetCollectionInfo is a helper method to define mock.On call
-//  - ctx context.Context
-//  - collectionName string
+//   - ctx context.Context
+//   - collectionName string
 func (_e *TargetAPI_Expecter) GetCollectionInfo(ctx interface{}, collectionName interface{}) *TargetAPI_GetCollectionInfo_Call {
 	return &TargetAPI_GetCollectionInfo_Call{Call: _e.mock.On("GetCollectionInfo", ctx, collectionName)}
 }
@@ -109,8 +109,8 @@ type TargetAPI_GetPartitionInfo_Call struct {
 }
 
 // GetPartitionInfo is a helper method to define mock.On call
-//  - ctx context.Context
-//  - collectionName string
+//   - ctx context.Context
+//   - collectionName string
 func (_e *TargetAPI_Expecter) GetPartitionInfo(ctx interface{}, collectionName interface{}) *TargetAPI_GetPartitionInfo_Call {
 	return &TargetAPI_GetPartitionInfo_Call{Call: _e.mock.On("GetPartitionInfo", ctx, collectionName)}
 }

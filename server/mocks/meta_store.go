@@ -41,9 +41,9 @@ type MetaStore_Delete_Call[M interface{}] struct {
 }
 
 // Delete is a helper method to define mock.On call
-//  - ctx context.Context
-//  - metaObj M
-//  - txn interface{}
+//   - ctx context.Context
+//   - metaObj M
+//   - txn interface{}
 func (_e *MetaStore_Expecter[M]) Delete(ctx interface{}, metaObj interface{}, txn interface{}) *MetaStore_Delete_Call[M] {
 	return &MetaStore_Delete_Call[M]{Call: _e.mock.On("Delete", ctx, metaObj, txn)}
 }
@@ -97,9 +97,9 @@ type MetaStore_Get_Call[M interface{}] struct {
 }
 
 // Get is a helper method to define mock.On call
-//  - ctx context.Context
-//  - metaObj M
-//  - txn interface{}
+//   - ctx context.Context
+//   - metaObj M
+//   - txn interface{}
 func (_e *MetaStore_Expecter[M]) Get(ctx interface{}, metaObj interface{}, txn interface{}) *MetaStore_Get_Call[M] {
 	return &MetaStore_Get_Call[M]{Call: _e.mock.On("Get", ctx, metaObj, txn)}
 }
@@ -141,9 +141,9 @@ type MetaStore_Put_Call[M interface{}] struct {
 }
 
 // Put is a helper method to define mock.On call
-//  - ctx context.Context
-//  - metaObj M
-//  - txn interface{}
+//   - ctx context.Context
+//   - metaObj M
+//   - txn interface{}
 func (_e *MetaStore_Expecter[M]) Put(ctx interface{}, metaObj interface{}, txn interface{}) *MetaStore_Put_Call[M] {
 	return &MetaStore_Put_Call[M]{Call: _e.mock.On("Put", ctx, metaObj, txn)}
 }

@@ -31,7 +31,7 @@ type MessageManager_Close_Call struct {
 }
 
 // Close is a helper method to define mock.On call
-//  - channelName string
+//   - channelName string
 func (_e *MessageManager_Expecter) Close(channelName interface{}) *MessageManager_Close_Call {
 	return &MessageManager_Close_Call{Call: _e.mock.On("Close", channelName)}
 }
@@ -64,7 +64,7 @@ type MessageManager_ReplicateMessage_Call struct {
 }
 
 // ReplicateMessage is a helper method to define mock.On call
-//  - message *api.ReplicateMessage
+//   - message *api.ReplicateMessage
 func (_e *MessageManager_Expecter) ReplicateMessage(message interface{}) *MessageManager_ReplicateMessage_Call {
 	return &MessageManager_ReplicateMessage_Call{Call: _e.mock.On("ReplicateMessage", message)}
 }

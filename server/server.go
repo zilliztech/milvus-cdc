@@ -82,7 +82,7 @@ func (c *CDCServer) getCDCHandler() http.Handler {
 			writer.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(writer).Encode(response)
 			metrics.TaskRequestCountVec.WithLabelValues(cdcRequest.RequestType, metrics.SuccessStatusLabel).Inc()
-			metrics.TaskRequestLatencyVec.WithLabelValues(cdcRequest.RequestType).Observe(float64(time.Now().Sub(startTime).Milliseconds()))
+			metrics.TaskRequestLatencyVec.WithLabelValues(cdcRequest.RequestType).Observe(float64(time.Since(startTime).Milliseconds()))
 		}
 	})
 }

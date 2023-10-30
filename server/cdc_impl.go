@@ -97,7 +97,7 @@ func NewMetaCDC(serverConfig *CDCServerConfig) *MetaCDC {
 	var err error
 	switch serverConfig.MetaStoreConfig.StoreType {
 	case "mysql":
-		factory, err = store.NewMySQLMetaStore(context.Background(), serverConfig.MetaStoreConfig.MysqlSourceUrl, rootPath)
+		factory, err = store.NewMySQLMetaStore(context.Background(), serverConfig.MetaStoreConfig.MysqlSourceURL, rootPath)
 		if err != nil {
 			log.Panic("fail to new mysql meta store", zap.Error(err))
 		}
@@ -233,7 +233,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	}
 
 	info := &meta.TaskInfo{
-		TaskID:                e.getUuid(),
+		TaskID:                e.getUUID(),
 		MilvusConnectParam:    req.MilvusConnectParam,
 		CollectionInfos:       req.CollectionInfos,
 		RPCRequestChannelInfo: req.RPCChannelInfo,
@@ -369,7 +369,7 @@ func (e *MetaCDC) checkCollectionInfos(infos []model.CollectionInfo) error {
 	// return servererror.NewClientError(errMsg)
 }
 
-func (e *MetaCDC) getUuid() string {
+func (e *MetaCDC) getUUID() string {
 	uid := uuid.Must(uuid.NewRandom())
 	return strings.ReplaceAll(uid.String(), "-", "")
 }
@@ -563,6 +563,10 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 				metaPosition, metaPosition, nil)
 			return true
 		}, e.mqFactoryCreator)
+	if err != nil {
+		log.Warn("fail to new the channel reader", zap.Error(err))
+		return servererror.NewServerError(errors.WithMessage(err, "fail to new the channel reader"))
+	}
 	readCtx, cancelReadFunc := context.WithCancel(context.Background())
 	e.replicateEntityMap.Lock()
 	// replicateEntity.readerObj = collectionReader
@@ -635,8 +639,7 @@ func (e *MetaCDC) Pause(req *request.PauseRequest) (*request.PauseResponse, erro
 		return nil, servererror.NewClientError("not found the task, task_id: " + req.TaskID)
 	}
 
-	var err error
-	err = store.UpdateTaskState(
+	err := store.UpdateTaskState(
 		e.metaStoreFactory.GetTaskInfoMetaStore(context.Background()),
 		req.TaskID,
 		meta.TaskStatePaused,

@@ -57,8 +57,8 @@ type Writer_HandleOpMessagePack_Call struct {
 }
 
 // HandleOpMessagePack is a helper method to define mock.On call
-//  - ctx context.Context
-//  - msgPack *msgstream.MsgPack
+//   - ctx context.Context
+//   - msgPack *msgstream.MsgPack
 func (_e *Writer_Expecter) HandleOpMessagePack(ctx interface{}, msgPack interface{}) *Writer_HandleOpMessagePack_Call {
 	return &Writer_HandleOpMessagePack_Call{Call: _e.mock.On("HandleOpMessagePack", ctx, msgPack)}
 }
@@ -100,8 +100,8 @@ type Writer_HandleReplicateAPIEvent_Call struct {
 }
 
 // HandleReplicateAPIEvent is a helper method to define mock.On call
-//  - ctx context.Context
-//  - apiEvent *api.ReplicateAPIEvent
+//   - ctx context.Context
+//   - apiEvent *api.ReplicateAPIEvent
 func (_e *Writer_Expecter) HandleReplicateAPIEvent(ctx interface{}, apiEvent interface{}) *Writer_HandleReplicateAPIEvent_Call {
 	return &Writer_HandleReplicateAPIEvent_Call{Call: _e.mock.On("HandleReplicateAPIEvent", ctx, apiEvent)}
 }
@@ -164,9 +164,9 @@ type Writer_HandleReplicateMessage_Call struct {
 }
 
 // HandleReplicateMessage is a helper method to define mock.On call
-//  - ctx context.Context
-//  - channelName string
-//  - msgPack *msgstream.MsgPack
+//   - ctx context.Context
+//   - channelName string
+//   - msgPack *msgstream.MsgPack
 func (_e *Writer_Expecter) HandleReplicateMessage(ctx interface{}, channelName interface{}, msgPack interface{}) *Writer_HandleReplicateMessage_Call {
 	return &Writer_HandleReplicateMessage_Call{Call: _e.mock.On("HandleReplicateMessage", ctx, channelName, msgPack)}
 }

@@ -317,7 +317,7 @@ func (e *EtcdOp) GetAllCollection(ctx context.Context, filter api.CollectionFilt
 
 func (e *EtcdOp) fillCollectionField(info *pb.CollectionInfo) error {
 	prefix := path.Join(e.fieldPrefix(), strconv.FormatInt(info.ID, 10)) + "/"
-	resp, err := util.EtcdGet(e.etcdClient, prefix, clientv3.WithPrefix())
+	resp, err := util.EtcdGetWithContext(context.Background(), e.etcdClient, prefix, clientv3.WithPrefix())
 	log := log.With(zap.String("prefix", prefix))
 	if err != nil {
 		log.Warn("fail to get the collection field data", zap.Error(err))
