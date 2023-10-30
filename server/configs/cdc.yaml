@@ -23,16 +23,4 @@ sourceConfig:
 #    authParams: token:xxx
 #  kafka:
 #    address: 127.0.0.1:9092
-enableReverse: false
-reverseMilvus:
-  host: localhost
-  port: 19530
-  username: root
-  password: 123456
-  enable_tls: false
-  ignore_partition: true
-  connect_timeout: 10
-currentMilvus:
-  host: 127.0.0.1
-  port: 19530
 maxNameLength: 256
