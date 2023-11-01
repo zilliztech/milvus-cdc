@@ -7,6 +7,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus/pkg/log"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 
@@ -24,27 +25,34 @@ func TestWriterCallback(t *testing.T) {
 	store := mocks.NewMetaStore[*meta.TaskCollectionPosition](t)
 	callback := NewWriteCallback(factory, "test", "12345")
 
+	t.Run("empty position", func(t *testing.T) {
+		err := callback.UpdateTaskCollectionPosition(1, "test", "test", nil, nil, nil)
+		assert.Error(t, err)
+	})
+
 	t.Run("fail", func(t *testing.T) {
 		factory.EXPECT().GetTaskCollectionPositionMetaStore(mock.Anything).Return(store).Once()
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("test")).Once()
-		callback.UpdateTaskCollectionPosition(1, "test", "test", &meta.PositionInfo{
+		err := callback.UpdateTaskCollectionPosition(1, "test", "test", &meta.PositionInfo{
 			Time: 1,
 			DataPair: &commonpb.KeyDataPair{
 				Key:  "test",
 				Data: []byte("test"),
 			},
 		}, nil, nil)
+		assert.Error(t, err)
 	})
 	t.Run("success", func(t *testing.T) {
 		factory.EXPECT().GetTaskCollectionPositionMetaStore(mock.Anything).Return(store).Once()
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskCollectionPosition{}, nil).Once()
 		store.EXPECT().Put(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-		callback.UpdateTaskCollectionPosition(1, "test", "test", &meta.PositionInfo{
+		err := callback.UpdateTaskCollectionPosition(1, "test", "test", &meta.PositionInfo{
 			Time: 1,
 			DataPair: &commonpb.KeyDataPair{
 				Key:  "test",
 				Data: []byte("test"),
 			},
 		}, nil, nil)
+		assert.NoError(t, err)
 	})
 }

@@ -68,7 +68,7 @@ type TaskInfo struct {
 	RPCRequestChannelInfo model.ChannelInfo
 	ExcludeCollections    []string // it's used for the `*` collection name
 	State                 TaskState
-	FailedReason          string
+	Reason                string
 }
 
 func (t *TaskInfo) CollectionNames() []string {

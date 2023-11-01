@@ -38,6 +38,7 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/config"
 	coremocks "github.com/zilliztech/milvus-cdc/core/mocks"
 	"github.com/zilliztech/milvus-cdc/core/pb"
+	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/mocks"
 	"github.com/zilliztech/milvus-cdc/server/model"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
@@ -203,34 +204,35 @@ func TestReload(t *testing.T) {
 			EnableReverse: false,
 		}
 		metaCDC.metaStoreFactory = factory
-		assert.Panics(t, func() {
-			factory.EXPECT().GetTaskInfoMetaStore(mock.Anything).Return(store).Once()
-			factory.EXPECT().GetTaskCollectionPositionMetaStore(mock.Anything).Return(positionStore).Once()
-			store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{
-				{
-					TaskID: "1234",
-					State:  meta.TaskStateRunning,
-					MilvusConnectParam: model.MilvusConnectParam{
-						Host: "127.0.0.1",
-						Port: 19530,
-					},
-					CollectionInfos: []model.CollectionInfo{
-						{
-							Name: "foo",
-						},
+		factory.EXPECT().GetTaskInfoMetaStore(mock.Anything).Return(store)
+		factory.EXPECT().GetTaskCollectionPositionMetaStore(mock.Anything).Return(positionStore).Once()
+		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{
+			{
+				TaskID: "1234",
+				State:  meta.TaskStateRunning,
+				MilvusConnectParam: model.MilvusConnectParam{
+					Host: "127.0.0.1",
+					Port: 19530,
+				},
+				CollectionInfos: []model.CollectionInfo{
+					{
+						Name: "foo",
 					},
 				},
-			}, nil).Once()
-			positionStore.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("test")).Once()
+			},
+		}, nil).Once()
+		positionStore.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("test")).Once()
 
-			metaCDC.replicateEntityMap.Lock()
-			metaCDC.replicateEntityMap.data = map[string]*ReplicateEntity{
-				"127.0.0.1:19530": {},
-			}
-			metaCDC.replicateEntityMap.Unlock()
+		metaCDC.replicateEntityMap.Lock()
+		metaCDC.replicateEntityMap.data = map[string]*ReplicateEntity{
+			"127.0.0.1:19530": {},
+		}
+		metaCDC.replicateEntityMap.Unlock()
 
-			metaCDC.ReloadTask()
-		})
+		// get error when pause task
+		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("test")).Once()
+
+		metaCDC.ReloadTask()
 	})
 }
 
@@ -1059,5 +1061,81 @@ func TestDelete(t *testing.T) {
 
 		_, err := metaCDC.Delete(&request.DeleteRequest{TaskID: "1"})
 		assert.NoError(t, err)
+	})
+}
+
+func TestIsRunningTask(t *testing.T) {
+	m := &MetaCDC{}
+	initMetaCDCMap(m)
+
+	assert.False(t, m.isRunningTask("task1"))
+
+	m.cdcTasks.Lock()
+	m.cdcTasks.data["task2"] = &meta.TaskInfo{
+		State: meta.TaskStateRunning,
+	}
+	m.cdcTasks.data["task3"] = &meta.TaskInfo{
+		State: meta.TaskStatePaused,
+	}
+	m.cdcTasks.Unlock()
+	assert.True(t, m.isRunningTask("task2"))
+	assert.False(t, m.isRunningTask("task3"))
+}
+
+func TestPauseTask(t *testing.T) {
+	m := &MetaCDC{}
+	factory := mocks.NewMetaStoreFactory(t)
+	store := mocks.NewMetaStore[*meta.TaskInfo](t)
+
+	initMetaCDCMap(m)
+	m.metaStoreFactory = factory
+	factory.EXPECT().GetTaskInfoMetaStore(mock.Anything).Return(store)
+
+	t.Run("fail to update state", func(t *testing.T) {
+		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("fail")).Once()
+		err := m.pauseTaskWithReason("task1", "foo", []meta.TaskState{})
+		assert.Error(t, err)
+	})
+
+	t.Run("not found task", func(t *testing.T) {
+		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{
+			{
+				TaskID: "task1",
+				State:  meta.TaskStateRunning,
+			},
+		}, nil).Once()
+		store.EXPECT().Put(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		err := m.pauseTaskWithReason("task1", "foo", []meta.TaskState{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{
+			{
+				TaskID: "task1",
+				State:  meta.TaskStateRunning,
+			},
+		}, nil).Once()
+		store.EXPECT().Put(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		m.cdcTasks.Lock()
+		m.cdcTasks.data["task1"] = &meta.TaskInfo{
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host: "127.0.0.1",
+				Port: 19530,
+			},
+		}
+		m.cdcTasks.Unlock()
+		var isQuit util.Value[bool]
+		isQuit.Store(false)
+		m.replicateEntityMap.Lock()
+		m.replicateEntityMap.data["127.0.0.1:19530"] = &ReplicateEntity{
+			quitFunc: func() {
+				isQuit.Store(true)
+			},
+		}
+		m.replicateEntityMap.Unlock()
+		err := m.pauseTaskWithReason("task1", "foo", []meta.TaskState{})
+		assert.NoError(t, err)
+		assert.True(t, isQuit.Load())
 	})
 }

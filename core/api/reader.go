@@ -9,6 +9,7 @@ import (
 type Reader interface {
 	StartRead(ctx context.Context)
 	QuitRead(ctx context.Context)
+	ErrorChan() <-chan error
 }
 
 // DefaultReader All CDCReader implements should combine it
@@ -24,4 +25,9 @@ func (d *DefaultReader) StartRead(ctx context.Context) {
 
 func (d *DefaultReader) QuitRead(ctx context.Context) {
 	log.Warn("QuitRead is not implemented, please check it")
+}
+
+func (d *DefaultReader) ErrorChan() <-chan error {
+	log.Warn("ErrorChan is not implemented, please check it")
+	return nil
 }
