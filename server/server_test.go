@@ -24,9 +24,13 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/errors"
+	"github.com/milvus-io/milvus/pkg/log"
+	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	cdcerror "github.com/zilliztech/milvus-cdc/server/error"
+	"github.com/zilliztech/milvus-cdc/server/model"
 	"github.com/zilliztech/milvus-cdc/server/model/request"
 )
 
@@ -207,5 +211,48 @@ func TestCDCHandler(t *testing.T) {
 			Body:   io.NopCloser(bytes.NewReader(requestBytes)),
 		})
 		assert.Contains(t, string(responseWriter.resp), taskID)
+	})
+}
+
+func TestDecodeStruct(t *testing.T) {
+	t.Run("err", func(t *testing.T) {
+		buf := bytes.NewBufferString("")
+		errResp := &request.CDCResponse{
+			Code:    500,
+			Message: "error msg",
+		}
+		_ = json.NewEncoder(buf).Encode(errResp)
+		log.Warn("err", zap.Any("resp", buf.String()))
+	})
+
+	t.Run("success", func(t *testing.T) {
+		buf := bytes.NewBufferString("")
+		var m map[string]interface{}
+		response := &request.ListResponse{
+			Tasks: []request.Task{
+				{
+					TaskID: "123",
+					MilvusConnectParam: model.MilvusConnectParam{
+						Host: "localhost",
+						Port: 19530,
+					},
+					CollectionInfos: []model.CollectionInfo{
+						{
+							Name: "foo",
+						},
+					},
+					State:           "Running",
+					LastPauseReason: "receive the pause request",
+				},
+			},
+		}
+
+		_ = mapstructure.Decode(response, &m)
+		realResp := &request.CDCResponse{
+			Code: 200,
+			Data: m,
+		}
+		_ = json.NewEncoder(buf).Encode(realResp)
+		log.Warn("err", zap.Any("resp", buf.String()))
 	})
 }

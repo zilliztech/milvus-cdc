@@ -31,11 +31,15 @@ const (
 	List        = "list"
 )
 
-//go:generate easytags $GOFILE json,mapstructure
-
 type CDCRequest struct {
 	RequestType string         `json:"request_type" mapstructure:"request_type"`
 	RequestData map[string]any `json:"request_data" mapstructure:"request_data"`
+}
+
+type CDCResponse struct {
+	Code    int            `json:"code" mapstructure:"code"`
+	Message string         `json:"message" mapstructure:"message"`
+	Data    map[string]any `json:"data" mapstructure:"data"`
 }
 
 // Task some info can be showed about the task
@@ -44,7 +48,7 @@ type Task struct {
 	MilvusConnectParam model.MilvusConnectParam `json:"milvus_connect_param" mapstructure:"milvus_connect_param"`
 	CollectionInfos    []model.CollectionInfo   `json:"collection_infos" mapstructure:"collection_infos"`
 	State              string                   `json:"state" mapstructure:"state"`
-	LastFailReason     string                   `json:"reason,omitempty" mapstructure:"reason"`
+	LastPauseReason    string                   `json:"reason" mapstructure:"reason"`
 }
 
 func GetTask(taskInfo *meta.TaskInfo) Task {
@@ -55,6 +59,6 @@ func GetTask(taskInfo *meta.TaskInfo) Task {
 		MilvusConnectParam: taskInfo.MilvusConnectParam,
 		CollectionInfos:    taskInfo.CollectionInfos,
 		State:              taskInfo.State.String(),
-		LastFailReason:     taskInfo.Reason,
+		LastPauseReason:    taskInfo.Reason,
 	}
 }

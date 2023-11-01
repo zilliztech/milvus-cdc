@@ -55,6 +55,7 @@ func (c *CDCServer) Run(config *CDCServerConfig) {
 func (c *CDCServer) getCDCHandler() http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		startTime := time.Now()
+		writer.Header().Set("Content-Type", "application/json")
 		if request.Method != http.MethodPost {
 			c.handleError(writer, "only support the POST method", http.StatusMethodNotAllowed,
 				zap.String("method", request.Method))
@@ -79,8 +80,18 @@ func (c *CDCServer) getCDCHandler() http.Handler {
 		response := c.handleRequest(cdcRequest, writer)
 
 		if response != nil {
-			writer.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(writer).Encode(response)
+			var m map[string]interface{}
+			err = mapstructure.Decode(response, &m)
+			if err != nil {
+				log.Warn("fail to decode the response", zap.Any("resp", response), zap.Error(err))
+				c.handleError(writer, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			realResp := &modelrequest.CDCResponse{
+				Code: 200,
+				Data: m,
+			}
+			_ = json.NewEncoder(writer).Encode(realResp)
 			metrics.TaskRequestCountVec.WithLabelValues(cdcRequest.RequestType, metrics.SuccessStatusLabel).Inc()
 			metrics.TaskRequestLatencyVec.WithLabelValues(cdcRequest.RequestType).Observe(float64(time.Since(startTime).Milliseconds()))
 		}
@@ -89,7 +100,11 @@ func (c *CDCServer) getCDCHandler() http.Handler {
 
 func (c *CDCServer) handleError(w http.ResponseWriter, error string, code int, fields ...zap.Field) {
 	log.Warn(error, fields...)
-	http.Error(w, error, code)
+	errResp := &modelrequest.CDCResponse{
+		Code:    code,
+		Message: error,
+	}
+	_ = json.NewEncoder(w).Encode(errResp)
 }
 
 func (c *CDCServer) handleRequest(cdcRequest *modelrequest.CDCRequest, writer http.ResponseWriter) any {
