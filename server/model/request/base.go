@@ -55,6 +55,6 @@ func GetTask(taskInfo *meta.TaskInfo) Task {
 		MilvusConnectParam: taskInfo.MilvusConnectParam,
 		CollectionInfos:    taskInfo.CollectionInfos,
 		State:              taskInfo.State.String(),
-		LastFailReason:     taskInfo.FailedReason,
+		LastFailReason:     taskInfo.Reason,
 	}
 }

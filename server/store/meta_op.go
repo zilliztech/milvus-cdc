@@ -58,7 +58,9 @@ func GetAllTaskInfo(taskInfoStore api.MetaStore[*meta.TaskInfo]) ([]*meta.TaskIn
 	return taskInfos, nil
 }
 
-func UpdateTaskState(taskInfoStore api.MetaStore[*meta.TaskInfo], taskID string, newState meta.TaskState, oldStates []meta.TaskState) error {
+func UpdateTaskState(taskInfoStore api.MetaStore[*meta.TaskInfo], taskID string,
+	newState meta.TaskState, oldStates []meta.TaskState, reason string,
+) error {
 	ctx := context.Background()
 	infos, err := taskInfoStore.Get(ctx, &meta.TaskInfo{TaskID: taskID}, nil)
 	if err != nil {
@@ -70,7 +72,7 @@ func UpdateTaskState(taskInfoStore api.MetaStore[*meta.TaskInfo], taskID string,
 		return errors.Errorf("not found the task info with task id %s", taskID)
 	}
 	info := infos[0]
-	if !lo.Contains(oldStates, info.State) {
+	if len(oldStates) != 0 && !lo.Contains(oldStates, info.State) {
 		oldStateStrs := lo.Map[meta.TaskState, string](oldStates, func(taskState meta.TaskState, i int) string {
 			return taskState.String()
 		})
@@ -79,33 +81,15 @@ func UpdateTaskState(taskInfoStore api.MetaStore[*meta.TaskInfo], taskID string,
 	}
 	oldState := info.State
 	info.State = newState
+	if newState == meta.TaskStatePaused {
+		info.Reason = reason
+	}
 	err = taskInfoStore.Put(ctx, info, nil)
 	if err != nil {
 		log.Warn("fail to put the task info to etcd", zap.String("task_id", taskID), zap.Error(err))
 		return err
 	}
 	metrics.TaskNumVec.UpdateState(newState, oldState)
-	return nil
-}
-
-func UpdateTaskFailedReason(taskInfoStore api.MetaStore[*meta.TaskInfo], taskID string, reason string) error {
-	ctx := context.Background()
-	infos, err := taskInfoStore.Get(ctx, &meta.TaskInfo{TaskID: taskID}, nil)
-	if err != nil {
-		log.Warn("fail to get the task info", zap.String("task_id", taskID), zap.Error(err))
-		return err
-	}
-	if len(infos) == 0 {
-		log.Warn("not found the task info", zap.String("task_id", taskID))
-		return servererror.NewNotFoundError(taskID)
-	}
-	info := infos[0]
-	info.FailedReason = reason
-	err = taskInfoStore.Put(ctx, info, nil)
-	if err != nil {
-		log.Warn("fail to put the task info", zap.String("task_id", taskID), zap.Error(err))
-		return err
-	}
 	return nil
 }
 

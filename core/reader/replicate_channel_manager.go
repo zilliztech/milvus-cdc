@@ -3,6 +3,7 @@ package reader
 import (
 	"context"
 	"math/rand"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -102,13 +103,6 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 	}
 	log.Info("success to get the collection info in the target instance", zap.String("collection_name", targetInfo.CollectionName))
 
-	for i, channel := range targetInfo.PChannels {
-		if !strings.Contains(targetInfo.VChannels[i], channel) {
-			log.Warn("physical channel not equal", zap.Strings("p", targetInfo.PChannels), zap.Strings("v", targetInfo.VChannels))
-			return errors.New("the physical channels are not matched to the virtual channels")
-		}
-	}
-
 	getSeekPosition := func(channelName string) *msgpb.MsgPosition {
 		for _, seekPosition := range seekPositions {
 			if seekPosition.ChannelName == channelName {
@@ -140,32 +134,60 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 	r.collectionLock.Unlock()
 
 	var successChannels []string
-	for i, position := range info.StartPositions {
-		channelName := position.GetKey()
+	err = ForeachChannel(info.PhysicalChannelNames, targetInfo.PChannels, func(sourcePChannel, targetPChannel string) error {
 		err := r.startReadChannel(&model.SourceCollectionInfo{
-			PChannelName: channelName,
+			PChannelName: sourcePChannel,
 			CollectionID: info.ID,
-			SeekPosition: getSeekPosition(channelName),
+			SeekPosition: getSeekPosition(sourcePChannel),
 		}, &model.TargetCollectionInfo{
 			CollectionID:         targetInfo.CollectionID,
 			CollectionName:       info.Schema.Name,
 			PartitionInfo:        targetInfo.Partitions,
-			PChannel:             targetInfo.PChannels[i],
-			VChannel:             targetInfo.VChannels[i],
+			PChannel:             targetPChannel,
+			VChannel:             GetVChannelByPChannel(targetPChannel, targetInfo.VChannels),
 			BarrierChan:          barrier.BarrierChan,
 			PartitionBarrierChan: make(map[int64]chan<- uint64),
 		})
 		if err != nil {
-			log.Warn("start read channel failed", zap.String("channel", channelName), zap.Int64("collection_id", info.ID), zap.Error(err))
+			log.Warn("start read channel failed", zap.String("channel", sourcePChannel), zap.Int64("collection_id", info.ID), zap.Error(err))
 			for _, channel := range successChannels {
 				r.stopReadChannel(channel, info.ID)
 			}
 			return err
 		}
-		successChannels = append(successChannels, channelName)
-		log.Info("start read channel", zap.String("channel", channelName))
-	}
+		successChannels = append(successChannels, sourcePChannel)
+		log.Info("start read channel", zap.String("channel", sourcePChannel))
+		return nil
+	})
 	return err
+}
+
+func GetVChannelByPChannel(pChannel string, vChannels []string) string {
+	for _, vChannel := range vChannels {
+		if strings.Contains(vChannel, pChannel) {
+			return vChannel
+		}
+	}
+	return ""
+}
+
+func ForeachChannel(sourcePChannels, targetPChannels []string, f func(sourcePChannel, targetPChannel string) error) error {
+	if len(sourcePChannels) != len(targetPChannels) {
+		return errors.New("the lengths of source and target channels are not equal")
+	}
+	sources := make([]string, len(sourcePChannels))
+	targets := make([]string, len(targetPChannels))
+	copy(sources, sourcePChannels)
+	copy(targets, targetPChannels)
+	sort.Strings(sources)
+	sort.Strings(targets)
+
+	for i, source := range sources {
+		if err := f(source, targets[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo) error {
@@ -186,7 +208,11 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 	}
 
 	firstHandler := handlers[0]
-	partitionRecord := firstHandler.getCollectionTargetInfo(collectionID).PartitionInfo
+	targetInfo, err := firstHandler.getCollectionTargetInfo(collectionID)
+	if err != nil {
+		return err
+	}
+	partitionRecord := targetInfo.PartitionInfo
 	if _, ok := partitionRecord[partitionInfo.PartitionName]; !ok {
 		select {
 		case r.apiEventChan <- &api.ReplicateAPIEvent{
@@ -203,7 +229,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 			return ctx.Err()
 		}
 	}
-	log.Warn("start to add partition", zap.String("collection_name", collectionInfo.Schema.Name), zap.String("partition_name", partitionInfo.PartitionName), zap.Int("num", len(handlers)))
+	log.Info("start to add partition", zap.String("collection_name", collectionInfo.Schema.Name), zap.String("partition_name", partitionInfo.PartitionName), zap.Int("num", len(handlers)))
 	barrier := NewBarrier(len(handlers), func(msgTs uint64, b *Barrier) {
 		select {
 		case <-b.CloseChan:
@@ -229,7 +255,10 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 	r.replicatePartitions[collectionID][partitionInfo.PartitionID] = barrier.CloseChan
 	r.partitionLock.Unlock()
 	for _, handler := range handlers {
-		handler.AddPartitionInfo(collectionInfo, partitionInfo, barrier.BarrierChan)
+		err = handler.AddPartitionInfo(collectionInfo, partitionInfo, barrier.BarrierChan)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -294,7 +323,9 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 
 	channelHandler, ok := r.channelHandlerMap[sourceInfo.PChannelName]
 	if !ok {
-		channelHandler, err = newReplicateChannelHandler(sourceInfo, targetInfo, r.targetClient, &model.HandlerOpts{MessageBufferSize: r.messageBufferSize, Factory: r.factory})
+		channelHandler, err = newReplicateChannelHandler(sourceInfo, targetInfo,
+			r.targetClient, r.apiEventChan,
+			&model.HandlerOpts{MessageBufferSize: r.messageBufferSize, Factory: r.factory})
 		if err != nil {
 			log.Warn("fail to new replicate channel handler",
 				zap.String("channel_name", sourceInfo.PChannelName), zap.Int64("collection_id", sourceInfo.CollectionID), zap.Error(err))
@@ -331,6 +362,7 @@ type replicateChannelHandler struct {
 	collectionRecords map[int64]*model.TargetCollectionInfo
 	collectionNames   map[string]int64
 	msgPackChan       chan *msgstream.MsgPack
+	apiEventChan      chan *api.ReplicateAPIEvent
 }
 
 func (r *replicateChannelHandler) AddCollection(collectionID int64, targetInfo *model.TargetCollectionInfo) {
@@ -350,18 +382,21 @@ func (r *replicateChannelHandler) RemoveCollection(collectionID int64) {
 	}
 }
 
-func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo, barrierChan chan<- uint64) {
+func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo, barrierChan chan<- uint64) error {
 	collectionID := collectionInfo.ID
 	partitionID := partitionInfo.PartitionID
 	collectionName := collectionInfo.Schema.Name
 	partitionName := partitionInfo.PartitionName
 
-	targetInfo := r.getCollectionTargetInfo(collectionID)
+	targetInfo, err := r.getCollectionTargetInfo(collectionID)
+	if err != nil {
+		return err
+	}
 	r.recordLock.Lock()
 	defer r.recordLock.Unlock()
 	if targetInfo.PartitionBarrierChan[partitionID] != nil {
 		log.Info("the partition barrier chan is not nil", zap.Int64("collection_id", collectionID), zap.String("partition_name", partitionName), zap.Int64("partition_id", partitionID))
-		return
+		return nil
 	}
 	targetInfo.PartitionBarrierChan[partitionID] = barrierChan
 	go func() {
@@ -373,6 +408,7 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 			return nil
 		}, util.GetRetryOptionsFor25s()...)
 	}()
+	return nil
 }
 
 func (r *replicateChannelHandler) updateTargetPartitionInfo(collectionID int64, collectionName string, partitionName string) int64 {
@@ -393,7 +429,11 @@ func (r *replicateChannelHandler) updateTargetPartitionInfo(collectionID int64, 
 }
 
 func (r *replicateChannelHandler) RemovePartitionInfo(collectionID int64, name string, id int64) {
-	targetInfo := r.getCollectionTargetInfo(collectionID)
+	targetInfo, err := r.getCollectionTargetInfo(collectionID)
+	if err != nil {
+		log.Warn("fail to get collection target info", zap.Int64("collection_id", collectionID), zap.Error(err))
+		return
+	}
 	r.recordLock.Lock()
 	defer r.recordLock.Unlock()
 	if targetInfo.PartitionInfo[name] == id {
@@ -406,10 +446,6 @@ func (r *replicateChannelHandler) IsEmpty() bool {
 	r.recordLock.RLock()
 	defer r.recordLock.RUnlock()
 	return len(r.collectionRecords) == 0
-}
-
-func (r *replicateChannelHandler) Chan() chan<- *msgstream.MsgPack {
-	return r.msgPackChan
 }
 
 func (r *replicateChannelHandler) Close() {
@@ -429,7 +465,7 @@ func (r *replicateChannelHandler) startReadChannel() {
 	}()
 }
 
-func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) *model.TargetCollectionInfo {
+func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) (*model.TargetCollectionInfo, error) {
 	r.recordLock.RLock()
 	targetInfo, ok := r.collectionRecords[collectionID]
 	r.recordLock.RUnlock()
@@ -450,9 +486,11 @@ func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) *m
 		i++
 	}
 	if !ok && i == 10 {
-		log.Panic("fail to find the collection info", zap.Int64("msg_collection_id", collectionID))
+		err := errors.Newf("not found the collection [%d]", collectionID)
+		log.Warn("fail to find the collection info", zap.Error(err))
+		return nil, err
 	}
-	return targetInfo
+	return targetInfo, nil
 }
 
 func (r *replicateChannelHandler) containCollection(collectionName string) bool {
@@ -461,7 +499,7 @@ func (r *replicateChannelHandler) containCollection(collectionName string) bool 
 	return r.collectionNames[collectionName] != 0
 }
 
-func (r *replicateChannelHandler) getPartitionID(sourceCollectionID int64, info *model.TargetCollectionInfo, name string) int64 {
+func (r *replicateChannelHandler) getPartitionID(sourceCollectionID int64, info *model.TargetCollectionInfo, name string) (int64, error) {
 	r.recordLock.RLock()
 	id, ok := info.PartitionInfo[name]
 	r.recordLock.RUnlock()
@@ -474,9 +512,10 @@ func (r *replicateChannelHandler) getPartitionID(sourceCollectionID int64, info 
 		i++
 	}
 	if !ok && i == 10 {
-		log.Panic("fail to find the partition id", zap.Int64("collection_id", info.CollectionID), zap.String("partition_name", name))
+		log.Warn("fail to find the partition id", zap.Int64("source_collection", sourceCollectionID), zap.Any("target_collection", info.CollectionID), zap.String("partition_name", name))
+		return 0, errors.Newf("not found the partition [%s]", name)
 	}
-	return id
+	return id, nil
 }
 
 func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream.MsgPack {
@@ -506,16 +545,21 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 
 		if y, ok := msg.(interface{ GetCollectionID() int64 }); ok {
 			sourceCollectionID := y.GetCollectionID()
-			info := r.getCollectionTargetInfo(sourceCollectionID)
+			info, err := r.getCollectionTargetInfo(sourceCollectionID)
+			if err != nil {
+				r.sendErrEvent(err)
+				log.Warn("fail to get collection info", zap.Int64("collection_id", sourceCollectionID), zap.Error(err))
+				return nil
+			}
 			switch realMsg := msg.(type) {
 			case *msgstream.InsertMsg:
 				realMsg.CollectionID = info.CollectionID
-				realMsg.PartitionID = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
+				realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
 				realMsg.ShardName = info.VChannel
 			case *msgstream.DeleteMsg:
 				realMsg.CollectionID = info.CollectionID
 				if realMsg.PartitionName != "" {
-					realMsg.PartitionID = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
+					realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
 				}
 				realMsg.ShardName = info.VChannel
 			case *msgstream.DropCollectionMsg:
@@ -525,12 +569,24 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 			case *msgstream.DropPartitionMsg:
 				realMsg.CollectionID = info.CollectionID
 				if realMsg.PartitionName == "" || info.PartitionBarrierChan[realMsg.PartitionID] == nil {
-					log.Panic("drop partition msg", zap.Any("msg", msg))
+					err = errors.Newf("not found the partition info [%d]", realMsg.PartitionID)
+					log.Warn("invalid drop partition message", zap.Any("msg", msg))
+				} else {
+					info.PartitionBarrierChan[realMsg.PartitionID] <- msg.EndTs()
+					if realMsg.PartitionName != "" {
+						realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
+					}
 				}
-				info.PartitionBarrierChan[realMsg.PartitionID] <- msg.EndTs()
-				if realMsg.PartitionName != "" {
-					realMsg.PartitionID = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
-				}
+			}
+			if err != nil {
+				r.sendErrEvent(err)
+				log.Warn("fail to get partition info", zap.Any("msg", msg), zap.Error(err))
+				return nil
+			}
+			if pChannel != info.PChannel {
+				r.sendErrEvent(errors.New("there is a error about the replicate channel"))
+				log.Warn("pChannel not equal", zap.Any("msg", msg), zap.String("pChannel", pChannel), zap.String("info_pChannel", info.PChannel))
+				return nil
 			}
 			originPosition := msg.Position()
 			msg.SetPosition(&msgpb.MsgPosition{
@@ -539,9 +595,6 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 				MsgGroup:    originPosition.GetMsgGroup(),
 				Timestamp:   originPosition.GetTimestamp(),
 			})
-			if pChannel != info.PChannel {
-				log.Panic("pChannel not equal", zap.String("pChannel", pChannel), zap.String("info_pChannel", info.PChannel))
-			}
 			newPack.Msgs = append(newPack.Msgs, msg)
 		} else {
 			log.Warn("not support msg type", zap.Any("msg", msg))
@@ -579,10 +632,18 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 	return newPack
 }
 
+func (r *replicateChannelHandler) sendErrEvent(err error) {
+	r.apiEventChan <- &api.ReplicateAPIEvent{
+		EventType: api.ReplicateError,
+		Error:     err,
+	}
+}
+
 func newReplicateChannelHandler(
 	sourceInfo *model.SourceCollectionInfo,
 	targetInfo *model.TargetCollectionInfo,
 	targetClient api.TargetAPI,
+	apiEventChan chan *api.ReplicateAPIEvent,
 	opts *model.HandlerOpts,
 ) (*replicateChannelHandler, error) {
 	ctx := context.Background()
@@ -614,6 +675,7 @@ func newReplicateChannelHandler(
 		collectionRecords: make(map[int64]*model.TargetCollectionInfo),
 		collectionNames:   make(map[string]int64),
 		msgPackChan:       make(chan *msgstream.MsgPack, opts.MessageBufferSize),
+		apiEventChan:      apiEventChan,
 	}
 	channelHandler.AddCollection(sourceInfo.CollectionID, targetInfo)
 	channelHandler.startReadChannel()

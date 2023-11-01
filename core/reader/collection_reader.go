@@ -19,14 +19,12 @@ package reader
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/util/retry"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 
@@ -57,7 +55,7 @@ type CollectionReader struct {
 	channelSeekPositions   map[string]*msgpb.MsgPosition
 	replicateCollectionMap util.Map[int64, *pb.CollectionInfo]
 	replicateChannelMap    util.Map[string, struct{}]
-	replicateChannelChan   chan string
+	errChan                chan error
 	shouldReadFunc         ShouldReadFunc
 	startOnce              sync.Once
 	quitOnce               sync.Once
@@ -70,7 +68,7 @@ func NewCollectionReader(id string, channelManager api.ChannelManager, metaOp ap
 		metaOp:               metaOp,
 		channelSeekPositions: seekPosition,
 		shouldReadFunc:       shouldReadFunc,
-		replicateChannelChan: make(chan string, 10),
+		errChan:              make(chan error),
 	}
 	return reader, nil
 }
@@ -78,8 +76,10 @@ func NewCollectionReader(id string, channelManager api.ChannelManager, metaOp ap
 func (reader *CollectionReader) StartRead(ctx context.Context) {
 	reader.startOnce.Do(func() {
 		reader.metaOp.SubscribeCollectionEvent(reader.id, func(info *pb.CollectionInfo) bool {
-			log.Info("has watched to read collection", zap.String("name", info.Schema.Name))
+			collectionLog := log.With(zap.String("collection_name", info.Schema.Name), zap.Int64("collection_id", info.ID))
+			collectionLog.Info("has watched to read collection")
 			if !reader.shouldReadFunc(info) {
+				collectionLog.Info("the collection should not be read")
 				return false
 			}
 			startPositions := make([]*msgpb.MsgPosition, 0)
@@ -90,16 +90,19 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				})
 			}
 			if err := reader.channelManager.StartReadCollection(ctx, info, startPositions); err != nil {
-				log.Warn("fail to start to replicate the collection data in the watch process", zap.Int64("id", info.ID), zap.Error(err))
+				collectionLog.Warn("fail to start to replicate the collection data in the watch process", zap.Any("info", info), zap.Error(err))
+				reader.sendError(err)
 			}
 			reader.replicateCollectionMap.Store(info.ID, info)
-			log.Info("has started to read collection", zap.String("name", info.Schema.Name))
+			collectionLog.Info("has started to read collection")
 			return true
 		})
 		reader.metaOp.SubscribePartitionEvent(reader.id, func(info *pb.PartitionInfo) bool {
+			partitionLog := log.With(zap.Int64("collection_id", info.CollectionID), zap.Int64("partition_id", info.PartitionID), zap.String("partition_name", info.PartitionName))
+			partitionLog.Info("has watched to read partition")
 			collectionName := reader.metaOp.GetCollectionNameByID(ctx, info.CollectionID)
 			if collectionName == "" {
-				log.Info("the collection name is empty", zap.Int64("collection_id", info.CollectionID), zap.String("partition_name", info.PartitionName))
+				partitionLog.Info("the collection name is empty")
 				return true
 			}
 			tmpCollectionInfo := &pb.CollectionInfo{
@@ -109,17 +112,16 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				},
 			}
 			if !reader.shouldReadFunc(tmpCollectionInfo) {
+				partitionLog.Info("the partition should not be read", zap.String("name", collectionName))
 				return true
 			}
 
-			var err error
-			err = retry.Do(ctx, func() error {
-				err = reader.channelManager.AddPartition(ctx, tmpCollectionInfo, info)
-				return err
-			}, retry.Sleep(time.Second))
+			err := reader.channelManager.AddPartition(ctx, tmpCollectionInfo, info)
 			if err != nil {
-				log.Panic("fail to add partition", zap.String("collection_name", collectionName), zap.String("partition_name", info.PartitionName), zap.Error(err))
+				partitionLog.Warn("fail to add partition", zap.String("collection_name", collectionName), zap.Any("partition", info), zap.Error(err))
+				reader.sendError(err)
 			}
+			partitionLog.Info("has started to add partition")
 			return false
 		})
 		reader.metaOp.WatchCollection(ctx, nil)
@@ -130,12 +132,15 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 		})
 		if err != nil {
 			log.Warn("get all collection failed", zap.Error(err))
+			reader.sendError(err)
+			return
 		}
 		seekPositions := lo.Values(reader.channelSeekPositions)
 		for _, info := range existedCollectionInfos {
 			log.Info("exist collection", zap.String("name", info.Schema.Name))
 			if err := reader.channelManager.StartReadCollection(ctx, info, seekPositions); err != nil {
-				log.Warn("fail to start to replicate the collection data", zap.Int64("id", info.ID), zap.Error(err))
+				log.Warn("fail to start to replicate the collection data", zap.Any("collection", info), zap.Error(err))
+				reader.sendError(err)
 			}
 			reader.replicateCollectionMap.Store(info.ID, info)
 		}
@@ -155,20 +160,27 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				log.Info("the collection is not in the watch list", zap.String("collection_name", collectionName), zap.String("partition_name", info.PartitionName))
 				return true
 			}
-			var err error
-			err = retry.Do(ctx, func() error {
-				err = reader.channelManager.AddPartition(ctx, tmpCollectionInfo, info)
-				return err
-			}, retry.Sleep(time.Second))
+			err := reader.channelManager.AddPartition(ctx, tmpCollectionInfo, info)
 			if err != nil {
-				log.Panic("fail to add partition", zap.String("collection_name", collectionName), zap.String("partition_name", info.PartitionName), zap.Error(err))
+				log.Warn("fail to add partition", zap.String("collection_name", collectionName), zap.String("partition_name", info.PartitionName), zap.Error(err))
+				reader.sendError(err)
 			}
 			return false
 		})
 		if err != nil {
 			log.Warn("get all partition failed", zap.Error(err))
+			reader.sendError(err)
 		}
 	})
+}
+
+func (reader *CollectionReader) sendError(err error) {
+	select {
+	case reader.errChan <- err:
+		log.Info("send the error", zap.String("id", reader.id), zap.Error(err))
+	default:
+		log.Info("skip the error, because it will quit soon", zap.String("id", reader.id), zap.Error(err))
+	}
 }
 
 func (reader *CollectionReader) QuitRead(ctx context.Context) {
@@ -182,5 +194,10 @@ func (reader *CollectionReader) QuitRead(ctx context.Context) {
 		})
 		reader.metaOp.UnsubscribeEvent(reader.id, api.CollectionEventType)
 		reader.metaOp.UnsubscribeEvent(reader.id, api.PartitionEventType)
+		reader.sendError(nil)
 	})
+}
+
+func (reader *CollectionReader) ErrorChan() <-chan error {
+	return reader.errChan
 }

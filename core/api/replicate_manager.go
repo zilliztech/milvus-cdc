@@ -33,6 +33,7 @@ type ReplicateAPIEvent struct {
 	CollectionInfo *pb.CollectionInfo
 	PartitionInfo  *pb.PartitionInfo
 	ReplicateInfo  *commonpb.ReplicateInfo
+	Error          error
 }
 
 type ReplicateAPIEventType int
@@ -42,6 +43,8 @@ const (
 	ReplicateDropCollection
 	ReplicateCreatePartition
 	ReplicateDropPartition
+
+	ReplicateError = 100
 )
 
 type DefaultChannelManager struct{}

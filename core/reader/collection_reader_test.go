@@ -19,6 +19,7 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/pb"
 )
 
+// Before running this case, should start the etcd server
 func TestCollectionReader(t *testing.T) {
 	etcdOp, err := NewEtcdOp(nil, "", "", "")
 	assert.NoError(t, err)
@@ -86,11 +87,20 @@ func TestCollectionReader(t *testing.T) {
 		return !strings.Contains(ci.Schema.Name, "test")
 	})
 	assert.NoError(t, err)
+	go func() {
+		select {
+		case <-time.After(time.Second):
+			t.Fail()
+		case err := <-reader.ErrorChan():
+			assert.Error(t, err)
+		}
+	}()
 	reader.StartRead(context.Background())
 	channelManager.EXPECT().StartReadCollection(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	channelManager.EXPECT().AddPartition(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-	// add collection
+
 	{
+		// filter collection
 		field3 := &schemapb.FieldSchema{
 			FieldID: 100,
 			Name:    "age",
@@ -106,6 +116,7 @@ func TestCollectionReader(t *testing.T) {
 		collectionBytes, _ := proto.Marshal(collectionInfo)
 		_, _ = realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/100003", string(collectionBytes))
 
+		// filter partition
 		{
 			info := &pb.PartitionInfo{
 				State:         pb.PartitionState_PartitionCreated,
@@ -116,8 +127,9 @@ func TestCollectionReader(t *testing.T) {
 			_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/100003/300047", getStringForMessage(info))
 		}
 	}
-	// add partition
+
 	{
+		// put collection
 		field3 := &schemapb.FieldSchema{
 			FieldID: 100,
 			Name:    "age",
@@ -138,6 +150,8 @@ func TestCollectionReader(t *testing.T) {
 		}
 		collectionBytes, _ := proto.Marshal(collectionInfo)
 		_, _ = realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/1/100004", string(collectionBytes))
+
+		// put partition
 		info := &pb.PartitionInfo{
 			State:         pb.PartitionState_PartitionCreated,
 			PartitionName: "foo",

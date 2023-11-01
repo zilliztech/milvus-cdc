@@ -60,63 +60,40 @@ func TestUpdateState(t *testing.T) {
 
 	t.Run("fail to get task info", func(t *testing.T) {
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("fail")).Once()
-		err := UpdateTaskState(store, "1234", meta.TaskStateInitial, []meta.TaskState{})
+		err := UpdateTaskState(store, "1234", meta.TaskStateInitial, []meta.TaskState{}, "")
 		assert.Error(t, err)
 	})
 
 	t.Run("empty task info", func(t *testing.T) {
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{}, nil).Once()
-		err := UpdateTaskState(store, "1234", meta.TaskStateInitial, []meta.TaskState{})
+		err := UpdateTaskState(store, "1234", meta.TaskStateInitial, []meta.TaskState{}, "")
 		assert.Error(t, err)
 	})
 
 	t.Run("unexpect state", func(t *testing.T) {
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{{TaskID: "1234", State: meta.TaskStateRunning}}, nil).Once()
-		err := UpdateTaskState(store, "1234", meta.TaskStateRunning, []meta.TaskState{meta.TaskStateInitial})
+		err := UpdateTaskState(store, "1234", meta.TaskStateRunning, []meta.TaskState{meta.TaskStateInitial}, "")
 		assert.Error(t, err)
 	})
 
 	t.Run("fail to put task info", func(t *testing.T) {
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{{TaskID: "1234", State: meta.TaskStateInitial}}, nil).Once()
 		store.EXPECT().Put(mock.Anything, mock.Anything, mock.Anything).Return(errors.New("fail")).Once()
-		err := UpdateTaskState(store, "1234", meta.TaskStateRunning, []meta.TaskState{meta.TaskStateInitial})
+		err := UpdateTaskState(store, "1234", meta.TaskStateRunning, []meta.TaskState{meta.TaskStateInitial}, "")
 		assert.Error(t, err)
 	})
 
 	t.Run("success", func(t *testing.T) {
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{{TaskID: "1234", State: meta.TaskStateInitial}}, nil).Once()
 		store.EXPECT().Put(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-		err := UpdateTaskState(store, "1234", meta.TaskStateRunning, []meta.TaskState{meta.TaskStateInitial})
+		err := UpdateTaskState(store, "1234", meta.TaskStateRunning, []meta.TaskState{meta.TaskStateInitial}, "")
 		assert.NoError(t, err)
 	})
-}
 
-func TestUpdateFailReason(t *testing.T) {
-	store := mocks.NewMetaStore[*meta.TaskInfo](t)
-
-	t.Run("fail to get task info", func(t *testing.T) {
-		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("fail")).Once()
-		err := UpdateTaskFailedReason(store, "1234", "foo")
-		assert.Error(t, err)
-	})
-
-	t.Run("empty task info", func(t *testing.T) {
-		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{}, nil).Once()
-		err := UpdateTaskFailedReason(store, "1234", "foo")
-		assert.Error(t, err)
-	})
-
-	t.Run("fail to put task info", func(t *testing.T) {
-		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{{TaskID: "1234", State: meta.TaskStateInitial}}, nil).Once()
-		store.EXPECT().Put(mock.Anything, mock.Anything, mock.Anything).Return(errors.New("fail")).Once()
-		err := UpdateTaskFailedReason(store, "1234", "foo")
-		assert.Error(t, err)
-	})
-
-	t.Run("success", func(t *testing.T) {
+	t.Run("success to pause", func(t *testing.T) {
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{{TaskID: "1234", State: meta.TaskStateInitial}}, nil).Once()
 		store.EXPECT().Put(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-		err := UpdateTaskFailedReason(store, "1234", "foo")
+		err := UpdateTaskState(store, "1234", meta.TaskStatePaused, []meta.TaskState{}, "pause test")
 		assert.NoError(t, err)
 	})
 }

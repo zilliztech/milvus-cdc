@@ -18,6 +18,7 @@ package server
 
 import (
 	"context"
+	"errors"
 
 	"github.com/milvus-io/milvus/pkg/log"
 	"go.uber.org/zap"
@@ -45,9 +46,9 @@ func NewWriteCallback(factory api.MetaStoreFactory, rootPath string, taskID stri
 	}
 }
 
-func (w *WriteCallback) UpdateTaskCollectionPosition(collectionID int64, collectionName string, pChannelName string, position, opPosition, targetPosition *meta.PositionInfo) {
+func (w *WriteCallback) UpdateTaskCollectionPosition(collectionID int64, collectionName string, pChannelName string, position, opPosition, targetPosition *meta.PositionInfo) error {
 	if position == nil {
-		return
+		return errors.New("position is nil")
 	}
 	err := store.UpdateTaskCollectionPosition(
 		w.metaStoreFactory.GetTaskCollectionPositionMetaStore(context.Background()),
@@ -64,4 +65,5 @@ func (w *WriteCallback) UpdateTaskCollectionPosition(collectionID int64, collect
 			zap.Error(err))
 		metrics.WriterFailCountVec.WithLabelValues(w.taskID, metrics.WriteFailOnUpdatePosition).Inc()
 	}
+	return err
 }
