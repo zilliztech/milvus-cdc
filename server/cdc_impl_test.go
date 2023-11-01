@@ -710,6 +710,12 @@ func TestTaskPosition(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
+	t.Run("empty task", func(t *testing.T) {
+		metaCDC := &MetaCDC{}
+		_, err := metaCDC.Get(&request.GetRequest{TaskID: ""})
+		assert.Error(t, err)
+	})
+
 	t.Run("err", func(t *testing.T) {
 		metaCDC := &MetaCDC{}
 		factory := mocks.NewMetaStoreFactory(t)
@@ -719,7 +725,7 @@ func TestGet(t *testing.T) {
 		factory.EXPECT().GetTaskInfoMetaStore(mock.Anything).Return(store).Once()
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("test")).Once()
 
-		_, err := metaCDC.Get(&request.GetRequest{})
+		_, err := metaCDC.Get(&request.GetRequest{TaskID: "test"})
 		assert.Error(t, err)
 	})
 
@@ -732,7 +738,7 @@ func TestGet(t *testing.T) {
 		factory.EXPECT().GetTaskInfoMetaStore(mock.Anything).Return(store).Once()
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{}, nil).Once()
 
-		_, err := metaCDC.Get(&request.GetRequest{})
+		_, err := metaCDC.Get(&request.GetRequest{TaskID: "test"})
 		assert.Error(t, err)
 	})
 
@@ -750,9 +756,9 @@ func TestGet(t *testing.T) {
 			},
 		}, nil)
 
-		resp, err := metaCDC.Get(&request.GetRequest{})
+		resp, err := metaCDC.Get(&request.GetRequest{TaskID: "test"})
 		assert.NoError(t, err)
-		assert.Equal(t, "1", resp.TaskID)
+		assert.Equal(t, "1", resp.Task.TaskID)
 	})
 }
 

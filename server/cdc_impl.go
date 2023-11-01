@@ -756,6 +756,9 @@ func (e *MetaCDC) Resume(req *request.ResumeRequest) (*request.ResumeResponse, e
 }
 
 func (e *MetaCDC) Get(req *request.GetRequest) (*request.GetResponse, error) {
+	if req.TaskID == "" {
+		return nil, servererror.NewClientError("task_id is empty")
+	}
 	taskInfo, err := store.GetTaskInfo(e.metaStoreFactory.GetTaskInfoMetaStore(context.Background()), req.TaskID)
 	if err != nil {
 		if errors.Is(err, servererror.NotFoundErr) {

@@ -38,8 +38,8 @@ type CDCRequest struct {
 
 type CDCResponse struct {
 	Code    int            `json:"code" mapstructure:"code"`
-	Message string         `json:"message" mapstructure:"message"`
-	Data    map[string]any `json:"data" mapstructure:"data"`
+	Message string         `json:"message,omitempty" mapstructure:"message,omitempty"`
+	Data    map[string]any `json:"data,omitempty" mapstructure:"data,omitempty"`
 }
 
 // Task some info can be showed about the task
@@ -48,7 +48,7 @@ type Task struct {
 	MilvusConnectParam model.MilvusConnectParam `json:"milvus_connect_param" mapstructure:"milvus_connect_param"`
 	CollectionInfos    []model.CollectionInfo   `json:"collection_infos" mapstructure:"collection_infos"`
 	State              string                   `json:"state" mapstructure:"state"`
-	LastPauseReason    string                   `json:"reason" mapstructure:"reason"`
+	LastPauseReason    string                   `json:"reason,omitempty" mapstructure:"reason,omitempty"`
 }
 
 func GetTask(taskInfo *meta.TaskInfo) Task {
