@@ -22,7 +22,7 @@ type GetRequest struct {
 }
 
 type GetResponse struct {
-	Task
+	Task Task `json:"task" mapstructure:"task"`
 }
 
 type GetPositionRequest struct {

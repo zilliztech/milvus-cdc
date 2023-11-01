@@ -94,7 +94,19 @@ All http APIs need to comply with the following rules:
 }
 ```
 
-Different requests are distinguished by `request_type`, which currently includes: create, delete, pause, resume, get and list. If the request fails, a non-200 http status code will be returned.
+Different requests are distinguished by `request_type`, which currently includes: create, delete, pause, resume, get and list.
+
+The format response is:
+
+```json
+{
+  "code": 200,
+  "message": "",
+  "data": {}
+}
+```
+
+If the request fails, the code is not 200, and the error message will be displayed in the `message` field; if the request is successful, the returned data is in data field
 
 ### create request
 
@@ -133,7 +145,12 @@ body:
 After success, the task_id will be returned, such as:
 
 ```json
-{"task_id":"6623ae52d35842a5a2c9d89b16ed7aa1"}
+{
+  "code": 200,
+  "data": {
+    "task_id":"6623ae52d35842a5a2c9d89b16ed7aa1"
+  }
+}
 ```
 
 If there is an exception, an http error will appear.
@@ -160,7 +177,10 @@ body:
 **response**
 
 ```json
-{}
+{
+  "code": 200,
+  "data": {}
+}
 ```
 
 ### pause request
@@ -185,7 +205,10 @@ body:
 **response**
 
 ```json
-{}
+{
+  "code": 200,
+  "data": {}
+}
 ```
 
 ### resume request
@@ -210,7 +233,10 @@ body:
 **response**
 
 ```json
-{}
+{
+  "code": 200,
+  "data": {}
+}
 ```
 
 ### get request
@@ -236,18 +262,25 @@ body:
 
 ```json
 {
-    "task_id":"4d458a58b0f74e85b842b1244dc69546",
-    "Milvus_connect_param":{
-        "host":"localhost",
-        "port":19530,
-        "connect_timeout":10
-    },
-    "collection_infos":[
+  "code": 200,
+  "data": {
+    "Task": {
+      "collection_infos": [
         {
-            "name":"*"
+          "name": "*"
         }
-    ],
-    "state":"Running"
+      ],
+      "milvus_connect_param": {
+        "connect_timeout": 10,
+        "enable_tls": true,
+        "host": "localhost",
+        "port": 19541
+      },
+      "reason": "manually pause through http interface",
+      "state": "Paused",
+      "task_id": "728070fdf999499da869fc3a896217b0"
+    }
+  }
 }
 ```
 
@@ -271,21 +304,24 @@ body:
 
 ```json
 {
+  "code": 200,
+  "data": {
     "tasks": [
-        {
-            "task_id": "4d458a58b0f74e85b842b1244dc69546",
-            "Milvus_connect_param": {
-                "host": "localhost",
-                "port": 19530,
-                "connect_timeout": 10
-            },
-            "collection_infos": [
-                {
-                    "name": "*"
-                }
-            ],
-            "state": "Running"
-        }
+      {
+        "task_id": "728070fdf999499da869fc3a896217b0",
+        "milvus_connect_param": {
+          "host": "localhost",
+          "port": 19541,
+          "connect_timeout": 10
+        },
+        "collection_infos": [
+          {
+            "name": "*"
+          }
+        ],
+        "state": "Running"
+      }
     ]
+  }
 }
 ```
