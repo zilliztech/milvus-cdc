@@ -551,17 +551,20 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 				log.Warn("fail to get collection info", zap.Int64("collection_id", sourceCollectionID), zap.Error(err))
 				return nil
 			}
+			var dataLen int
 			switch realMsg := msg.(type) {
 			case *msgstream.InsertMsg:
 				realMsg.CollectionID = info.CollectionID
 				realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
 				realMsg.ShardName = info.VChannel
+				dataLen = int(realMsg.GetNumRows())
 			case *msgstream.DeleteMsg:
 				realMsg.CollectionID = info.CollectionID
 				if realMsg.PartitionName != "" {
 					realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
 				}
 				realMsg.ShardName = info.VChannel
+				dataLen = int(realMsg.GetNumRows())
 			case *msgstream.DropCollectionMsg:
 				realMsg.CollectionID = info.CollectionID
 				info.BarrierChan <- msg.EndTs()
@@ -595,6 +598,13 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 				MsgGroup:    originPosition.GetMsgGroup(),
 				Timestamp:   originPosition.GetTimestamp(),
 			})
+			logFields := []zap.Field{
+				zap.String("msg", msg.Type().String()),
+			}
+			if dataLen != 0 {
+				logFields = append(logFields, zap.Int("data_len", dataLen))
+			}
+			log.Info("receive msg", logFields...)
 			newPack.Msgs = append(newPack.Msgs, msg)
 		} else {
 			log.Warn("not support msg type", zap.Any("msg", msg))
@@ -605,9 +615,6 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 	}
 	for _, position := range newPack.EndPositions {
 		position.ChannelName = pChannel
-	}
-	if len(newPack.Msgs) != 0 {
-		log.Info("receive msg pack", zap.Any("msg_pack", newPack))
 	}
 	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
 	if needTsMsg {

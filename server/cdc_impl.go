@@ -430,108 +430,124 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 		defer e.replicateEntityMap.Unlock()
 		entity, ok := e.replicateEntityMap.data[milvusAddress]
 		if !ok {
+			replicateCtx, cancelReplicateFunc := context.WithCancel(ctx)
 			entity = &ReplicateEntity{
 				targetClient:   milvusClient,
 				channelManager: channelManager,
 				metaOp:         metaOp,
 				writerObj:      writerObj,
+				quitFunc:       cancelReplicateFunc,
 			}
 			e.replicateEntityMap.data[milvusAddress] = entity
 			go func() {
 				for {
-					replicateAPIEvent, ok := <-entity.channelManager.GetEventChan()
-					if !ok {
-						taskLog.Warn("the replicate api event channel has closed")
+					select {
+					case <-replicateCtx.Done():
+						log.Warn("event chan, the replicate context has closed")
 						return
-					}
-					if !e.isRunningTask(info.TaskID) {
-						taskLog.Warn("not running task", zap.Any("event", replicateAPIEvent))
-						return
-					}
-					if replicateAPIEvent.EventType == api.ReplicateError {
-						taskLog.Warn("receive the error event", zap.Any("event", replicateAPIEvent))
-						_ = e.pauseTaskWithReason(info.TaskID, "fail to read the replicate event", []meta.TaskState{})
-						return
-					}
-					err := entity.writerObj.HandleReplicateAPIEvent(context.Background(), replicateAPIEvent)
-					if err != nil {
-						taskLog.Warn("fail to handle replicate event", zap.Any("event", replicateAPIEvent), zap.Error(err))
-						_ = e.pauseTaskWithReason(info.TaskID, "fail to handle the replicate event, err: "+err.Error(), []meta.TaskState{})
-						return
+					case replicateAPIEvent, ok := <-entity.channelManager.GetEventChan():
+						if !ok {
+							taskLog.Warn("the replicate api event channel has closed")
+							return
+						}
+						if !e.isRunningTask(info.TaskID) {
+							taskLog.Warn("not running task", zap.Any("event", replicateAPIEvent))
+							return
+						}
+						if replicateAPIEvent.EventType == api.ReplicateError {
+							taskLog.Warn("receive the error event", zap.Any("event", replicateAPIEvent))
+							_ = e.pauseTaskWithReason(info.TaskID, "fail to read the replicate event", []meta.TaskState{})
+							return
+						}
+						err := entity.writerObj.HandleReplicateAPIEvent(replicateCtx, replicateAPIEvent)
+						if err != nil {
+							taskLog.Warn("fail to handle replicate event", zap.Any("event", replicateAPIEvent), zap.Error(err))
+							_ = e.pauseTaskWithReason(info.TaskID, "fail to handle the replicate event, err: "+err.Error(), []meta.TaskState{})
+							return
+						}
 					}
 				}
 			}()
 			go func() {
 				writeCallback := NewWriteCallback(e.metaStoreFactory, e.rootPath, info.TaskID)
 				for {
-					// TODO how to close them
-					channelName, ok := <-entity.channelManager.GetChannelChan()
-					taskLog.Info("start to replicate channel", zap.String("channel", channelName))
-					if !ok {
-						taskLog.Warn("the channel name channel has closed")
+					select {
+					case <-replicateCtx.Done():
+						log.Warn("channel chan, the replicate context has closed")
 						return
-					}
-					if !e.isRunningTask(info.TaskID) {
-						taskLog.Warn("not running task")
-						return
-					}
-					go func(c string) {
-						for {
+					case channelName, ok := <-entity.channelManager.GetChannelChan():
+						taskLog.Info("start to replicate channel", zap.String("channel", channelName))
+						if !ok {
+							taskLog.Warn("the channel name channel has closed")
+							return
+						}
+						if !e.isRunningTask(info.TaskID) {
+							taskLog.Warn("not running task")
+							return
+						}
+						go func(c string) {
 							msgChan := entity.channelManager.GetMsgChan(c)
 							if msgChan == nil {
 								log.Warn("not found the message channel", zap.String("channel", c))
 								return
 							}
-							msgPack, ok := <-msgChan
-							if !ok {
-								taskLog.Warn("the data channel has closed")
-								return
-							}
-							if !e.isRunningTask(info.TaskID) {
-								taskLog.Warn("not running task", zap.Any("pack", msgPack))
-								return
-							}
-							if msgPack == nil {
-								log.Warn("the message pack is nil, the task may be stopping")
-								return
-							}
-							pChannel := msgPack.EndPositions[0].GetChannelName()
-							position, targetPosition, err := entity.writerObj.HandleReplicateMessage(context.Background(), pChannel, msgPack)
-							if err != nil {
-								taskLog.Warn("fail to handle the replicate message", zap.Any("pack", msgPack), zap.Error(err))
-								_ = e.pauseTaskWithReason(info.TaskID, "fail to handle replicate message, err:"+err.Error(), []meta.TaskState{})
-								return
-							}
-							msgTime, _ := tsoutil.ParseHybridTs(msgPack.EndTs)
-							metaPosition := &meta.PositionInfo{
-								Time: msgTime,
-								DataPair: &commonpb.KeyDataPair{
-									Key:  c,
-									Data: position,
-								},
-							}
-							var metaOpPosition *meta.PositionInfo
-							if msgPack.Msgs != nil && len(msgPack.Msgs) > 0 && msgPack.Msgs[0].Type() != commonpb.MsgType_TimeTick {
-								metaOpPosition = metaPosition
-							}
-							metaTargetPosition := &meta.PositionInfo{
-								Time: msgTime,
-								DataPair: &commonpb.KeyDataPair{
-									Key:  pChannel,
-									Data: targetPosition,
-								},
-							}
-							if position != nil {
-								err = writeCallback.UpdateTaskCollectionPosition(TmpCollectionID, TmpCollectionName, c,
-									metaPosition, metaOpPosition, metaTargetPosition)
-								if err != nil {
-									log.Warn("fail to update the collection position", zap.Any("pack", msgPack), zap.Error(err))
-									_ = e.pauseTaskWithReason(info.TaskID, "fail to update task position, err:"+err.Error(), []meta.TaskState{})
+							for {
+								select {
+								case <-replicateCtx.Done():
+									log.Warn("msg chan, the replicate context has closed")
 									return
+								case msgPack, ok := <-msgChan:
+									if !ok {
+										taskLog.Warn("the data channel has closed")
+										return
+									}
+									if !e.isRunningTask(info.TaskID) {
+										taskLog.Warn("not running task", zap.Any("pack", msgPack))
+										return
+									}
+									if msgPack == nil {
+										log.Warn("the message pack is nil, the task may be stopping")
+										return
+									}
+									pChannel := msgPack.EndPositions[0].GetChannelName()
+									position, targetPosition, err := entity.writerObj.HandleReplicateMessage(replicateCtx, pChannel, msgPack)
+									if err != nil {
+										taskLog.Warn("fail to handle the replicate message", zap.Any("pack", msgPack), zap.Error(err))
+										_ = e.pauseTaskWithReason(info.TaskID, "fail to handle replicate message, err:"+err.Error(), []meta.TaskState{})
+										return
+									}
+									msgTime, _ := tsoutil.ParseHybridTs(msgPack.EndTs)
+									metaPosition := &meta.PositionInfo{
+										Time: msgTime,
+										DataPair: &commonpb.KeyDataPair{
+											Key:  c,
+											Data: position,
+										},
+									}
+									var metaOpPosition *meta.PositionInfo
+									if msgPack.Msgs != nil && len(msgPack.Msgs) > 0 && msgPack.Msgs[0].Type() != commonpb.MsgType_TimeTick {
+										metaOpPosition = metaPosition
+									}
+									metaTargetPosition := &meta.PositionInfo{
+										Time: msgTime,
+										DataPair: &commonpb.KeyDataPair{
+											Key:  pChannel,
+											Data: targetPosition,
+										},
+									}
+									if position != nil {
+										err = writeCallback.UpdateTaskCollectionPosition(TmpCollectionID, TmpCollectionName, c,
+											metaPosition, metaOpPosition, metaTargetPosition)
+										if err != nil {
+											log.Warn("fail to update the collection position", zap.Any("pack", msgPack), zap.Error(err))
+											_ = e.pauseTaskWithReason(info.TaskID, "fail to update task position, err:"+err.Error(), []meta.TaskState{})
+											return
+										}
+									}
 								}
 							}
-						}
-					}(channelName)
+						}(channelName)
+					}
 				}
 			}()
 		}
@@ -583,12 +599,12 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 		info.RPCRequestChannelInfo.Position, config.MQConfig{
 			Pulsar: e.config.SourceConfig.Pulsar,
 			Kafka:  e.config.SourceConfig.Kafka,
-		}, func(pack *msgstream.MsgPack) bool {
+		}, func(funcCtx context.Context, pack *msgstream.MsgPack) bool {
 			if !e.isRunningTask(info.TaskID) {
 				taskLog.Warn("not running task", zap.Any("pack", pack))
 				return false
 			}
-			positionBytes, err := replicateEntity.writerObj.HandleOpMessagePack(ctx, pack)
+			positionBytes, err := replicateEntity.writerObj.HandleOpMessagePack(funcCtx, pack)
 			if err != nil {
 				taskLog.Warn("fail to handle the op message pack", zap.Error(err))
 				_ = e.pauseTaskWithReason(info.TaskID, "fail to handle the op message pack, err:"+err.Error(), []meta.TaskState{})
@@ -619,11 +635,14 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 	}
 	readCtx, cancelReadFunc := context.WithCancel(context.Background())
 	e.replicateEntityMap.Lock()
-	// replicateEntity.readerObj = collectionReader
+	originQuitFunc := replicateEntity.quitFunc
 	replicateEntity.quitFunc = func() {
 		collectionReader.QuitRead(readCtx)
 		channelReader.QuitRead(readCtx)
 		cancelReadFunc()
+		if originQuitFunc != nil {
+			originQuitFunc()
+		}
 	}
 	e.replicateEntityMap.Unlock()
 
