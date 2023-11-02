@@ -131,7 +131,7 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 							continue
 						}
 						if info.State != pb.CollectionState_CollectionCreated {
-							log.Info("the collection is not created", zap.String("key", collectionKey), zap.String("state", info.State.String()))
+							log.Info("the collection state is not created", zap.String("key", collectionKey), zap.String("state", info.State.String()))
 							continue
 						}
 						if filter != nil && filter(info) {

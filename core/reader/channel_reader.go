@@ -28,7 +28,7 @@ type ChannelReader struct {
 	seekPosition         string
 
 	msgStream   msgstream.MsgStream
-	dataHandler func(*msgstream.MsgPack) bool // the return value is false means quit
+	dataHandler func(context.Context, *msgstream.MsgPack) bool // the return value is false means quit
 	isQuit      util.Value[bool]
 	startOnce   sync.Once
 	quitOnce    sync.Once
@@ -36,7 +36,7 @@ type ChannelReader struct {
 
 var _ api.Reader = (*ChannelReader)(nil)
 
-func NewChannelReader(channelName, seekPosition string, mqConfig config.MQConfig, dataHandler func(*msgstream.MsgPack) bool, creator FactoryCreator) (api.Reader, error) {
+func NewChannelReader(channelName, seekPosition string, mqConfig config.MQConfig, dataHandler func(context.Context, *msgstream.MsgPack) bool, creator FactoryCreator) (api.Reader, error) {
 	channelReader := &ChannelReader{
 		factoryCreator: creator,
 		channelName:    channelName,
@@ -109,18 +109,23 @@ func (c *ChannelReader) StartRead(ctx context.Context) {
 					log.Info("the channel reader is quit")
 					return
 				}
-				msgPack, ok := <-msgChan
-				if !ok || msgPack == nil {
-					log.Info("the msg pack is nil, the channel reader is quit")
+				select {
+				case <-ctx.Done():
+					log.Warn("channel reader context is done")
 					return
-				}
-				if c.dataHandler == nil {
-					log.Warn("the data handler is nil")
-					return
-				}
-				if !c.dataHandler(msgPack) {
-					log.Warn("the data handler return false, the channel reader is quit")
-					return
+				case msgPack, ok := <-msgChan:
+					if !ok || msgPack == nil {
+						log.Info("the msg pack is nil, the channel reader is quit")
+						return
+					}
+					if c.dataHandler == nil {
+						log.Warn("the data handler is nil")
+						return
+					}
+					if !c.dataHandler(ctx, msgPack) {
+						log.Warn("the data handler return false, the channel reader is quit")
+						return
+					}
 				}
 			}
 		}()

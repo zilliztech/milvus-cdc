@@ -60,7 +60,7 @@ sourceConfig:
   defaultPartitionName: _default
   # read buffer length, mainly used for buffering if writing data to milvus-target is slow.
   readChanLen: 10
-  # milvus-target mq config, which is pulsar or kafka
+  # milvus-source mq config, which is pulsar or kafka
   pulsar:
     address: pulsar://localhost:6650
     webAddress: localhost:80
@@ -75,7 +75,7 @@ sourceConfig:
 
 After completing these two steps of configuration, do not rush to start CDC. Need to ensure the following points:
 
-1. Whether the `common.ttMsgEnabled` configuration value of milvus-target is `false``;
+1. Whether the `common.ttMsgEnabled` configuration value of milvus-target is `false`;
 2. Confirm that the `mq` type configured by cdc is the same as the type configured by milvus-source;
 3. Ensure that the network environment where the cdc service is located can correctly connect to the mq and etcd addresses in the milvus-source in the configuration;
 

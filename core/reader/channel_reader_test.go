@@ -183,7 +183,7 @@ func TestChannelReader(t *testing.T) {
 			Pulsar: config.PulsarConfig{
 				Address: "localhost",
 			},
-		}, func(pack *msgstream.MsgPack) bool {
+		}, func(ctx context.Context, pack *msgstream.MsgPack) bool {
 			return pack.BeginTs == pack.EndTs
 		}, creator)
 		assert.NoError(t, err)
