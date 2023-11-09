@@ -77,4 +77,12 @@ func TestRequestHandle(t *testing.T) {
 	assertion.NoError(err)
 	_, err = handler.handle(baseAPI, &request.GetRequest{})
 	assertion.Error(err)
+
+	handler, ok = requestHandlers[request.GetPosition]
+	assertion.True(ok)
+	assertion.IsType(&request.GetPositionRequest{}, handler.generateModel())
+	_, err = handler.handle(baseAPI, &request.GetPositionRequest{})
+	assertion.NoError(err)
+	_, err = handler.handle(baseAPI, &request.ListRequest{})
+	assertion.Error(err)
 }
