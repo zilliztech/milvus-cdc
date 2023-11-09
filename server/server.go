@@ -43,7 +43,7 @@ func (c *CDCServer) Run(config *CDCServerConfig) {
 	metrics.RegisterMetric()
 
 	c.serverConfig = config
-	c.api = GetCDCApi(c.serverConfig)
+	c.api = GetCDCAPI(c.serverConfig)
 	c.api.ReloadTask()
 	cdcHandler := c.getCDCHandler()
 	http.Handle("/cdc", cdcHandler)

@@ -78,6 +78,6 @@ func (b *BaseCDC) List(request *request.ListRequest) (*request.ListResponse, err
 	return nil, nil
 }
 
-func GetCDCApi(config *CDCServerConfig) CDCService {
+func GetCDCAPI(config *CDCServerConfig) CDCService {
 	return NewMetaCDC(config)
 }

@@ -38,3 +38,9 @@ func TestDefaultCDCServer(t *testing.T) {
 		assert.NoError(t, err)
 	}
 }
+
+func TestGetCDCAPI(t *testing.T) {
+	assert.Panics(t, func() {
+		GetCDCAPI(&CDCServerConfig{})
+	})
+}
