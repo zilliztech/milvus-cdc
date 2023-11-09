@@ -106,15 +106,44 @@ func TestDataHandler(t *testing.T) {
 	})
 
 	t.Run("drop collection", func(t *testing.T) {
-		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
-			Status: &commonpb.Status{},
-			Value:  true,
-		}, nil).Once()
-		milvusService.EXPECT().DropCollection(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
-		err := dataHandler.DropCollection(ctx, &api.DropCollectionParam{
-			CollectionName: "foo",
-		})
-		assert.NoError(t, err)
+		{
+			milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+				Status: &commonpb.Status{},
+				Value:  true,
+			}, nil).Once()
+			milvusService.EXPECT().DropCollection(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
+			err := dataHandler.DropCollection(ctx, &api.DropCollectionParam{
+				CollectionName: "foo",
+			})
+			assert.NoError(t, err)
+		}
+
+		{
+			milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+				Status: &commonpb.Status{},
+				Value:  true,
+			}, nil).Once()
+			milvusService.EXPECT().DropCollection(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
+			err := dataHandler.DropCollection(ctx, &api.DropCollectionParam{
+				ReplicateParam: api.ReplicateParam{
+					Database: "foo",
+				},
+				CollectionName: "foo",
+			})
+			assert.NoError(t, err)
+		}
+
+		{
+			dataHandler.address = ""
+			err := dataHandler.DropCollection(ctx, &api.DropCollectionParam{
+				ReplicateParam: api.ReplicateParam{
+					Database: "foo",
+				},
+				CollectionName: "foo",
+			})
+			assert.Error(t, err)
+			dataHandler.address = "localhost:50051"
+		}
 	})
 
 	t.Run("insert", func(t *testing.T) {
@@ -315,17 +344,33 @@ func TestDataHandler(t *testing.T) {
 	})
 
 	t.Run("flush", func(t *testing.T) {
-		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
-			Status: &commonpb.Status{},
-			Value:  true,
-		}, nil).Once()
-		milvusService.EXPECT().Flush(mock.Anything, mock.Anything).Return(&milvuspb.FlushResponse{Status: &commonpb.Status{}}, nil).Once()
-		err := dataHandler.Flush(ctx, &api.FlushParam{
-			FlushRequest: milvuspb.FlushRequest{
-				CollectionNames: []string{"foo"},
-			},
-		})
-		assert.NoError(t, err)
+		{
+			milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+				Status: &commonpb.Status{},
+				Value:  true,
+			}, nil).Once()
+			milvusService.EXPECT().Flush(mock.Anything, mock.Anything).Return(&milvuspb.FlushResponse{Status: &commonpb.Status{}}, nil).Once()
+			err := dataHandler.Flush(ctx, &api.FlushParam{
+				FlushRequest: milvuspb.FlushRequest{
+					CollectionNames: []string{"foo"},
+				},
+			})
+			assert.NoError(t, err)
+		}
+
+		{
+			milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+				Status: &commonpb.Status{},
+				Value:  true,
+			}, nil).Once()
+			milvusService.EXPECT().Flush(mock.Anything, mock.Anything).Return(&milvuspb.FlushResponse{Status: &commonpb.Status{Code: 500, ErrorCode: commonpb.ErrorCode_UnexpectedError}}, nil).Once()
+			err := dataHandler.Flush(ctx, &api.FlushParam{
+				FlushRequest: milvuspb.FlushRequest{
+					CollectionNames: []string{"foo"},
+				},
+			})
+			assert.Error(t, err)
+		}
 	})
 
 	t.Run("create database", func(t *testing.T) {
@@ -377,5 +422,43 @@ func TestDataHandler(t *testing.T) {
 			Name: "foo",
 		})
 		assert.NoError(t, err)
+	})
+
+	t.Run("describe database", func(t *testing.T) {
+		// server error
+		{
+			milvusService.EXPECT().ListDatabases(mock.Anything, mock.Anything).Return(&milvuspb.ListDatabasesResponse{Status: &commonpb.Status{
+				ErrorCode: commonpb.ErrorCode_UnexpectedError,
+				Code:      500,
+			}}, nil).Once()
+			err := dataHandler.DescribeDatabase(ctx, &api.DescribeDatabaseParam{})
+			assert.Error(t, err)
+		}
+
+		// not found database
+		{
+			milvusService.EXPECT().ListDatabases(mock.Anything, mock.Anything).Return(&milvuspb.ListDatabasesResponse{Status: &commonpb.Status{
+				ErrorCode: commonpb.ErrorCode_Success,
+			}, DbNames: []string{
+				"foo", "foo2",
+			}}, nil).Once()
+			err := dataHandler.DescribeDatabase(ctx, &api.DescribeDatabaseParam{
+				Name: "foo3",
+			})
+			assert.Error(t, err)
+		}
+
+		// success
+		{
+			milvusService.EXPECT().ListDatabases(mock.Anything, mock.Anything).Return(&milvuspb.ListDatabasesResponse{Status: &commonpb.Status{
+				ErrorCode: commonpb.ErrorCode_Success,
+			}, DbNames: []string{
+				"foo", "foo2",
+			}}, nil).Once()
+			err := dataHandler.DescribeDatabase(ctx, &api.DescribeDatabaseParam{
+				Name: "foo",
+			})
+			assert.NoError(t, err)
+		}
 	})
 }

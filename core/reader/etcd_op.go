@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
@@ -29,6 +30,7 @@ const (
 	collectionPrefix = "root-coord/database/collection-info"
 	partitionPrefix  = "root-coord/partitions"
 	fieldPrefix      = "root-coord/fields"
+	databasePrefix   = "root-coord/database/db-info"
 )
 
 type EtcdOp struct {
@@ -37,10 +39,16 @@ type EtcdOp struct {
 	metaSubPath          string
 	defaultPartitionName string
 	etcdClient           *clientv3.Client
-	collectionID2Name    util.Map[int64, string]
-	watchCollectionOnce  sync.Once
-	watchPartitionOnce   sync.Once
-	retryOptions         []retry.Option
+
+	// don't use the name to get id, because the same name may have different id when an object is deleted and recreated
+	collectionID2Name util.Map[int64, string]
+	collectionID2DBID util.Map[int64, int64]
+	// don't use the name to get id
+	dbID2Name util.Map[int64, string]
+
+	watchCollectionOnce sync.Once
+	watchPartitionOnce  sync.Once
+	retryOptions        []retry.Option
 
 	// task id -> api.CollectionFilter
 	subscribeCollectionEvent util.Map[string, api.CollectionEventConsumer]
@@ -107,6 +115,10 @@ func (e *EtcdOp) fieldPrefix() string {
 	return fmt.Sprintf("%s/%s/%s", e.rootPath, e.metaSubPath, fieldPrefix)
 }
 
+func (e *EtcdOp) databasePrefix() string {
+	return fmt.Sprintf("%s/%s/%s", e.rootPath, e.metaSubPath, databasePrefix)
+}
+
 func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilter) {
 	e.watchCollectionOnce.Do(func() {
 		watchChan := e.etcdClient.Watch(ctx, e.collectionPrefix()+"/", clientv3.WithPrefix())
@@ -146,8 +158,10 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 							log.Warn("fail to fill collection field in the watch process", zap.String("key", collectionKey), zap.Error(err))
 							continue
 						}
-						log.Debug("get a new collection in the watch process", zap.String("key", collectionKey))
 						e.collectionID2Name.Store(info.ID, info.Schema.Name)
+						if databaseID := e.getDatabaseIDFromCollectionKey(collectionKey); databaseID != 0 {
+							e.collectionID2DBID.Store(info.ID, databaseID)
+						}
 						e.subscribeCollectionEvent.Range(func(key string, value api.CollectionEventConsumer) bool {
 							if value != nil && value(info) {
 								log.Info("the collection has been consumed", zap.Int64("collection_id", info.ID), zap.String("task_id", key))
@@ -249,23 +263,76 @@ func (e *EtcdOp) getCollectionIDFromPartitionKey(key string) int64 {
 	return id
 }
 
+func (e *EtcdOp) getDatabaseIDFromCollectionKey(key string) int64 {
+	subString := strings.Split(key[len(e.collectionPrefix())+1:], "/")
+	if len(subString) != 2 {
+		log.Warn("the key is invalid", zap.String("key", key), zap.Strings("sub", subString))
+		return 0
+	}
+	id, err := strconv.ParseInt(subString[0], 10, 64)
+	if err != nil {
+		log.Warn("fail to parse the database id", zap.String("id", subString[0]), zap.Error(err))
+		return 0
+	}
+	return id
+}
+
+func (e *EtcdOp) getDatabases(ctx context.Context) ([]model.DatabaseInfo, error) {
+	resp, err := util.EtcdGetWithContext(ctx, e.etcdClient, e.databasePrefix(), clientv3.WithPrefix())
+	if err != nil {
+		log.Warn("fail to get all databases", zap.Error(err))
+		return nil, err
+	}
+	var databases []model.DatabaseInfo
+	for _, kv := range resp.Kvs {
+		info := &pb.DatabaseInfo{}
+		err = proto.Unmarshal(kv.Value, info)
+		if err != nil {
+			log.Warn("fail to unmarshal database info", zap.Error(err))
+			return nil, err
+		}
+		databases = append(databases, model.DatabaseInfo{
+			ID:   info.Id,
+			Name: info.Name,
+		})
+		e.dbID2Name.Store(info.Id, info.Name)
+	}
+	return databases, nil
+}
+
 func (e *EtcdOp) getCollectionNameByID(ctx context.Context, collectionID int64) string {
 	var (
-		resp *clientv3.GetResponse
-		err  error
+		resp     *clientv3.GetResponse
+		database model.DatabaseInfo
+		err      error
 	)
 
-	// TODO the db should be considered, 1 is default db id
-	key := path.Join(e.collectionPrefix(), "1", strconv.FormatInt(collectionID, 10))
-	resp, err = util.EtcdGetWithContext(ctx, e.etcdClient, key)
+	databases, err := e.getDatabases(ctx)
 	if err != nil {
-		log.Warn("fail to get the collection data", zap.Int64("collection_id", collectionID), zap.Error(err))
+		log.Warn("fail to get all databases", zap.Error(err))
+		return ""
+	}
+
+	for _, database = range databases {
+		key := path.Join(e.collectionPrefix(), strconv.FormatInt(database.ID, 10), strconv.FormatInt(collectionID, 10))
+		resp, err = util.EtcdGetWithContext(ctx, e.etcdClient, key)
+		if err != nil {
+			log.Warn("fail to get the collection data", zap.Int64("collection_id", collectionID), zap.Error(err))
+			return ""
+		}
+		if len(resp.Kvs) == 0 {
+			continue
+		}
+	}
+	if resp == nil {
+		log.Warn("there is no database")
 		return ""
 	}
 	if len(resp.Kvs) == 0 {
 		log.Warn("the collection isn't existed", zap.Int64("collection_id", collectionID))
 		return ""
 	}
+
 	info := &pb.CollectionInfo{}
 	err = proto.Unmarshal(resp.Kvs[0].Value, info)
 	if err != nil {
@@ -277,11 +344,14 @@ func (e *EtcdOp) getCollectionNameByID(ctx context.Context, collectionID int64) 
 	}
 	collectionName := info.Schema.GetName()
 	e.collectionID2Name.Store(collectionID, collectionName)
+	e.collectionID2DBID.Store(collectionID, database.ID)
 
 	return collectionName
 }
 
 func (e *EtcdOp) GetAllCollection(ctx context.Context, filter api.CollectionFilter) ([]*pb.CollectionInfo, error) {
+	_, _ = e.getDatabases(ctx)
+
 	resp, err := util.EtcdGetWithContext(ctx, e.etcdClient, e.collectionPrefix()+"/", clientv3.WithPrefix())
 	if err != nil {
 		log.Warn("fail to get all collection data", zap.Error(err))
@@ -310,6 +380,9 @@ func (e *EtcdOp) GetAllCollection(ctx context.Context, filter api.CollectionFilt
 			continue
 		}
 		e.collectionID2Name.Store(info.ID, info.Schema.Name)
+		if databaseID := e.getDatabaseIDFromCollectionKey(util.ToString(kv.Key)); databaseID != 0 {
+			e.collectionID2DBID.Store(info.ID, databaseID)
+		}
 		existedCollectionInfos = append(existedCollectionInfos, info)
 	}
 	return existedCollectionInfos, nil
@@ -359,6 +432,26 @@ func (e *EtcdOp) GetCollectionNameByID(ctx context.Context, id int64) string {
 		}
 	}
 	return collectionName
+}
+
+func (e *EtcdOp) GetDatabaseInfoForCollection(ctx context.Context, id int64) model.DatabaseInfo {
+	dbID, _ := e.collectionID2DBID.Load(id)
+	dbName, _ := e.dbID2Name.Load(dbID)
+	if dbName != "" {
+		return model.DatabaseInfo{
+			ID:   dbID,
+			Name: dbName,
+		}
+	}
+
+	// it will update all database info and this collection info
+	_ = e.getCollectionNameByID(ctx, id)
+	dbID, _ = e.collectionID2DBID.Load(id)
+	dbName, _ = e.dbID2Name.Load(dbID)
+	return model.DatabaseInfo{
+		ID:   dbID,
+		Name: dbName,
+	}
 }
 
 func (e *EtcdOp) GetAllPartition(ctx context.Context, filter api.PartitionFilter) ([]*pb.PartitionInfo, error) {

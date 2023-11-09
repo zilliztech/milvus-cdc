@@ -1,6 +1,10 @@
 package api
 
-import "github.com/milvus-io/milvus/pkg/log"
+import (
+	"context"
+
+	"github.com/milvus-io/milvus/pkg/log"
+)
 
 type MessageManager interface {
 	ReplicateMessage(message *ReplicateMessage)
@@ -8,6 +12,7 @@ type MessageManager interface {
 }
 
 type ReplicateMessage struct {
+	Ctx         context.Context
 	Param       *ReplicateMessageParam
 	SuccessFunc func(param *ReplicateMessageParam)
 	FailFunc    func(param *ReplicateMessageParam, err error)

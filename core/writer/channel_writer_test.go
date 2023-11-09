@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
@@ -31,7 +32,13 @@ func TestChannelWriter(t *testing.T) {
 	t.Run("wait collection ready", func(t *testing.T) {
 		dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 		dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
-		assert.True(t, realWriter.WaitCollectionReady(context.Background(), "test"))
+		assert.True(t, realWriter.WaitCollectionReady(context.Background(), "test", ""))
+	})
+
+	t.Run("wait database ready", func(t *testing.T) {
+		dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
+		dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(nil).Once()
+		assert.True(t, realWriter.WaitDatabaseReady(context.Background(), "test"))
 	})
 
 	t.Run("handler api event", func(t *testing.T) {
@@ -55,6 +62,44 @@ func TestChannelWriter(t *testing.T) {
 			})
 			assert.Error(t, err)
 		}
+		// create database with db
+		{
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
+			err := w.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
+				EventType: api.ReplicateCreateCollection,
+				CollectionInfo: &pb.CollectionInfo{
+					Schema: &schemapb.CollectionSchema{
+						Name: "test",
+					},
+					ShardsNum: 1,
+				},
+				ReplicateParam: api.ReplicateParam{
+					Database: "link",
+				},
+			})
+			assert.Error(t, err)
+			cancelFunc()
+			call.Unset()
+		}
+		// success create collection with db
+		{
+			dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(nil).Once()
+			dataHandler.EXPECT().CreateCollection(mock.Anything, mock.Anything).Return(nil).Once()
+			err := w.HandleReplicateAPIEvent(context.Background(), &api.ReplicateAPIEvent{
+				EventType: api.ReplicateCreateCollection,
+				CollectionInfo: &pb.CollectionInfo{
+					Schema: &schemapb.CollectionSchema{
+						Name: "test",
+					},
+					ShardsNum: 1,
+				},
+				ReplicateParam: api.ReplicateParam{
+					Database: "link",
+				},
+			})
+			assert.NoError(t, err)
+		}
 
 		// drop collectiom
 		{
@@ -68,6 +113,23 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
+		}
+		// drop collection with db
+		{
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
+			err := w.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
+				EventType: api.ReplicateDropCollection,
+				CollectionInfo: &pb.CollectionInfo{
+					Schema: &schemapb.CollectionSchema{
+						Name: "test",
+					},
+				},
+				ReplicateParam: api.ReplicateParam{Database: "link"},
+			})
+			assert.Error(t, err)
+			cancelFunc()
+			call.Unset()
 		}
 
 		// create partition
@@ -86,6 +148,25 @@ func TestChannelWriter(t *testing.T) {
 			})
 			assert.Error(t, err)
 		}
+		{
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
+			err := w.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
+				EventType: api.ReplicateCreatePartition,
+				CollectionInfo: &pb.CollectionInfo{
+					Schema: &schemapb.CollectionSchema{
+						Name: "test",
+					},
+				},
+				PartitionInfo: &pb.PartitionInfo{
+					PartitionName: "test",
+				},
+				ReplicateParam: api.ReplicateParam{Database: "link"},
+			})
+			assert.Error(t, err)
+			cancelFunc()
+			call.Unset()
+		}
 
 		// drop partition
 		{
@@ -102,6 +183,25 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
+		}
+		{
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
+			err := w.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
+				EventType: api.ReplicateDropPartition,
+				CollectionInfo: &pb.CollectionInfo{
+					Schema: &schemapb.CollectionSchema{
+						Name: "test",
+					},
+				},
+				PartitionInfo: &pb.PartitionInfo{
+					PartitionName: "test",
+				},
+				ReplicateParam: api.ReplicateParam{Database: "link"},
+			})
+			assert.Error(t, err)
+			cancelFunc()
+			call.Unset()
 		}
 	})
 
@@ -335,6 +435,69 @@ func TestChannelWriter(t *testing.T) {
 			})
 			assert.Error(t, err)
 		}
+		// flush with not ready collection
+		{
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+			call := dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
+			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.FlushMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						FlushRequest: milvuspb.FlushRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_Flush,
+								SourceID: 1,
+							},
+							CollectionNames: []string{"test"},
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.Error(t, err)
+			cancelFunc()
+			call.Unset()
+		}
+		// flush with db
+		{
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
+
+			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.FlushMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						FlushRequest: milvuspb.FlushRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_Flush,
+								SourceID: 1,
+							},
+							CollectionNames: []string{"test"},
+							DbName:          "tree",
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.Error(t, err)
+
+			cancelFunc()
+			call.Unset()
+		}
 
 		// create index
 		{
@@ -363,6 +526,67 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
+		}
+		// create index with not ready collection
+		{
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+			call := dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
+			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.CreateIndexMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						CreateIndexRequest: milvuspb.CreateIndexRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_CreateIndex,
+								SourceID: 1,
+							},
+							CollectionName: "test",
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.Error(t, err)
+			cancelFunc()
+			call.Unset()
+		}
+		// create index with db
+		{
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
+			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.CreateIndexMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						CreateIndexRequest: milvuspb.CreateIndexRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_CreateIndex,
+								SourceID: 1,
+							},
+							CollectionName: "test",
+							DbName:         "tree",
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.Error(t, err)
+			cancelFunc()
+			call.Unset()
 		}
 
 		// drop index
@@ -420,6 +644,67 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
+		}
+		// load with not ready collection
+		{
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+			call := dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
+			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.LoadCollectionMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						LoadCollectionRequest: milvuspb.LoadCollectionRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_LoadCollection,
+								SourceID: 1,
+							},
+							CollectionName: "test",
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.Error(t, err)
+			cancelFunc()
+			call.Unset()
+		}
+		// load with db
+		{
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
+			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.LoadCollectionMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						LoadCollectionRequest: milvuspb.LoadCollectionRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_LoadCollection,
+								SourceID: 1,
+							},
+							CollectionName: "test",
+							DbName:         "tree",
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.Error(t, err)
+			cancelFunc()
+			call.Unset()
 		}
 
 		// release

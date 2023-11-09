@@ -50,7 +50,10 @@ func (r *replicateMessageHandler) startHandleMessageLoop() {
 		for {
 			message := <-r.messageChan
 			messageParam := message.Param
-			err := r.handler.ReplicateMessage(context.Background(), messageParam)
+			if message.Ctx == nil {
+				message.Ctx = context.Background()
+			}
+			err := r.handler.ReplicateMessage(message.Ctx, messageParam)
 			if err != nil {
 				message.FailFunc(message.Param, err)
 			} else {

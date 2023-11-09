@@ -14,6 +14,8 @@ import (
 
 // ChannelManager a target must promise a manager
 type ChannelManager interface {
+	SetCtx(ctx context.Context)
+
 	StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error
 	StopReadCollection(ctx context.Context, info *pb.CollectionInfo) error
 	AddPartition(ctx context.Context, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo) error
@@ -24,8 +26,8 @@ type ChannelManager interface {
 }
 
 type TargetAPI interface {
-	GetCollectionInfo(ctx context.Context, collectionName string) (*model.CollectionInfo, error)
-	GetPartitionInfo(ctx context.Context, collectionName string) (*model.CollectionInfo, error)
+	GetCollectionInfo(ctx context.Context, collectionName, databaseName string) (*model.CollectionInfo, error)
+	GetPartitionInfo(ctx context.Context, collectionName, databaseName string) (*model.CollectionInfo, error)
 }
 
 type ReplicateAPIEvent struct {
@@ -33,6 +35,7 @@ type ReplicateAPIEvent struct {
 	CollectionInfo *pb.CollectionInfo
 	PartitionInfo  *pb.PartitionInfo
 	ReplicateInfo  *commonpb.ReplicateInfo
+	ReplicateParam ReplicateParam
 	Error          error
 }
 
@@ -50,6 +53,10 @@ const (
 type DefaultChannelManager struct{}
 
 var _ ChannelManager = (*DefaultChannelManager)(nil)
+
+func (d *DefaultChannelManager) SetCtx(ctx context.Context) {
+	log.Warn("SetCtx is not implemented, please check it")
+}
 
 func (d *DefaultChannelManager) StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
 	log.Warn("StartReadCollection is not implemented, please check it")
@@ -85,12 +92,12 @@ type DefaultTargetAPI struct{}
 
 var _ TargetAPI = (*DefaultTargetAPI)(nil)
 
-func (d *DefaultTargetAPI) GetCollectionInfo(ctx context.Context, collectionName string) (*model.CollectionInfo, error) {
+func (d *DefaultTargetAPI) GetCollectionInfo(ctx context.Context, collectionName, databaseName string) (*model.CollectionInfo, error) {
 	log.Warn("GetCollectionInfo is not implemented, please check it")
 	return nil, nil
 }
 
-func (d *DefaultTargetAPI) GetPartitionInfo(ctx context.Context, collectionName string) (*model.CollectionInfo, error) {
+func (d *DefaultTargetAPI) GetPartitionInfo(ctx context.Context, collectionName string, databaseName string) (*model.CollectionInfo, error) {
 	log.Warn("GetPartitionInfo is not implemented, please check it")
 	return nil, nil
 }

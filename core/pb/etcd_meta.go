@@ -22,6 +22,36 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 )
 
+type DatabaseState int32
+
+const (
+	DatabaseState_DatabaseUnknown  DatabaseState = 0
+	DatabaseState_DatabaseCreated  DatabaseState = 1
+	DatabaseState_DatabaseCreating DatabaseState = 2
+	DatabaseState_DatabaseDropping DatabaseState = 3
+	DatabaseState_DatabaseDropped  DatabaseState = 4
+)
+
+var DatabaseState_name = map[int32]string{
+	0: "DatabaseUnknown",
+	1: "DatabaseCreated",
+	2: "DatabaseCreating",
+	3: "DatabaseDropping",
+	4: "DatabaseDropped",
+}
+
+var DatabaseState_value = map[string]int32{
+	"DatabaseUnknown":  0,
+	"DatabaseCreated":  1,
+	"DatabaseCreating": 2,
+	"DatabaseDropping": 3,
+	"DatabaseDropped":  4,
+}
+
+func (x DatabaseState) String() string {
+	return proto.EnumName(DatabaseState_name, int32(x))
+}
+
 type CollectionState int32
 
 const (
@@ -126,3 +156,18 @@ type PartitionInfo struct {
 func (m *PartitionInfo) Reset()         { *m = PartitionInfo{} }
 func (m *PartitionInfo) String() string { return proto.CompactTextString(m) }
 func (*PartitionInfo) ProtoMessage()    {}
+
+type DatabaseInfo struct {
+	TenantId             string        `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	Name                 string        `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Id                   int64         `protobuf:"varint,3,opt,name=id,proto3" json:"id,omitempty"`
+	State                DatabaseState `protobuf:"varint,4,opt,name=state,proto3,enum=milvus.proto.etcd.DatabaseState" json:"state,omitempty"`
+	CreatedTime          uint64        `protobuf:"varint,5,opt,name=created_time,json=createdTime,proto3" json:"created_time,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
+}
+
+func (m *DatabaseInfo) Reset()         { *m = DatabaseInfo{} }
+func (m *DatabaseInfo) String() string { return proto.CompactTextString(m) }
+func (*DatabaseInfo) ProtoMessage()    {}

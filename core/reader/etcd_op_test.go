@@ -38,6 +38,12 @@ func TestEtcdOp(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%s/%s/%s", TestCasePrefix, realOp.metaSubPath, collectionPrefix), realOp.collectionPrefix())
 	assert.Equal(t, fmt.Sprintf("%s/%s/%s", TestCasePrefix, realOp.metaSubPath, partitionPrefix), realOp.partitionPrefix())
 	assert.Equal(t, fmt.Sprintf("%s/%s/%s", TestCasePrefix, realOp.metaSubPath, fieldPrefix), realOp.fieldPrefix())
+	assert.Equal(t, fmt.Sprintf("%s/%s/%s", TestCasePrefix, realOp.metaSubPath, databasePrefix), realOp.databasePrefix())
+
+	{
+		collectionName := etcdOp.GetCollectionNameByID(context.Background(), 900000)
+		assert.Equal(t, "", collectionName)
+	}
 
 	// watch collection
 	{
@@ -53,6 +59,16 @@ func TestEtcdOp(t *testing.T) {
 			success.Store(true)
 			return true
 		})
+
+		// put database
+		{
+			databaseInfo := &pb.DatabaseInfo{
+				Id:   1,
+				Name: "default",
+			}
+			databaseBytes, _ := proto.Marshal(databaseInfo)
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.databasePrefix()+"/1", string(databaseBytes))
+		}
 
 		// "not created collection"
 		{
@@ -140,6 +156,12 @@ func TestEtcdOp(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, collections, 1)
 		assert.EqualValues(t, 100002, collections[0].ID)
+
+		{
+			dbName := etcdOp.GetDatabaseInfoForCollection(context.Background(), 100002)
+			assert.NoError(t, err)
+			assert.Equal(t, "default", dbName.Name)
+		}
 	}
 
 	// get collection name by id
@@ -147,6 +169,13 @@ func TestEtcdOp(t *testing.T) {
 		collectionName := etcdOp.GetCollectionNameByID(context.Background(), 100000)
 		assert.NoError(t, err)
 		assert.Equal(t, "test123", collectionName)
+	}
+
+	// get database name by collection id
+	{
+		dbName := etcdOp.GetDatabaseInfoForCollection(context.Background(), 100000)
+		assert.NoError(t, err)
+		assert.Equal(t, "default", dbName.Name)
 	}
 
 	// watch partition
@@ -184,7 +213,6 @@ func TestEtcdOp(t *testing.T) {
 			_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/9/200003", getStringForMessage(info))
 		}
 		// filled partition
-
 		{
 			info := &pb.PartitionInfo{
 				State:         pb.PartitionState_PartitionCreated,
@@ -203,6 +231,11 @@ func TestEtcdOp(t *testing.T) {
 			time.Sleep(500 * time.Millisecond)
 			assert.Eventually(t, success.Load, time.Second, time.Millisecond*100)
 		}
+		{
+			etcdOp.UnsubscribeEvent("empty_event", api.PartitionEventType)
+			etcdOp.UnsubscribeEvent("partition_event_123", api.PartitionEventType)
+			etcdOp.UnsubscribeEvent("partition_event_123", api.WatchEventType(0))
+		}
 	}
 
 	// get all partition
@@ -215,7 +248,7 @@ func TestEtcdOp(t *testing.T) {
 		assert.EqualValues(t, "foo", partitions[0].PartitionName)
 	}
 
-	// get collection id from partition id
+	// get collection id from partition key
 	{
 		{
 			id := realOp.getCollectionIDFromPartitionKey(realOp.partitionPrefix() + "/123456/9001")
@@ -231,6 +264,22 @@ func TestEtcdOp(t *testing.T) {
 		}
 	}
 
+	// get database id from collection key
+	{
+		{
+			id := realOp.getDatabaseIDFromCollectionKey(realOp.collectionPrefix() + "/123456/9001")
+			assert.EqualValues(t, 123456, id)
+		}
+		{
+			id := realOp.getDatabaseIDFromCollectionKey(realOp.collectionPrefix() + "/123456")
+			assert.EqualValues(t, 0, id)
+		}
+		{
+			id := realOp.getDatabaseIDFromCollectionKey(realOp.collectionPrefix() + "/nonumber/9001")
+			assert.EqualValues(t, 0, id)
+		}
+	}
+
 	// get collection name by id
 	{
 		{
@@ -242,6 +291,32 @@ func TestEtcdOp(t *testing.T) {
 			collectionName := etcdOp.GetCollectionNameByID(context.Background(), 800002)
 			assert.Equal(t, "", collectionName)
 		}
+	}
+
+	// get db name by collection id
+	{
+		{
+			databaseInfo := &pb.DatabaseInfo{
+				Id:   2,
+				Name: "foo",
+			}
+			databaseBytes, _ := proto.Marshal(databaseInfo)
+			_, _ = realOp.etcdClient.Put(context.Background(), realOp.databasePrefix()+"/2", string(databaseBytes))
+		}
+
+		collectionInfo := &pb.CollectionInfo{
+			ID:    99999,
+			State: pb.CollectionState_CollectionCreated,
+			Schema: &schemapb.CollectionSchema{
+				Name: "foodb",
+			},
+		}
+		collectionBytes, _ := proto.Marshal(collectionInfo)
+		_, _ = realOp.etcdClient.Put(context.Background(), realOp.collectionPrefix()+"/2/99999", string(collectionBytes))
+
+		dbInfo := realOp.GetDatabaseInfoForCollection(context.Background(), 99999)
+		assert.Equal(t, "foo", dbInfo.Name)
+		assert.EqualValues(t, 2, dbInfo.ID)
 	}
 }
 

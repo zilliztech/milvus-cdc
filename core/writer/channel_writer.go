@@ -3,7 +3,6 @@ package writer
 import (
 	"context"
 	"encoding/base64"
-	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
@@ -15,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 var _ api.Writer = (*ChannelWriter)(nil)
@@ -36,13 +36,29 @@ func (c *ChannelWriter) HandleReplicateAPIEvent(ctx context.Context, apiEvent *a
 	defer func() {
 		log.Info("finish to handle replicate api event", zap.Any("event", apiEvent.EventType))
 	}()
+
+	waitDatabaseReady := func() error {
+		if apiEvent.ReplicateParam.Database == "" {
+			return nil
+		}
+		if !c.WaitDatabaseReady(ctx, apiEvent.ReplicateParam.Database) {
+			log.Warn("database is not ready", zap.Any("event", apiEvent))
+			return errors.New("database is not ready")
+		}
+		return nil
+	}
+
 	switch apiEvent.EventType {
 	case api.ReplicateCreateCollection:
+		if err := waitDatabaseReady(); err != nil {
+			return err
+		}
 		collectionInfo := apiEvent.CollectionInfo
 		entitySchema := &entity.Schema{}
 		entitySchema = entitySchema.ReadProto(collectionInfo.Schema)
 		createParam := &api.CreateCollectionParam{
 			MsgBaseParam:     api.MsgBaseParam{Base: &commonpb.MsgBase{ReplicateInfo: apiEvent.ReplicateInfo}},
+			ReplicateParam:   apiEvent.ReplicateParam,
 			Schema:           entitySchema,
 			ShardsNum:        collectionInfo.ShardsNum,
 			ConsistencyLevel: collectionInfo.ConsistencyLevel,
@@ -54,8 +70,12 @@ func (c *ChannelWriter) HandleReplicateAPIEvent(ctx context.Context, apiEvent *a
 		}
 		return err
 	case api.ReplicateDropCollection:
+		if err := waitDatabaseReady(); err != nil {
+			return err
+		}
 		dropParam := &api.DropCollectionParam{
 			MsgBaseParam:   api.MsgBaseParam{Base: &commonpb.MsgBase{ReplicateInfo: apiEvent.ReplicateInfo}},
+			ReplicateParam: apiEvent.ReplicateParam,
 			CollectionName: apiEvent.CollectionInfo.Schema.GetName(),
 		}
 		err := c.dataHandler.DropCollection(ctx, dropParam)
@@ -64,8 +84,12 @@ func (c *ChannelWriter) HandleReplicateAPIEvent(ctx context.Context, apiEvent *a
 		}
 		return err
 	case api.ReplicateCreatePartition:
+		if err := waitDatabaseReady(); err != nil {
+			return err
+		}
 		createParam := &api.CreatePartitionParam{
 			MsgBaseParam:   api.MsgBaseParam{Base: &commonpb.MsgBase{ReplicateInfo: apiEvent.ReplicateInfo}},
+			ReplicateParam: apiEvent.ReplicateParam,
 			CollectionName: apiEvent.CollectionInfo.Schema.GetName(),
 			PartitionName:  apiEvent.PartitionInfo.PartitionName,
 		}
@@ -75,8 +99,12 @@ func (c *ChannelWriter) HandleReplicateAPIEvent(ctx context.Context, apiEvent *a
 		}
 		return err
 	case api.ReplicateDropPartition:
+		if err := waitDatabaseReady(); err != nil {
+			return err
+		}
 		dropParam := &api.DropPartitionParam{
 			MsgBaseParam:   api.MsgBaseParam{Base: &commonpb.MsgBase{ReplicateInfo: apiEvent.ReplicateInfo}},
+			ReplicateParam: apiEvent.ReplicateParam,
 			CollectionName: apiEvent.CollectionInfo.Schema.GetName(),
 			PartitionName:  apiEvent.PartitionInfo.PartitionName,
 		}
@@ -123,6 +151,7 @@ func (c *ChannelWriter) HandleReplicateMessage(ctx context.Context, channelName 
 	}
 	errChan := make(chan error, 1)
 	message := &api.ReplicateMessage{
+		Ctx:   ctx,
 		Param: replicateMessageParam,
 		SuccessFunc: func(param *api.ReplicateMessageParam) {
 			errChan <- nil
@@ -185,13 +214,20 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 			}
 		case commonpb.MsgType_Flush:
 			flushMsg := msg.(*msgstream.FlushMsg)
+			if !c.WaitDatabaseReady(ctx, flushMsg.GetDbName()) {
+				log.Warn("database is not ready", zap.Any("msg", flushMsg))
+				return nil, errors.New("database is not ready")
+			}
 			for _, s := range flushMsg.GetCollectionNames() {
-				if !c.WaitCollectionReady(ctx, s) {
+				if !c.WaitCollectionReady(ctx, s, flushMsg.GetDbName()) {
 					log.Warn("collection is not ready", zap.Any("msg", flushMsg))
 					return nil, errors.New("collection is not ready")
 				}
 			}
 			err := c.dataHandler.Flush(ctx, &api.FlushParam{
+				ReplicateParam: api.ReplicateParam{
+					Database: flushMsg.GetDbName(),
+				},
 				FlushRequest: milvuspb.FlushRequest{
 					Base:            msgBase,
 					CollectionNames: flushMsg.GetCollectionNames(),
@@ -203,11 +239,18 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 			}
 		case commonpb.MsgType_CreateIndex:
 			createIndexMsg := msg.(*msgstream.CreateIndexMsg)
-			if !c.WaitCollectionReady(ctx, createIndexMsg.GetCollectionName()) {
+			if !c.WaitDatabaseReady(ctx, createIndexMsg.GetDbName()) {
+				log.Warn("database is not ready", zap.Any("msg", createIndexMsg))
+				return nil, errors.New("database is not ready")
+			}
+			if !c.WaitCollectionReady(ctx, createIndexMsg.GetCollectionName(), createIndexMsg.GetDbName()) {
 				log.Warn("collection is not ready", zap.Any("msg", createIndexMsg))
 				return nil, errors.New("collection is not ready")
 			}
 			err := c.dataHandler.CreateIndex(ctx, &api.CreateIndexParam{
+				ReplicateParam: api.ReplicateParam{
+					Database: createIndexMsg.GetDbName(),
+				},
 				CreateIndexRequest: milvuspb.CreateIndexRequest{
 					Base:           msgBase,
 					CollectionName: createIndexMsg.GetCollectionName(),
@@ -223,6 +266,9 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 		case commonpb.MsgType_DropIndex:
 			dropIndexMsg := msg.(*msgstream.DropIndexMsg)
 			err := c.dataHandler.DropIndex(ctx, &api.DropIndexParam{
+				ReplicateParam: api.ReplicateParam{
+					Database: dropIndexMsg.GetDbName(),
+				},
 				DropIndexRequest: milvuspb.DropIndexRequest{
 					Base:           msgBase,
 					CollectionName: dropIndexMsg.GetCollectionName(),
@@ -236,11 +282,18 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 			}
 		case commonpb.MsgType_LoadCollection:
 			loadCollectionMsg := msg.(*msgstream.LoadCollectionMsg)
-			if !c.WaitCollectionReady(ctx, loadCollectionMsg.GetCollectionName()) {
+			if !c.WaitDatabaseReady(ctx, loadCollectionMsg.GetDbName()) {
+				log.Warn("database is not ready", zap.Any("msg", loadCollectionMsg))
+				return nil, errors.New("database is not ready")
+			}
+			if !c.WaitCollectionReady(ctx, loadCollectionMsg.GetCollectionName(), loadCollectionMsg.GetDbName()) {
 				log.Warn("collection is not ready", zap.Any("msg", loadCollectionMsg))
 				return nil, errors.New("collection is not ready")
 			}
 			err := c.dataHandler.LoadCollection(ctx, &api.LoadCollectionParam{
+				ReplicateParam: api.ReplicateParam{
+					Database: loadCollectionMsg.GetDbName(),
+				},
 				LoadCollectionRequest: milvuspb.LoadCollectionRequest{
 					Base:           msgBase,
 					CollectionName: loadCollectionMsg.GetCollectionName(),
@@ -253,6 +306,9 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 		case commonpb.MsgType_ReleaseCollection:
 			releaseCollectionMsg := msg.(*msgstream.ReleaseCollectionMsg)
 			err := c.dataHandler.ReleaseCollection(ctx, &api.ReleaseCollectionParam{
+				ReplicateParam: api.ReplicateParam{
+					Database: releaseCollectionMsg.GetDbName(),
+				},
 				ReleaseCollectionRequest: milvuspb.ReleaseCollectionRequest{
 					Base:           msgBase,
 					CollectionName: releaseCollectionMsg.GetCollectionName(),
@@ -272,11 +328,26 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 	return endPosition.MsgID, nil
 }
 
-func (c *ChannelWriter) WaitCollectionReady(ctx context.Context, name string) bool {
+func (c *ChannelWriter) WaitCollectionReady(ctx context.Context, collectionName, databaseName string) bool {
 	err := retry.Do(ctx, func() error {
 		return c.dataHandler.DescribeCollection(ctx, &api.DescribeCollectionParam{
-			Name: name,
+			ReplicateParam: api.ReplicateParam{
+				Database: databaseName,
+			},
+			Name: collectionName,
 		})
-	}, retry.Attempts(5), retry.Sleep(time.Second))
+	}, util.GetRetryOptionsFor25s()...)
+	return err == nil
+}
+
+func (c *ChannelWriter) WaitDatabaseReady(ctx context.Context, databaseName string) bool {
+	if databaseName == "" {
+		return true
+	}
+	err := retry.Do(ctx, func() error {
+		return c.dataHandler.DescribeDatabase(ctx, &api.DescribeDatabaseParam{
+			Name: databaseName,
+		})
+	}, util.GetRetryOptionsFor25s()...)
 	return err == nil
 }

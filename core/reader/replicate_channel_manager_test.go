@@ -23,7 +23,7 @@ import (
 
 func TestNewReplicateChannelManager(t *testing.T) {
 	t.Run("empty config", func(t *testing.T) {
-		_, err := NewReplicateChannelManager(config.MQConfig{}, NewDefaultFactoryCreator(), nil, 10)
+		_, err := NewReplicateChannelManager(config.MQConfig{}, NewDefaultFactoryCreator(), nil, 10, &api.DefaultMetaOp{})
 		assert.Error(t, err)
 	})
 
@@ -35,7 +35,7 @@ func TestNewReplicateChannelManager(t *testing.T) {
 			Pulsar: config.PulsarConfig{
 				Address: "pulsar://localhost:6650",
 			},
-		}, factoryCreator, nil, 10)
+		}, factoryCreator, nil, 10, &api.DefaultMetaOp{})
 		assert.NoError(t, err)
 	})
 }
@@ -95,11 +95,12 @@ func TestStartReadCollection(t *testing.T) {
 		Pulsar: config.PulsarConfig{
 			Address: "pulsar://localhost:6650",
 		},
-	}, factoryCreator, targetClient, 10)
+	}, factoryCreator, targetClient, 10, &api.DefaultMetaOp{})
 	assert.NoError(t, err)
+	manager.SetCtx(context.Background())
 
 	t.Run("context cancel", func(t *testing.T) {
-		targetClient.EXPECT().GetCollectionInfo(mock.Anything, mock.Anything).Return(nil, errors.New("error")).Once()
+		targetClient.EXPECT().GetCollectionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("error")).Once()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		cancelFunc()
 		err = manager.StartReadCollection(ctx, &pb.CollectionInfo{}, nil)
@@ -115,7 +116,7 @@ func TestStartReadCollection(t *testing.T) {
 			assert.Equal(t, "test", event.CollectionInfo.Schema.Name)
 			assert.True(t, event.ReplicateInfo.IsReplicate)
 		}()
-		targetClient.EXPECT().GetCollectionInfo(mock.Anything, mock.Anything).Return(nil, errors.New("mock error")).Twice()
+		targetClient.EXPECT().GetCollectionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("mock error")).Twice()
 		realManager.retryOptions = []retry.Option{
 			retry.Attempts(1),
 		}
@@ -181,7 +182,7 @@ func TestStartReadCollection(t *testing.T) {
 	t.Run("collection and partition", func(t *testing.T) {
 		// start collection
 		{
-			targetClient.EXPECT().GetCollectionInfo(mock.Anything, mock.Anything).Return(&model.CollectionInfo{
+			targetClient.EXPECT().GetCollectionInfo(mock.Anything, mock.Anything, mock.Anything).Return(&model.CollectionInfo{
 				CollectionID:   3101,
 				CollectionName: "read_collection",
 				PChannels:      []string{"collection_partition_p2"},
@@ -215,7 +216,7 @@ func TestStartReadCollection(t *testing.T) {
 
 		// add partition
 		{
-			targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything).Return(&model.CollectionInfo{
+			targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(&model.CollectionInfo{
 				Partitions: map[string]int64{
 					"_default":  31010,
 					"_default2": 31020,
@@ -256,7 +257,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		factory := msgstream.NewMockFactory(t)
 		factory.EXPECT().NewTtMsgStream(mock.Anything).Return(nil, errors.New("mock error"))
 
-		_, err := newReplicateChannelHandler(&model.SourceCollectionInfo{PChannelName: "test_p"}, (*model.TargetCollectionInfo)(nil), api.TargetAPI(nil), nil, &model.HandlerOpts{Factory: factory})
+		_, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{PChannelName: "test_p"}, (*model.TargetCollectionInfo)(nil), api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		assert.Error(t, err)
 	})
 
@@ -268,7 +269,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		{
 			stream.EXPECT().Close().Return().Once()
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock error")).Once()
-			_, err := newReplicateChannelHandler(&model.SourceCollectionInfo{PChannelName: "test_p"}, (*model.TargetCollectionInfo)(nil), api.TargetAPI(nil), nil, &model.HandlerOpts{Factory: factory})
+			_, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{PChannelName: "test_p"}, (*model.TargetCollectionInfo)(nil), api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 			assert.Error(t, err)
 		}
 
@@ -276,7 +277,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 			stream.EXPECT().Close().Return().Once()
 			stream.EXPECT().Seek(mock.Anything, mock.Anything).Return(errors.New("mock error")).Once()
-			_, err := newReplicateChannelHandler(&model.SourceCollectionInfo{PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, (*model.TargetCollectionInfo)(nil), api.TargetAPI(nil), nil, &model.HandlerOpts{Factory: factory})
+			_, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, (*model.TargetCollectionInfo)(nil), api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 			assert.Error(t, err)
 		}
 	})
@@ -294,7 +295,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream.EXPECT().Close().Return().Once()
 		stream.EXPECT().Seek(mock.Anything, mock.Anything).Return(nil).Once()
 		stream.EXPECT().Chan().Return(streamChan).Once()
-		handler, err := newReplicateChannelHandler(&model.SourceCollectionInfo{PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, &model.TargetCollectionInfo{PChannel: "test_p"}, api.TargetAPI(nil), nil, &model.HandlerOpts{Factory: factory})
+		handler, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, &model.TargetCollectionInfo{PChannel: "test_p"}, api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		assert.NoError(t, err)
 		time.Sleep(100 * time.Microsecond)
 		handler.Close()
@@ -313,7 +314,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream.EXPECT().Seek(mock.Anything, mock.Anything).Return(nil).Once()
 		stream.EXPECT().Chan().Return(streamChan).Once().Maybe()
 
-		handler, err := newReplicateChannelHandler(&model.SourceCollectionInfo{
+		handler, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{
 			PChannelName: "test_p",
 			SeekPosition: &msgstream.MsgPosition{
 				ChannelName: "test_p", MsgID: []byte("test"),
@@ -322,7 +323,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}, &model.TargetCollectionInfo{
 			PChannel:       "test_p",
 			CollectionName: "foo",
-		}, targetClient, nil, &model.HandlerOpts{Factory: factory})
+		}, targetClient, &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		assert.NoError(t, err)
 		time.Sleep(100 * time.Millisecond)
 		assert.True(t, handler.containCollection("foo"))
@@ -346,8 +347,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream.EXPECT().Close().Return().Once()
 		stream.EXPECT().Seek(mock.Anything, mock.Anything).Return(nil).Once()
 		stream.EXPECT().Chan().Return(streamChan).Once()
-		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything).Return(nil, errors.New("mock error")).Once()
-		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything).Return(&model.CollectionInfo{
+		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("mock error")).Once()
+		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(&model.CollectionInfo{
 			Partitions: map[string]int64{
 				"p1": 10001,
 				"p2": 10002,
@@ -357,7 +358,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		apiEventChan := make(chan *api.ReplicateAPIEvent)
 		handler, err := func() (*replicateChannelHandler, error) {
 			var _ chan<- *api.ReplicateAPIEvent = apiEventChan
-			return newReplicateChannelHandler(&model.SourceCollectionInfo{CollectionID: 1, PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, &model.TargetCollectionInfo{CollectionID: 100, CollectionName: "test", PChannel: "test_p"}, api.TargetAPI(targetClient), nil, &model.HandlerOpts{Factory: factory})
+			return newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{CollectionID: 1, PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, &model.TargetCollectionInfo{CollectionID: 100, CollectionName: "test", PChannel: "test_p"}, api.TargetAPI(targetClient), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		}()
 		assert.NoError(t, err)
 		time.Sleep(100 * time.Millisecond)
@@ -388,14 +389,14 @@ func TestReplicateChannelHandler(t *testing.T) {
 		assert.NotNil(t, handler.msgPackChan)
 
 		// test updateTargetPartitionInfo
-		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything).Return(nil, errors.New("mock error")).Once()
-		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything).Return(&model.CollectionInfo{
+		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("mock error")).Once()
+		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(&model.CollectionInfo{
 			Partitions: map[string]int64{
 				"p1": 30001,
 				"p2": 30002,
 			},
 		}, nil).Once()
-		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything).Return(&model.CollectionInfo{
+		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(&model.CollectionInfo{
 			Partitions: map[string]int64{
 				"p1": 30001,
 				"p2": 30002,
@@ -423,7 +424,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 
 		barrierChan := make(chan uint64, 1)
 		partitionBarrierChan := make(chan uint64, 1)
-		handler, err := newReplicateChannelHandler(&model.SourceCollectionInfo{
+		handler, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{
 			CollectionID: 1,
 			PChannelName: "test_p_s",
 			SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")},
@@ -439,7 +440,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			PartitionBarrierChan: map[int64]chan<- uint64{
 				1021: partitionBarrierChan,
 			},
-		}, targetClient, nil, &model.HandlerOpts{Factory: factory})
+		}, targetClient, &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		assert.NoError(t, err)
 		done := make(chan struct{})
 
