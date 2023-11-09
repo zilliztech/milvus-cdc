@@ -397,12 +397,19 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 			taskLog.Warn("fail to new target", zap.String("address", milvusAddress), zap.Error(err))
 			return nil, servererror.NewClientError("fail to connect target milvus server")
 		}
-		// TODO improve it
+		// TODO improve the config
+		sourceConfig := e.config.SourceConfig
+		metaOp, err := cdcreader.NewEtcdOp(sourceConfig.EtcdAddress, sourceConfig.EtcdRootPath, sourceConfig.EtcdMetaSubPath, sourceConfig.DefaultPartitionName)
+		if err != nil {
+			taskLog.Warn("fail to new the meta op", zap.Error(err))
+			return nil, servererror.NewClientError("fail to new the meta op")
+		}
+
 		bufferSize := e.config.SourceConfig.ReadChanLen
 		channelManager, err := cdcreader.NewReplicateChannelManager(config.MQConfig{
 			Pulsar: e.config.SourceConfig.Pulsar,
 			Kafka:  e.config.SourceConfig.Kafka,
-		}, e.mqFactoryCreator, milvusClient, bufferSize)
+		}, e.mqFactoryCreator, milvusClient, bufferSize, metaOp)
 		if err != nil {
 			taskLog.Warn("fail to create replicate channel manager", zap.Error(err))
 			return nil, servererror.NewClientError("fail to create replicate channel manager")
@@ -419,18 +426,13 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 			return nil, servererror.NewClientError("fail to new the data handler, task_id: ")
 		}
 		writerObj := cdcwriter.NewChannelWriter(dataHandler, bufferSize)
-		sourceConfig := e.config.SourceConfig
-		metaOp, err := cdcreader.NewEtcdOp(sourceConfig.EtcdAddress, sourceConfig.EtcdRootPath, sourceConfig.EtcdMetaSubPath, sourceConfig.DefaultPartitionName)
-		if err != nil {
-			taskLog.Warn("fail to new the meta op", zap.Error(err))
-			return nil, servererror.NewClientError("fail to new the meta op")
-		}
 
 		e.replicateEntityMap.Lock()
 		defer e.replicateEntityMap.Unlock()
 		entity, ok := e.replicateEntityMap.data[milvusAddress]
 		if !ok {
 			replicateCtx, cancelReplicateFunc := context.WithCancel(ctx)
+			channelManager.SetCtx(replicateCtx)
 			entity = &ReplicateEntity{
 				targetClient:   milvusClient,
 				channelManager: channelManager,
@@ -517,6 +519,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 										return
 									}
 									msgTime, _ := tsoutil.ParseHybridTs(msgPack.EndTs)
+									// TODO should delete the position when drop collection
 									metaPosition := &meta.PositionInfo{
 										Time: msgTime,
 										DataPair: &commonpb.KeyDataPair{
@@ -595,8 +598,13 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 		log.Warn("fail to read the message", zap.Error(err))
 		_ = e.pauseTaskWithReason(info.TaskID, "fail to read the message, err:"+err.Error(), []meta.TaskState{})
 	}()
-	channelReader, err := cdcreader.NewChannelReader(info.RPCRequestChannelInfo.Name,
-		info.RPCRequestChannelInfo.Position, config.MQConfig{
+	rpcRequestChannelName := info.RPCRequestChannelInfo.Name
+	rpcRequestPosition := info.RPCRequestChannelInfo.Position
+	if rpcRequestPosition == "" && channelSeekPosition[rpcRequestChannelName] != nil {
+		rpcRequestPosition = base64.StdEncoding.EncodeToString(channelSeekPosition[rpcRequestChannelName].MsgID)
+	}
+	channelReader, err := cdcreader.NewChannelReader(rpcRequestChannelName,
+		rpcRequestPosition, config.MQConfig{
 			Pulsar: e.config.SourceConfig.Pulsar,
 			Kafka:  e.config.SourceConfig.Kafka,
 		}, func(funcCtx context.Context, pack *msgstream.MsgPack) bool {

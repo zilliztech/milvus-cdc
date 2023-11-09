@@ -29,9 +29,10 @@ import (
 var _ api.ChannelManager = (*replicateChannelManager)(nil)
 
 type replicateChannelManager struct {
+	replicateCtx      context.Context
 	factory           msgstream.Factory
-	apiEventChan      chan *api.ReplicateAPIEvent
 	targetClient      api.TargetAPI
+	metaOp            api.MetaOp
 	retryOptions      []retry.Option
 	messageBufferSize int
 
@@ -44,10 +45,11 @@ type replicateChannelManager struct {
 	partitionLock       sync.Mutex
 	replicatePartitions map[int64]map[int64]chan struct{}
 
-	channelChan chan string
+	channelChan  chan string
+	apiEventChan chan *api.ReplicateAPIEvent
 }
 
-func NewReplicateChannelManager(mqConfig config.MQConfig, factoryCreator FactoryCreator, client api.TargetAPI, messageBufferSize int) (api.ChannelManager, error) {
+func NewReplicateChannelManager(mqConfig config.MQConfig, factoryCreator FactoryCreator, client api.TargetAPI, messageBufferSize int, metaOp api.MetaOp) (api.ChannelManager, error) {
 	var factory msgstream.Factory
 	switch {
 	case mqConfig.Pulsar.Address != "":
@@ -61,19 +63,33 @@ func NewReplicateChannelManager(mqConfig config.MQConfig, factoryCreator Factory
 
 	return &replicateChannelManager{
 		factory:              factory,
-		apiEventChan:         make(chan *api.ReplicateAPIEvent, 10),
 		targetClient:         client,
+		metaOp:               metaOp,
 		retryOptions:         util.GetRetryOptionsFor25s(),
 		messageBufferSize:    messageBufferSize,
 		channelHandlerMap:    make(map[string]*replicateChannelHandler),
 		replicateCollections: make(map[int64]chan struct{}),
 		replicatePartitions:  make(map[int64]map[int64]chan struct{}),
 		channelChan:          make(chan string, 10),
+		apiEventChan:         make(chan *api.ReplicateAPIEvent, 10),
 	}, nil
 }
 
+func (r *replicateChannelManager) SetCtx(ctx context.Context) {
+	r.replicateCtx = ctx
+}
+
+func (r *replicateChannelManager) getCtx() context.Context {
+	if r.replicateCtx == nil {
+		return context.Background()
+	}
+	return r.replicateCtx
+}
+
 func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
-	if _, err := r.targetClient.GetCollectionInfo(ctx, info.Schema.GetName()); err != nil {
+	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, info.ID)
+
+	if _, err := r.targetClient.GetCollectionInfo(ctx, info.Schema.GetName(), sourceDBInfo.Name); err != nil {
 		select {
 		case <-ctx.Done():
 			log.Warn("context is done in the start read collection")
@@ -86,6 +102,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 					IsReplicate:  true,
 					MsgTimestamp: info.CreateTime,
 				},
+				ReplicateParam: api.ReplicateParam{Database: sourceDBInfo.Name},
 			}
 		}
 	}
@@ -94,7 +111,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 	var err error
 
 	err = retry.Do(ctx, func() error {
-		targetInfo, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.Name)
+		targetInfo, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.Name, sourceDBInfo.Name)
 		return err
 	}, r.retryOptions...)
 	if err != nil {
@@ -127,6 +144,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 				IsReplicate:  true,
 				MsgTimestamp: msgTs,
 			},
+			ReplicateParam: api.ReplicateParam{Database: sourceDBInfo.Name},
 		}:
 		}
 	})
@@ -193,6 +211,7 @@ func ForeachChannel(sourcePChannels, targetPChannels []string, f func(sourcePCha
 func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo) error {
 	var handlers []*replicateChannelHandler
 	collectionID := collectionInfo.ID
+	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, collectionID)
 	r.channelLock.RLock()
 	for _, handler := range r.channelHandlerMap {
 		handler.recordLock.RLock()
@@ -223,6 +242,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 				IsReplicate:  true,
 				MsgTimestamp: partitionInfo.PartitionCreatedTimestamp,
 			},
+			ReplicateParam: api.ReplicateParam{Database: sourceDBInfo.Name},
 		}:
 		case <-ctx.Done():
 			log.Warn("context is done when adding partition")
@@ -242,6 +262,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 				IsReplicate:  true,
 				MsgTimestamp: msgTs,
 			},
+			ReplicateParam: api.ReplicateParam{Database: sourceDBInfo.Name},
 		}:
 			for _, handler := range handlers {
 				handler.RemovePartitionInfo(collectionID, partitionInfo.PartitionName, partitionInfo.PartitionID)
@@ -323,8 +344,9 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 
 	channelHandler, ok := r.channelHandlerMap[sourceInfo.PChannelName]
 	if !ok {
-		channelHandler, err = newReplicateChannelHandler(sourceInfo, targetInfo,
-			r.targetClient, r.apiEventChan,
+		channelHandler, err = newReplicateChannelHandler(r.getCtx(),
+			sourceInfo, targetInfo,
+			r.targetClient, r.metaOp, r.apiEventChan,
 			&model.HandlerOpts{MessageBufferSize: r.messageBufferSize, Factory: r.factory})
 		if err != nil {
 			log.Warn("fail to new replicate channel handler",
@@ -353,10 +375,12 @@ func (r *replicateChannelManager) stopReadChannel(pChannelName string, collectio
 }
 
 type replicateChannelHandler struct {
+	replicateCtx   context.Context
 	pChannelName   string
 	targetPChannel string
 	stream         msgstream.MsgStream
 	targetClient   api.TargetAPI
+	metaOp         api.MetaOp
 	// key: source milvus collectionID value: *model.TargetCollectionInfo
 	recordLock        sync.RWMutex
 	collectionRecords map[int64]*model.TargetCollectionInfo
@@ -400,7 +424,7 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 	}
 	targetInfo.PartitionBarrierChan[partitionID] = barrierChan
 	go func() {
-		_ = retry.Do(context.Background(), func() error {
+		_ = retry.Do(r.replicateCtx, func() error {
 			id := r.updateTargetPartitionInfo(collectionID, collectionName, partitionName)
 			if id == 0 {
 				return errors.Newf("not found the partition [%s]", partitionName)
@@ -412,7 +436,11 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 }
 
 func (r *replicateChannelHandler) updateTargetPartitionInfo(collectionID int64, collectionName string, partitionName string) int64 {
-	collectionInfo, err := r.targetClient.GetPartitionInfo(context.Background(), collectionName)
+	ctx, cancelFunc := context.WithTimeout(r.replicateCtx, 10*time.Second)
+	defer cancelFunc()
+	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, collectionID)
+
+	collectionInfo, err := r.targetClient.GetPartitionInfo(ctx, collectionName, sourceDBInfo.Name)
 	if err != nil {
 		log.Warn("fail to get partition info", zap.String("collection_name", collectionName), zap.Error(err))
 		return 0
@@ -469,24 +497,30 @@ func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) (*
 	r.recordLock.RLock()
 	targetInfo, ok := r.collectionRecords[collectionID]
 	r.recordLock.RUnlock()
-	i := 0
-	for !ok && i < 10 {
+	if ok {
+		return targetInfo, nil
+	}
+
+	// Sleep for a short time to avoid invalid requests
+	time.Sleep(500 * time.Millisecond)
+	err := retry.Do(r.replicateCtx, func() error {
 		log.Warn("wait collection info",
 			zap.Int64("msg_collection_id", collectionID))
-		time.Sleep(500 * time.Millisecond)
 		r.recordLock.RLock()
 		var xs []int64
 		for x := range r.collectionRecords {
 			xs = append(xs, x)
 		}
-		log.Info("collection records", zap.Any("xs", xs))
+		log.Info("collection records", zap.Any("records", xs))
 		// TODO it needs to be considered when supporting the specific collection in a task
 		targetInfo, ok = r.collectionRecords[collectionID]
 		r.recordLock.RUnlock()
-		i++
-	}
-	if !ok && i == 10 {
-		err := errors.Newf("not found the collection [%d]", collectionID)
+		if ok {
+			return nil
+		}
+		return errors.Newf("not found the collection [%d]", collectionID)
+	}, util.GetRetryOptionsFor9s()...)
+	if err != nil {
 		log.Warn("fail to find the collection info", zap.Error(err))
 		return nil, err
 	}
@@ -503,17 +537,23 @@ func (r *replicateChannelHandler) getPartitionID(sourceCollectionID int64, info 
 	r.recordLock.RLock()
 	id, ok := info.PartitionInfo[name]
 	r.recordLock.RUnlock()
-	i := 0
-	for !ok && i < 10 {
-		log.Warn("wait partition info", zap.Int64("collection_id", info.CollectionID), zap.String("partition_name", name))
-		time.Sleep(500 * time.Millisecond)
-		id = r.updateTargetPartitionInfo(sourceCollectionID, info.CollectionName, name)
-		ok = id != 0
-		i++
+	if ok {
+		return id, nil
 	}
-	if !ok && i == 10 {
+
+	// Sleep for a short time to avoid invalid requests
+	time.Sleep(500 * time.Millisecond)
+	err := retry.Do(r.replicateCtx, func() error {
+		log.Warn("wait partition info", zap.Int64("collection_id", info.CollectionID), zap.String("partition_name", name))
+		id = r.updateTargetPartitionInfo(sourceCollectionID, info.CollectionName, name)
+		if id != 0 {
+			return nil
+		}
+		return errors.Newf("not found the partition [%s]", name)
+	})
+	if err != nil {
 		log.Warn("fail to find the partition id", zap.Int64("source_collection", sourceCollectionID), zap.Any("target_collection", info.CollectionID), zap.String("partition_name", name))
-		return 0, errors.Newf("not found the partition [%s]", name)
+		return 0, err
 	}
 	return id, nil
 }
@@ -646,21 +686,22 @@ func (r *replicateChannelHandler) sendErrEvent(err error) {
 	}
 }
 
-func newReplicateChannelHandler(
-	sourceInfo *model.SourceCollectionInfo,
-	targetInfo *model.TargetCollectionInfo,
-	targetClient api.TargetAPI,
-	apiEventChan chan *api.ReplicateAPIEvent,
-	opts *model.HandlerOpts,
+func newReplicateChannelHandler(ctx context.Context,
+	sourceInfo *model.SourceCollectionInfo, targetInfo *model.TargetCollectionInfo,
+	targetClient api.TargetAPI, metaOp api.MetaOp,
+	apiEventChan chan *api.ReplicateAPIEvent, opts *model.HandlerOpts,
 ) (*replicateChannelHandler, error) {
-	ctx := context.Background()
 	stream, err := opts.Factory.NewTtMsgStream(ctx)
 	log := log.With(zap.String("channel_name", sourceInfo.PChannelName), zap.Int64("collection_id", sourceInfo.CollectionID))
 	if err != nil {
 		log.Warn("fail to new the msg stream", zap.Error(err))
 		return nil, err
 	}
-	err = stream.AsConsumer(ctx, []string{sourceInfo.PChannelName}, sourceInfo.PChannelName+strconv.Itoa(rand.Int()), mqwrapper.SubscriptionPositionUnknown)
+	subPositionType := mqwrapper.SubscriptionPositionUnknown
+	if sourceInfo.SeekPosition != nil {
+		subPositionType = mqwrapper.SubscriptionPositionLatest
+	}
+	err = stream.AsConsumer(ctx, []string{sourceInfo.PChannelName}, sourceInfo.PChannelName+strconv.Itoa(rand.Int()), subPositionType)
 	if err != nil {
 		log.Warn("fail to consume the channel", zap.Error(err))
 		stream.Close()
@@ -675,10 +716,12 @@ func newReplicateChannelHandler(
 		}
 	}
 	channelHandler := &replicateChannelHandler{
+		replicateCtx:      ctx,
 		pChannelName:      sourceInfo.PChannelName,
 		targetPChannel:    targetInfo.PChannel,
 		stream:            stream,
 		targetClient:      targetClient,
+		metaOp:            metaOp,
 		collectionRecords: make(map[int64]*model.TargetCollectionInfo),
 		collectionNames:   make(map[string]int64),
 		msgPackChan:       make(chan *msgstream.MsgPack, opts.MessageBufferSize),

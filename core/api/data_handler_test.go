@@ -393,3 +393,29 @@ func TestDefaultDataHandler_ReplicateMessage(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultDataHandler_DescribeDatabase(t *testing.T) {
+	type args struct {
+		ctx   context.Context
+		param *DescribeDatabaseParam
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "TestDefaultDataHandler_DescribeDatabase",
+			args:    args{},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &DefaultDataHandler{}
+			if err := d.DescribeDatabase(tt.args.ctx, tt.args.param); (err != nil) != tt.wantErr {
+				t.Errorf("DescribeDatabase() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

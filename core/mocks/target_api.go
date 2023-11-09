@@ -22,25 +22,25 @@ func (_m *TargetAPI) EXPECT() *TargetAPI_Expecter {
 	return &TargetAPI_Expecter{mock: &_m.Mock}
 }
 
-// GetCollectionInfo provides a mock function with given fields: ctx, collectionName
-func (_m *TargetAPI) GetCollectionInfo(ctx context.Context, collectionName string) (*model.CollectionInfo, error) {
-	ret := _m.Called(ctx, collectionName)
+// GetCollectionInfo provides a mock function with given fields: ctx, collectionName, databaseName
+func (_m *TargetAPI) GetCollectionInfo(ctx context.Context, collectionName string, databaseName string) (*model.CollectionInfo, error) {
+	ret := _m.Called(ctx, collectionName, databaseName)
 
 	var r0 *model.CollectionInfo
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*model.CollectionInfo, error)); ok {
-		return rf(ctx, collectionName)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*model.CollectionInfo, error)); ok {
+		return rf(ctx, collectionName, databaseName)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *model.CollectionInfo); ok {
-		r0 = rf(ctx, collectionName)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *model.CollectionInfo); ok {
+		r0 = rf(ctx, collectionName, databaseName)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*model.CollectionInfo)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, collectionName)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, collectionName, databaseName)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -56,13 +56,14 @@ type TargetAPI_GetCollectionInfo_Call struct {
 // GetCollectionInfo is a helper method to define mock.On call
 //   - ctx context.Context
 //   - collectionName string
-func (_e *TargetAPI_Expecter) GetCollectionInfo(ctx interface{}, collectionName interface{}) *TargetAPI_GetCollectionInfo_Call {
-	return &TargetAPI_GetCollectionInfo_Call{Call: _e.mock.On("GetCollectionInfo", ctx, collectionName)}
+//   - databaseName string
+func (_e *TargetAPI_Expecter) GetCollectionInfo(ctx interface{}, collectionName interface{}, databaseName interface{}) *TargetAPI_GetCollectionInfo_Call {
+	return &TargetAPI_GetCollectionInfo_Call{Call: _e.mock.On("GetCollectionInfo", ctx, collectionName, databaseName)}
 }
 
-func (_c *TargetAPI_GetCollectionInfo_Call) Run(run func(ctx context.Context, collectionName string)) *TargetAPI_GetCollectionInfo_Call {
+func (_c *TargetAPI_GetCollectionInfo_Call) Run(run func(ctx context.Context, collectionName string, databaseName string)) *TargetAPI_GetCollectionInfo_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
 	return _c
 }
@@ -72,30 +73,30 @@ func (_c *TargetAPI_GetCollectionInfo_Call) Return(_a0 *model.CollectionInfo, _a
 	return _c
 }
 
-func (_c *TargetAPI_GetCollectionInfo_Call) RunAndReturn(run func(context.Context, string) (*model.CollectionInfo, error)) *TargetAPI_GetCollectionInfo_Call {
+func (_c *TargetAPI_GetCollectionInfo_Call) RunAndReturn(run func(context.Context, string, string) (*model.CollectionInfo, error)) *TargetAPI_GetCollectionInfo_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// GetPartitionInfo provides a mock function with given fields: ctx, collectionName
-func (_m *TargetAPI) GetPartitionInfo(ctx context.Context, collectionName string) (*model.CollectionInfo, error) {
-	ret := _m.Called(ctx, collectionName)
+// GetPartitionInfo provides a mock function with given fields: ctx, collectionName, databaseName
+func (_m *TargetAPI) GetPartitionInfo(ctx context.Context, collectionName string, databaseName string) (*model.CollectionInfo, error) {
+	ret := _m.Called(ctx, collectionName, databaseName)
 
 	var r0 *model.CollectionInfo
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*model.CollectionInfo, error)); ok {
-		return rf(ctx, collectionName)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*model.CollectionInfo, error)); ok {
+		return rf(ctx, collectionName, databaseName)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *model.CollectionInfo); ok {
-		r0 = rf(ctx, collectionName)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *model.CollectionInfo); ok {
+		r0 = rf(ctx, collectionName, databaseName)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*model.CollectionInfo)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, collectionName)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, collectionName, databaseName)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -111,13 +112,14 @@ type TargetAPI_GetPartitionInfo_Call struct {
 // GetPartitionInfo is a helper method to define mock.On call
 //   - ctx context.Context
 //   - collectionName string
-func (_e *TargetAPI_Expecter) GetPartitionInfo(ctx interface{}, collectionName interface{}) *TargetAPI_GetPartitionInfo_Call {
-	return &TargetAPI_GetPartitionInfo_Call{Call: _e.mock.On("GetPartitionInfo", ctx, collectionName)}
+//   - databaseName string
+func (_e *TargetAPI_Expecter) GetPartitionInfo(ctx interface{}, collectionName interface{}, databaseName interface{}) *TargetAPI_GetPartitionInfo_Call {
+	return &TargetAPI_GetPartitionInfo_Call{Call: _e.mock.On("GetPartitionInfo", ctx, collectionName, databaseName)}
 }
 
-func (_c *TargetAPI_GetPartitionInfo_Call) Run(run func(ctx context.Context, collectionName string)) *TargetAPI_GetPartitionInfo_Call {
+func (_c *TargetAPI_GetPartitionInfo_Call) Run(run func(ctx context.Context, collectionName string, databaseName string)) *TargetAPI_GetPartitionInfo_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
 	return _c
 }
@@ -127,7 +129,7 @@ func (_c *TargetAPI_GetPartitionInfo_Call) Return(_a0 *model.CollectionInfo, _a1
 	return _c
 }
 
-func (_c *TargetAPI_GetPartitionInfo_Call) RunAndReturn(run func(context.Context, string) (*model.CollectionInfo, error)) *TargetAPI_GetPartitionInfo_Call {
+func (_c *TargetAPI_GetPartitionInfo_Call) RunAndReturn(run func(context.Context, string, string) (*model.CollectionInfo, error)) *TargetAPI_GetPartitionInfo_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -9,6 +9,8 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
+	model "github.com/zilliztech/milvus-cdc/core/model"
+
 	pb "github.com/zilliztech/milvus-cdc/core/pb"
 )
 
@@ -174,6 +176,49 @@ func (_c *MetaOp_GetCollectionNameByID_Call) Return(_a0 string) *MetaOp_GetColle
 }
 
 func (_c *MetaOp_GetCollectionNameByID_Call) RunAndReturn(run func(context.Context, int64) string) *MetaOp_GetCollectionNameByID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetDatabaseInfoForCollection provides a mock function with given fields: ctx, id
+func (_m *MetaOp) GetDatabaseInfoForCollection(ctx context.Context, id int64) model.DatabaseInfo {
+	ret := _m.Called(ctx, id)
+
+	var r0 model.DatabaseInfo
+	if rf, ok := ret.Get(0).(func(context.Context, int64) model.DatabaseInfo); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(model.DatabaseInfo)
+	}
+
+	return r0
+}
+
+// MetaOp_GetDatabaseInfoForCollection_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDatabaseInfoForCollection'
+type MetaOp_GetDatabaseInfoForCollection_Call struct {
+	*mock.Call
+}
+
+// GetDatabaseInfoForCollection is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id int64
+func (_e *MetaOp_Expecter) GetDatabaseInfoForCollection(ctx interface{}, id interface{}) *MetaOp_GetDatabaseInfoForCollection_Call {
+	return &MetaOp_GetDatabaseInfoForCollection_Call{Call: _e.mock.On("GetDatabaseInfoForCollection", ctx, id)}
+}
+
+func (_c *MetaOp_GetDatabaseInfoForCollection_Call) Run(run func(ctx context.Context, id int64)) *MetaOp_GetDatabaseInfoForCollection_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MetaOp_GetDatabaseInfoForCollection_Call) Return(_a0 model.DatabaseInfo) *MetaOp_GetDatabaseInfoForCollection_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MetaOp_GetDatabaseInfoForCollection_Call) RunAndReturn(run func(context.Context, int64) model.DatabaseInfo) *MetaOp_GetDatabaseInfoForCollection_Call {
 	_c.Call.Return(run)
 	return _c
 }

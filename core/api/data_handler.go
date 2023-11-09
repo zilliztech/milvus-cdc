@@ -29,6 +29,7 @@ type DataHandler interface {
 	ReplicateMessage(ctx context.Context, param *ReplicateMessageParam) error
 
 	DescribeCollection(ctx context.Context, param *DescribeCollectionParam) error
+	DescribeDatabase(ctx context.Context, param *DescribeDatabaseParam) error
 }
 
 type DefaultDataHandler struct{}
@@ -110,12 +111,22 @@ func (d *DefaultDataHandler) DescribeCollection(ctx context.Context, param *Desc
 	return nil
 }
 
+func (d *DefaultDataHandler) DescribeDatabase(ctx context.Context, param *DescribeDatabaseParam) error {
+	log.Warn("DescribeDatabase is not implemented, please check it")
+	return nil
+}
+
 type MsgBaseParam struct {
 	Base *commonpb.MsgBase
 }
 
+type ReplicateParam struct {
+	Database string
+}
+
 type CreateCollectionParam struct {
 	MsgBaseParam
+	ReplicateParam
 	Schema           *entity.Schema
 	ShardsNum        int32
 	ConsistencyLevel commonpb.ConsistencyLevel
@@ -124,16 +135,21 @@ type CreateCollectionParam struct {
 
 type DropCollectionParam struct {
 	MsgBaseParam
+	ReplicateParam
 	CollectionName string
 }
 
 type InsertParam struct {
+	MsgBaseParam
+	ReplicateParam
 	CollectionName string
 	PartitionName  string
 	Columns        []entity.Column
 }
 
 type DeleteParam struct {
+	MsgBaseParam
+	ReplicateParam
 	CollectionName string
 	PartitionName  string
 	Column         entity.Column
@@ -141,46 +157,56 @@ type DeleteParam struct {
 
 type CreatePartitionParam struct {
 	MsgBaseParam
+	ReplicateParam
 	CollectionName string
 	PartitionName  string
 }
 
 type DropPartitionParam struct {
 	MsgBaseParam
+	ReplicateParam
 	CollectionName string
 	PartitionName  string
 }
 
 type CreateIndexParam struct {
+	ReplicateParam
 	milvuspb.CreateIndexRequest
 }
 
 type DropIndexParam struct {
+	ReplicateParam
 	milvuspb.DropIndexRequest
 }
 
 type LoadCollectionParam struct {
+	ReplicateParam
 	milvuspb.LoadCollectionRequest
 }
 
 type ReleaseCollectionParam struct {
+	ReplicateParam
 	milvuspb.ReleaseCollectionRequest
 }
 
 type CreateDatabaseParam struct {
+	ReplicateParam
 	milvuspb.CreateDatabaseRequest
 }
 
 type DropDatabaseParam struct {
+	ReplicateParam
 	milvuspb.DropDatabaseRequest
 }
 
 type FlushParam struct {
+	ReplicateParam
 	milvuspb.FlushRequest
 }
 
 type ReplicateMessageParam struct {
 	MsgBaseParam
+	ReplicateParam
 	ChannelName                  string
 	BeginTs, EndTs               uint64
 	MsgsBytes                    [][]byte
@@ -190,5 +216,11 @@ type ReplicateMessageParam struct {
 }
 
 type DescribeCollectionParam struct {
+	ReplicateParam
+	Name string
+}
+
+type DescribeDatabaseParam struct {
+	ReplicateParam
 	Name string
 }

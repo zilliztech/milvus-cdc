@@ -79,7 +79,18 @@ func TestCollectionReader(t *testing.T) {
 		}
 	}
 
+	// put database
+	{
+		databaseInfo := &pb.DatabaseInfo{
+			Id:   1,
+			Name: "default",
+		}
+		databaseBytes, _ := proto.Marshal(databaseInfo)
+		_, _ = realOp.etcdClient.Put(context.Background(), realOp.databasePrefix()+"/1", string(databaseBytes))
+	}
+
 	channelManager := mocks.NewChannelManager(t)
+	// existed collection and partition
 	channelManager.EXPECT().StartReadCollection(mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock err")).Once()
 	channelManager.EXPECT().AddPartition(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 
@@ -96,6 +107,7 @@ func TestCollectionReader(t *testing.T) {
 		}
 	}()
 	reader.StartRead(context.Background())
+	// put collection and partition
 	channelManager.EXPECT().StartReadCollection(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	channelManager.EXPECT().AddPartition(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 

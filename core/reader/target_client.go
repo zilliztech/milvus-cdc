@@ -10,23 +10,28 @@ import (
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/model"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 var _ api.TargetAPI = (*TargetClient)(nil)
 
 type TargetClient struct {
 	client client.Client
+	config TargetConfig
 }
 
 type TargetConfig struct {
 	Address   string
 	Username  string
 	Password  string
+	APIKey    string
 	EnableTLS bool
 }
 
 func NewTarget(ctx context.Context, config TargetConfig) (api.TargetAPI, error) {
-	targetClient := &TargetClient{}
+	targetClient := &TargetClient{
+		config: config,
+	}
 	var err error
 	targetClient.client, err = client.NewClient(ctx, client.Config{
 		Address:       config.Address,
@@ -41,9 +46,34 @@ func NewTarget(ctx context.Context, config TargetConfig) (api.TargetAPI, error) 
 	return targetClient, nil
 }
 
-func (t *TargetClient) GetCollectionInfo(ctx context.Context, collectionName string) (*model.CollectionInfo, error) {
+func (t *TargetClient) GetMilvus(ctx context.Context, databaseName string) (client.Client, error) {
+	if databaseName == "" || databaseName == util.DefaultDbName {
+		return t.client, nil
+	}
+	apiKey := t.config.APIKey
+	if apiKey == "" {
+		apiKey = util.GetAPIKey(t.config.Username, t.config.Password)
+	}
+	milvusClient, err := util.GetMilvusClientManager().GetMilvusClient(ctx,
+		t.config.Address,
+		apiKey,
+		databaseName,
+		t.config.EnableTLS)
+	if err != nil {
+		return nil, err
+	}
+	return milvusClient, nil
+}
+
+func (t *TargetClient) GetCollectionInfo(ctx context.Context, collectionName, databaseName string) (*model.CollectionInfo, error) {
+	milvus, err := t.GetMilvus(ctx, databaseName)
+	if err != nil {
+		log.Warn("fail to get milvus client", zap.String("database", databaseName), zap.Error(err))
+		return nil, err
+	}
+
 	collectionInfo := &model.CollectionInfo{}
-	collection, err := t.client.DescribeCollection(ctx, collectionName)
+	collection, err := milvus.DescribeCollection(ctx, collectionName)
 	if err != nil {
 		log.Warn("fail to describe collection", zap.Error(err))
 		return nil, err
@@ -53,7 +83,7 @@ func (t *TargetClient) GetCollectionInfo(ctx context.Context, collectionName str
 	collectionInfo.PChannels = collection.PhysicalChannels
 	collectionInfo.VChannels = collection.VirtualChannels
 
-	tmpCollectionInfo, err := t.GetPartitionInfo(ctx, collectionName)
+	tmpCollectionInfo, err := t.GetPartitionInfo(ctx, collectionName, databaseName)
 	if err != nil {
 		log.Warn("fail to get partition info", zap.Error(err))
 		return nil, err
@@ -62,9 +92,15 @@ func (t *TargetClient) GetCollectionInfo(ctx context.Context, collectionName str
 	return collectionInfo, nil
 }
 
-func (t *TargetClient) GetPartitionInfo(ctx context.Context, collectionName string) (*model.CollectionInfo, error) {
+func (t *TargetClient) GetPartitionInfo(ctx context.Context, collectionName, databaseName string) (*model.CollectionInfo, error) {
+	milvus, err := t.GetMilvus(ctx, databaseName)
+	if err != nil {
+		log.Warn("fail to get milvus client", zap.String("database", databaseName), zap.Error(err))
+		return nil, err
+	}
+
 	collectionInfo := &model.CollectionInfo{}
-	partition, err := t.client.ShowPartitions(ctx, collectionName)
+	partition, err := milvus.ShowPartitions(ctx, collectionName)
 	if err != nil || len(partition) == 0 {
 		log.Warn("failed to show partitions", zap.Error(err))
 		return nil, errors.New("fail to show the partitions")

@@ -50,7 +50,7 @@ jobs:
         run: make test-go
       - name: Upload coverage to Codecov
         if: github.repository == 'zilliztech/milvus-cdc'
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage.project.out

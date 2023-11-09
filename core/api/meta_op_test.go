@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 )
 
@@ -206,6 +207,32 @@ func TestDefaultMetaOp_WatchPartition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			d := &DefaultMetaOp{}
 			d.WatchPartition(tt.args.ctx, tt.args.filter)
+		})
+	}
+}
+
+func TestDefaultMetaOp_GetDatabaseInfoForCollection(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		id  int64
+	}
+	tests := []struct {
+		name string
+		args args
+		want model.DatabaseInfo
+	}{
+		{
+			name: "TestDefaultMetaOp_GetDatabaseInfoForCollection",
+			args: args{},
+			want: model.DatabaseInfo{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &DefaultMetaOp{}
+			if got := d.GetDatabaseInfoForCollection(tt.args.ctx, tt.args.id); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetDatabaseInfoForCollection() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }

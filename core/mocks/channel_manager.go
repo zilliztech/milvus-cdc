@@ -203,6 +203,39 @@ func (_c *ChannelManager_GetMsgChan_Call) RunAndReturn(run func(string) <-chan *
 	return _c
 }
 
+// SetCtx provides a mock function with given fields: ctx
+func (_m *ChannelManager) SetCtx(ctx context.Context) {
+	_m.Called(ctx)
+}
+
+// ChannelManager_SetCtx_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetCtx'
+type ChannelManager_SetCtx_Call struct {
+	*mock.Call
+}
+
+// SetCtx is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *ChannelManager_Expecter) SetCtx(ctx interface{}) *ChannelManager_SetCtx_Call {
+	return &ChannelManager_SetCtx_Call{Call: _e.mock.On("SetCtx", ctx)}
+}
+
+func (_c *ChannelManager_SetCtx_Call) Run(run func(ctx context.Context)) *ChannelManager_SetCtx_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *ChannelManager_SetCtx_Call) Return() *ChannelManager_SetCtx_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *ChannelManager_SetCtx_Call) RunAndReturn(run func(context.Context)) *ChannelManager_SetCtx_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // StartReadCollection provides a mock function with given fields: ctx, info, seekPositions
 func (_m *ChannelManager) StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
 	ret := _m.Called(ctx, info, seekPositions)

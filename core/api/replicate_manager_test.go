@@ -178,7 +178,7 @@ func TestDefaultTargetAPI_GetCollectionInfo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := &DefaultTargetAPI{}
-			got, err := d.GetCollectionInfo(tt.args.ctx, tt.args.collectionName)
+			got, err := d.GetCollectionInfo(tt.args.ctx, tt.args.collectionName, "")
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetCollectionInfo() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -211,7 +211,7 @@ func TestDefaultTargetAPI_GetPartitionInfo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := &DefaultTargetAPI{}
-			got, err := d.GetPartitionInfo(tt.args.ctx, tt.args.collectionName)
+			got, err := d.GetPartitionInfo(tt.args.ctx, tt.args.collectionName, "")
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetPartitionInfo() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -219,6 +219,27 @@ func TestDefaultTargetAPI_GetPartitionInfo(t *testing.T) {
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetPartitionInfo() got = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func TestDefaultChannelManager_SetCtx(t *testing.T) {
+	type args struct {
+		ctx context.Context
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "TestDefaultChannelManager_SetCtx",
+			args: args{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &DefaultChannelManager{}
+			d.SetCtx(tt.args.ctx)
 		})
 	}
 }

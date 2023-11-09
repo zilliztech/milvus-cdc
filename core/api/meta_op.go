@@ -5,6 +5,7 @@ import (
 
 	"github.com/milvus-io/milvus/pkg/log"
 
+	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 )
 
@@ -23,6 +24,7 @@ type MetaOp interface {
 	GetAllCollection(ctx context.Context, filter CollectionFilter) ([]*pb.CollectionInfo, error)
 	GetAllPartition(ctx context.Context, filter PartitionFilter) ([]*pb.PartitionInfo, error)
 	GetCollectionNameByID(ctx context.Context, id int64) string
+	GetDatabaseInfoForCollection(ctx context.Context, id int64) model.DatabaseInfo
 }
 
 // CollectionFilter the filter will be used before the collection is filled the schema info
@@ -78,4 +80,8 @@ func (d *DefaultMetaOp) GetAllPartition(ctx context.Context, filter PartitionFil
 func (d *DefaultMetaOp) GetCollectionNameByID(ctx context.Context, id int64) string {
 	log.Warn("GetCollectionNameByID is not implemented, please check it")
 	return ""
+}
+
+func (d *DefaultMetaOp) GetDatabaseInfoForCollection(ctx context.Context, id int64) model.DatabaseInfo {
+	return model.DatabaseInfo{}
 }

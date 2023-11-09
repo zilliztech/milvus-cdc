@@ -33,3 +33,8 @@ type CollectionInfo struct {
 	PChannels      []string
 	Partitions     map[string]int64
 }
+
+type DatabaseInfo struct {
+	ID   int64
+	Name string
+}

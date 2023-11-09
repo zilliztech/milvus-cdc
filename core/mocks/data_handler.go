@@ -281,6 +281,49 @@ func (_c *DataHandler_DescribeCollection_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// DescribeDatabase provides a mock function with given fields: ctx, param
+func (_m *DataHandler) DescribeDatabase(ctx context.Context, param *api.DescribeDatabaseParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.DescribeDatabaseParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_DescribeDatabase_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DescribeDatabase'
+type DataHandler_DescribeDatabase_Call struct {
+	*mock.Call
+}
+
+// DescribeDatabase is a helper method to define mock.On call
+//   - ctx context.Context
+//   - param *api.DescribeDatabaseParam
+func (_e *DataHandler_Expecter) DescribeDatabase(ctx interface{}, param interface{}) *DataHandler_DescribeDatabase_Call {
+	return &DataHandler_DescribeDatabase_Call{Call: _e.mock.On("DescribeDatabase", ctx, param)}
+}
+
+func (_c *DataHandler_DescribeDatabase_Call) Run(run func(ctx context.Context, param *api.DescribeDatabaseParam)) *DataHandler_DescribeDatabase_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.DescribeDatabaseParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_DescribeDatabase_Call) Return(_a0 error) *DataHandler_DescribeDatabase_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_DescribeDatabase_Call) RunAndReturn(run func(context.Context, *api.DescribeDatabaseParam) error) *DataHandler_DescribeDatabase_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DropCollection provides a mock function with given fields: ctx, param
 func (_m *DataHandler) DropCollection(ctx context.Context, param *api.DropCollectionParam) error {
 	ret := _m.Called(ctx, param)
