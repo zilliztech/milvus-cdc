@@ -77,6 +77,10 @@ func (e *EtcdMetaStore) Txn(ctx context.Context) (any, func(err error) error, er
 		if err == nil {
 			txn.Then(e.txnMap[txn]...)
 			_, err = txn.Commit()
+			if err != nil {
+				return err
+			}
+			return nil
 		}
 		return err
 	}
@@ -117,14 +121,10 @@ func (t *TaskInfoEtcdStore) Put(ctx context.Context, metaObj *meta.TaskInfo, txn
 		return err
 	}
 	taskInfoKey := getTaskInfoKey(t.rootPath, metaObj.TaskID)
-	defer func() {
-		if err != nil {
-			t.log.Warn("fail to put task info", zap.Error(err))
-		}
-	}()
 
 	if txn != nil {
 		if _, ok := t.txnMap[txn]; !ok {
+			t.log.Warn("txn not exist")
 			return errors.New("txn not exist")
 		}
 		t.txnMap[txn] = append(t.txnMap[txn], clientv3.OpPut(taskInfoKey, util.ToString(objBytes)))
@@ -132,7 +132,11 @@ func (t *TaskInfoEtcdStore) Put(ctx context.Context, metaObj *meta.TaskInfo, txn
 	}
 
 	_, err = t.etcdClient.Put(timeCtx, taskInfoKey, util.ToString(objBytes))
-	return err
+	if err != nil {
+		t.log.Warn("fail to put task info", zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 func (t *TaskInfoEtcdStore) Get(ctx context.Context, metaObj *meta.TaskInfo, txn any) ([]*meta.TaskInfo, error) {
@@ -186,14 +190,11 @@ func (t *TaskInfoEtcdStore) Delete(ctx context.Context, metaObj *meta.TaskInfo, 
 		t.txnMap[txn] = append(t.txnMap[txn], clientv3.OpDelete(taskInfoKey))
 		return nil
 	}
-	var err error
-	defer func() {
-		if err != nil {
-			t.log.Warn("fail to put task info", zap.Error(err))
-		}
-	}()
-
-	_, err = t.etcdClient.Delete(timeCtx, taskInfoKey)
+	_, err := t.etcdClient.Delete(timeCtx, taskInfoKey)
+	if err != nil {
+		t.log.Warn("fail to delete task info", zap.Error(err))
+		return err
+	}
 	return err
 }
 
@@ -230,21 +231,21 @@ func (t *TaskCollectionPositionEtcdStore) Put(ctx context.Context, metaObj *meta
 		t.log.Warn("fail to marshal task position", zap.Error(err))
 		return err
 	}
-	defer func() {
-		if err != nil {
-			t.log.Warn("fail to put task position", zap.Error(err))
-		}
-	}()
 
 	if txn != nil {
 		if _, ok := t.txnMap[txn]; !ok {
+			t.log.Warn("txn not exist")
 			return errors.New("txn not exist")
 		}
 		t.txnMap[txn] = append(t.txnMap[txn], clientv3.OpPut(taskPositionKey, util.ToString(positionBytes)))
 		return nil
 	}
 	_, err = t.etcdClient.Put(timeCtx, taskPositionKey, util.ToString(positionBytes))
-	return err
+	if err != nil {
+		t.log.Warn("fail to put task position", zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 func (t *TaskCollectionPositionEtcdStore) Get(ctx context.Context, metaObj *meta.TaskCollectionPosition, txn any) ([]*meta.TaskCollectionPosition, error) {
@@ -261,6 +262,7 @@ func (t *TaskCollectionPositionEtcdStore) Get(ctx context.Context, metaObj *meta
 	}
 	if txn != nil {
 		if _, ok := t.txnMap[txn]; !ok {
+			t.log.Warn("txn not exist")
 			return nil, errors.New("txn not exist")
 		}
 		t.txnMap[txn] = append(t.txnMap[txn], clientv3.OpGet(key, ops...))
@@ -289,6 +291,7 @@ func (t *TaskCollectionPositionEtcdStore) Get(ctx context.Context, metaObj *meta
 
 func (t *TaskCollectionPositionEtcdStore) Delete(ctx context.Context, metaObj *meta.TaskCollectionPosition, txn any) error {
 	if metaObj.TaskID == "" {
+		t.log.Warn("task id is empty")
 		return errors.New("task id is empty")
 	}
 	timeCtx, cancel := context.WithTimeout(ctx, EtcdOpTimeout)
@@ -301,20 +304,19 @@ func (t *TaskCollectionPositionEtcdStore) Delete(ctx context.Context, metaObj *m
 	}
 	if txn != nil {
 		if _, ok := t.txnMap[txn]; !ok {
+			t.log.Warn("txn not exist")
 			return errors.New("txn not exist")
 		}
 		t.txnMap[txn] = append(t.txnMap[txn], clientv3.OpDelete(key, ops...))
 		return nil
 	}
-	var err error
-	defer func() {
-		if err != nil {
-			t.log.Warn("fail to delete task position", zap.Error(err))
-		}
-	}()
 
-	_, err = t.etcdClient.Delete(timeCtx, key, ops...)
-	return err
+	_, err := t.etcdClient.Delete(timeCtx, key, ops...)
+	if err != nil {
+		t.log.Warn("fail to delete task position", zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 func EtcdStatus(ctx context.Context, etcdClient *clientv3.Client) error {

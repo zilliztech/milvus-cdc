@@ -89,6 +89,7 @@ func UpdateTaskState(taskInfoStore api.MetaStore[*meta.TaskInfo], taskID string,
 		log.Warn("fail to put the task info to etcd", zap.String("task_id", taskID), zap.Error(err))
 		return err
 	}
+	metrics.TaskStateVec.WithLabelValues(taskID).Set(float64(newState))
 	metrics.TaskNumVec.UpdateState(newState, oldState)
 	return nil
 }
@@ -196,6 +197,7 @@ func DeleteTask(factory api.MetaStoreFactory, taskID string) (*meta.TaskInfo, er
 		commitErr := commitFunc(err)
 		if commitErr == nil {
 			metrics.TaskNumVec.Delete(info.State)
+			metrics.TaskStateVec.WithLabelValues(info.TaskID).Set(-1)
 			return info, nil
 		}
 		return nil, commitErr

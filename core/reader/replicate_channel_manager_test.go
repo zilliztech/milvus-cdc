@@ -23,7 +23,8 @@ import (
 
 func TestNewReplicateChannelManager(t *testing.T) {
 	t.Run("empty config", func(t *testing.T) {
-		_, err := NewReplicateChannelManager(config.MQConfig{}, NewDefaultFactoryCreator(), nil, 10, &api.DefaultMetaOp{})
+		_, err := NewReplicateChannelManager(config.MQConfig{}, NewDefaultFactoryCreator(), nil, 10, &api.DefaultMetaOp{}, func(s string, pack *msgstream.MsgPack) {
+		})
 		assert.Error(t, err)
 	})
 
@@ -35,7 +36,8 @@ func TestNewReplicateChannelManager(t *testing.T) {
 			Pulsar: config.PulsarConfig{
 				Address: "pulsar://localhost:6650",
 			},
-		}, factoryCreator, nil, 10, &api.DefaultMetaOp{})
+		}, factoryCreator, nil, 10, &api.DefaultMetaOp{}, func(s string, pack *msgstream.MsgPack) {
+		})
 		assert.NoError(t, err)
 	})
 }
@@ -95,7 +97,8 @@ func TestStartReadCollection(t *testing.T) {
 		Pulsar: config.PulsarConfig{
 			Address: "pulsar://localhost:6650",
 		},
-	}, factoryCreator, targetClient, 10, &api.DefaultMetaOp{})
+	}, factoryCreator, targetClient, 10, &api.DefaultMetaOp{}, func(s string, pack *msgstream.MsgPack) {
+	})
 	assert.NoError(t, err)
 	manager.SetCtx(context.Background())
 

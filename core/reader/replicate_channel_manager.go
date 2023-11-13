@@ -47,9 +47,17 @@ type replicateChannelManager struct {
 
 	channelChan  chan string
 	apiEventChan chan *api.ReplicateAPIEvent
+
+	msgPackCallback func(string, *msgstream.MsgPack)
 }
 
-func NewReplicateChannelManager(mqConfig config.MQConfig, factoryCreator FactoryCreator, client api.TargetAPI, messageBufferSize int, metaOp api.MetaOp) (api.ChannelManager, error) {
+func NewReplicateChannelManager(mqConfig config.MQConfig,
+	factoryCreator FactoryCreator,
+	client api.TargetAPI,
+	messageBufferSize int,
+	metaOp api.MetaOp,
+	msgPackCallback func(string, *msgstream.MsgPack),
+) (api.ChannelManager, error) {
 	var factory msgstream.Factory
 	switch {
 	case mqConfig.Pulsar.Address != "":
@@ -72,6 +80,7 @@ func NewReplicateChannelManager(mqConfig config.MQConfig, factoryCreator Factory
 		replicatePartitions:  make(map[int64]map[int64]chan struct{}),
 		channelChan:          make(chan string, 10),
 		apiEventChan:         make(chan *api.ReplicateAPIEvent, 10),
+		msgPackCallback:      msgPackCallback,
 	}, nil
 }
 
@@ -353,6 +362,7 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 				zap.String("channel_name", sourceInfo.PChannelName), zap.Int64("collection_id", sourceInfo.CollectionID), zap.Error(err))
 			return err
 		}
+		channelHandler.msgPackCallback = r.msgPackCallback
 		r.channelHandlerMap[sourceInfo.PChannelName] = channelHandler
 		r.channelChan <- sourceInfo.PChannelName
 		return nil
@@ -387,6 +397,7 @@ type replicateChannelHandler struct {
 	collectionNames   map[string]int64
 	msgPackChan       chan *msgstream.MsgPack
 	apiEventChan      chan *api.ReplicateAPIEvent
+	msgPackCallback   func(string, *msgstream.MsgPack)
 }
 
 func (r *replicateChannelHandler) AddCollection(collectionID int64, targetInfo *model.TargetCollectionInfo) {
@@ -423,6 +434,7 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 		return nil
 	}
 	targetInfo.PartitionBarrierChan[partitionID] = barrierChan
+	// TODO use goroutine pool
 	go func() {
 		_ = retry.Do(r.replicateCtx, func() error {
 			id := r.updateTargetPartitionInfo(collectionID, collectionName, partitionName)
@@ -655,6 +667,9 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 	}
 	for _, position := range newPack.EndPositions {
 		position.ChannelName = pChannel
+	}
+	if r.msgPackCallback != nil {
+		r.msgPackCallback(r.pChannelName, newPack)
 	}
 	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
 	if needTsMsg {

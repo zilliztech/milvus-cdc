@@ -31,8 +31,9 @@ func NewMySQLMetaStore(ctx context.Context, dataSourceName string, rootPath stri
 	err := s.init(ctx, dataSourceName, rootPath)
 	if err != nil {
 		s.log.Warn("fail to init db object", zap.Error(err))
+		return nil, err
 	}
-	return s, err
+	return s, nil
 }
 
 func (s *MySQLMetaStore) init(ctx context.Context, dataSourceName string, rootPath string) error {
@@ -116,8 +117,9 @@ func NewTaskInfoMysqlStore(ctx context.Context, db *sql.DB, rootPath string, txn
 	err := m.init(ctx, db, rootPath)
 	if err != nil {
 		m.log.Warn("fail to init task info store", zap.Error(err))
+		return nil, err
 	}
-	return m, err
+	return m, nil
 }
 
 func (m *TaskInfoMysqlStore) init(ctx context.Context, db *sql.DB, rootPath string) error {
@@ -134,10 +136,11 @@ func (m *TaskInfoMysqlStore) init(ctx context.Context, db *sql.DB, rootPath stri
 	`)
 	if err != nil {
 		m.log.Warn("fail to create table", zap.Error(err))
+		return err
 	}
 	m.db = db
 	m.rootPath = rootPath
-	return err
+	return nil
 }
 
 func (m *TaskInfoMysqlStore) Put(ctx context.Context, metaObj *meta.TaskInfo, txn any) error {
@@ -164,10 +167,16 @@ func (m *TaskInfoMysqlStore) Put(ctx context.Context, metaObj *meta.TaskInfo, tx
 		}
 		defer stmt.Close()
 		_, err = stmt.ExecContext(ctx, taskInfoKey, metaObj.TaskID, util.ToString(objBytes), util.ToString(objBytes))
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 	_, err = m.db.ExecContext(ctx, sqlStr, taskInfoKey, metaObj.TaskID, util.ToString(objBytes), util.ToString(objBytes))
-	return err
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *TaskInfoMysqlStore) Get(ctx context.Context, metaObj *meta.TaskInfo, txn any) ([]*meta.TaskInfo, error) {
@@ -244,15 +253,20 @@ func (m *TaskInfoMysqlStore) Delete(ctx context.Context, metaObj *meta.TaskInfo,
 		}
 		stmt, err := m.txnMap[txn]().PrepareContext(ctx, sqlStr)
 		if err != nil {
-			m.log.Warn("fail to prepare delete statement", zap.Error(err))
 			return err
 		}
 		defer stmt.Close()
 		_, err = stmt.ExecContext(ctx, taskID)
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 	_, err = m.db.ExecContext(ctx, sqlStr, taskID)
-	return err
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 type TaskCollectionPositionMysqlStore struct {
@@ -271,8 +285,9 @@ func NewTaskCollectionPositionMysqlStore(ctx context.Context, db *sql.DB, rootPa
 	err := s.init(ctx, db, rootPath)
 	if err != nil {
 		s.log.Warn("fail to init task collection position store", zap.Error(err))
+		return nil, err
 	}
-	return s, err
+	return s, nil
 }
 
 func (m *TaskCollectionPositionMysqlStore) init(ctx context.Context, db *sql.DB, rootPath string) error {
@@ -294,10 +309,11 @@ func (m *TaskCollectionPositionMysqlStore) init(ctx context.Context, db *sql.DB,
 	`)
 	if err != nil {
 		m.log.Warn("fail to create table", zap.Error(err))
+		return err
 	}
 	m.db = db
 	m.rootPath = rootPath
-	return err
+	return nil
 }
 
 func (m *TaskCollectionPositionMysqlStore) Put(ctx context.Context, metaObj *meta.TaskCollectionPosition, txn any) error {
@@ -318,15 +334,20 @@ func (m *TaskCollectionPositionMysqlStore) Put(ctx context.Context, metaObj *met
 		}
 		stmt, err := m.txnMap[txn]().PrepareContext(ctx, sqlStr)
 		if err != nil {
-			m.log.Warn("fail to prepare put statement", zap.Error(err))
 			return err
 		}
 		defer stmt.Close()
 		_, err = stmt.ExecContext(ctx, taskPositionKey, metaObj.TaskID, metaObj.CollectionID, metaObj.CollectionName, util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes), util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes))
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 	_, err = m.db.ExecContext(ctx, sqlStr, taskPositionKey, metaObj.TaskID, metaObj.CollectionID, metaObj.CollectionName, util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes), util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes))
-	return err
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *TaskCollectionPositionMysqlStore) Get(ctx context.Context, metaObj *meta.TaskCollectionPosition, txn any) ([]*meta.TaskCollectionPosition, error) {
@@ -434,8 +455,14 @@ func (m *TaskCollectionPositionMysqlStore) Delete(ctx context.Context, metaObj *
 		}
 		defer stmt.Close()
 		_, err = stmt.ExecContext(ctx, sqlArgs...)
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 	_, err = m.db.ExecContext(ctx, sqlStr, sqlArgs...)
-	return err
+	if err != nil {
+		return err
+	}
+	return nil
 }

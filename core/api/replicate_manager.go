@@ -50,6 +50,21 @@ const (
 	ReplicateError = 100
 )
 
+func (r ReplicateAPIEventType) String() string {
+	switch r {
+	case ReplicateCreateCollection:
+		return "CreateCollection"
+	case ReplicateDropCollection:
+		return "DropCollection"
+	case ReplicateCreatePartition:
+		return "CreatePartition"
+	case ReplicateDropPartition:
+		return "DropPartition"
+	default:
+		return "Unknown"
+	}
+}
+
 type DefaultChannelManager struct{}
 
 var _ ChannelManager = (*DefaultChannelManager)(nil)
