@@ -31,10 +31,6 @@ type TaskNumMetric struct {
 	pauseNum   int
 }
 
-func (t *TaskNumMetric) AddInitial() {
-	t.initialNum++
-}
-
 // add it should be adapted if you modify the meta.MinTaskState or the meta.MaxTaskState
 func (t *TaskNumMetric) add(s meta.TaskState, errTip string) {
 	innerLog := log.With(zap.String("tip", errTip), zap.Int("state", int(s)))
@@ -82,6 +78,10 @@ func (t *TaskNumMetric) UpdateState(newState meta.TaskState, oldStates meta.Task
 
 func (t *TaskNumMetric) Delete(state meta.TaskState) {
 	t.reduce(state, "delete")
+}
+
+func (t *TaskNumMetric) Add(state meta.TaskState) {
+	t.add(state, "add state")
 }
 
 // Describe it should be adapted if you modify the meta.MinTaskState or the meta.MaxTaskState

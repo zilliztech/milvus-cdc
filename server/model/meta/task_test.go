@@ -40,10 +40,6 @@ func TestTaskState(t *testing.T) {
 	state = TaskStateRunning
 	assert.True(t, state.IsValidTaskState())
 	assert.Equal(t, "Running", state.String())
-
-	state = TaskStateTerminate
-	assert.False(t, state.IsValidTaskState())
-	assert.Equal(t, "Terminate", state.String())
 }
 
 func TestTaskInfo(t *testing.T) {

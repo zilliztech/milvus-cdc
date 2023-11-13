@@ -25,7 +25,6 @@ import (
 
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/api"
-	"github.com/zilliztech/milvus-cdc/server/metrics"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 	"github.com/zilliztech/milvus-cdc/server/store"
 )
@@ -63,7 +62,7 @@ func (w *WriteCallback) UpdateTaskCollectionPosition(collectionID int64, collect
 			zap.String("vchannel_name", pChannelName),
 			zap.String("position", util.Base64Encode(position)),
 			zap.Error(err))
-		metrics.WriterFailCountVec.WithLabelValues(w.taskID, metrics.WriteFailOnUpdatePosition).Inc()
+		return err
 	}
-	return err
+	return nil
 }

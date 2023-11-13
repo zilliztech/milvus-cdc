@@ -30,8 +30,6 @@ const (
 	TaskStateInitial TaskState = iota
 	TaskStateRunning
 	TaskStatePaused
-
-	TaskStateTerminate TaskState = 100
 )
 
 const (
@@ -53,8 +51,6 @@ func (t TaskState) String() string {
 		return "Running"
 	case TaskStatePaused:
 		return "Paused"
-	case TaskStateTerminate:
-		return "Terminate"
 	default:
 		return fmt.Sprintf("Unknown value[%d]", t)
 	}
