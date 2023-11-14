@@ -343,6 +343,36 @@ func TestDataHandler(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("load partitions", func(t *testing.T) {
+		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+			Status: &commonpb.Status{},
+			Value:  true,
+		}, nil).Once()
+		milvusService.EXPECT().LoadPartitions(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
+		err := dataHandler.LoadPartitions(ctx, &api.LoadPartitionsParam{
+			LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+				CollectionName: "foo",
+				PartitionNames: []string{"bar"},
+			},
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("release partitions", func(t *testing.T) {
+		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+			Status: &commonpb.Status{},
+			Value:  true,
+		}, nil).Once()
+		milvusService.EXPECT().ReleasePartitions(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
+		err := dataHandler.ReleasePartitions(ctx, &api.ReleasePartitionsParam{
+			ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+				CollectionName: "foo",
+				PartitionNames: []string{"bar"},
+			},
+		})
+		assert.NoError(t, err)
+	})
+
 	t.Run("flush", func(t *testing.T) {
 		{
 			milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
