@@ -49,9 +49,9 @@ type ChannelManager_AddPartition_Call struct {
 }
 
 // AddPartition is a helper method to define mock.On call
-//   - ctx context.Context
-//   - collectionInfo *pb.CollectionInfo
-//   - partitionInfo *pb.PartitionInfo
+//  - ctx context.Context
+//  - collectionInfo *pb.CollectionInfo
+//  - partitionInfo *pb.PartitionInfo
 func (_e *ChannelManager_Expecter) AddPartition(ctx interface{}, collectionInfo interface{}, partitionInfo interface{}) *ChannelManager_AddPartition_Call {
 	return &ChannelManager_AddPartition_Call{Call: _e.mock.On("AddPartition", ctx, collectionInfo, partitionInfo)}
 }
@@ -181,7 +181,7 @@ type ChannelManager_GetMsgChan_Call struct {
 }
 
 // GetMsgChan is a helper method to define mock.On call
-//   - pChannel string
+//  - pChannel string
 func (_e *ChannelManager_Expecter) GetMsgChan(pChannel interface{}) *ChannelManager_GetMsgChan_Call {
 	return &ChannelManager_GetMsgChan_Call{Call: _e.mock.On("GetMsgChan", pChannel)}
 }
@@ -214,7 +214,7 @@ type ChannelManager_SetCtx_Call struct {
 }
 
 // SetCtx is a helper method to define mock.On call
-//   - ctx context.Context
+//  - ctx context.Context
 func (_e *ChannelManager_Expecter) SetCtx(ctx interface{}) *ChannelManager_SetCtx_Call {
 	return &ChannelManager_SetCtx_Call{Call: _e.mock.On("SetCtx", ctx)}
 }
@@ -256,9 +256,9 @@ type ChannelManager_StartReadCollection_Call struct {
 }
 
 // StartReadCollection is a helper method to define mock.On call
-//   - ctx context.Context
-//   - info *pb.CollectionInfo
-//   - seekPositions []*msgpb.MsgPosition
+//  - ctx context.Context
+//  - info *pb.CollectionInfo
+//  - seekPositions []*msgpb.MsgPosition
 func (_e *ChannelManager_Expecter) StartReadCollection(ctx interface{}, info interface{}, seekPositions interface{}) *ChannelManager_StartReadCollection_Call {
 	return &ChannelManager_StartReadCollection_Call{Call: _e.mock.On("StartReadCollection", ctx, info, seekPositions)}
 }
@@ -300,8 +300,8 @@ type ChannelManager_StopReadCollection_Call struct {
 }
 
 // StopReadCollection is a helper method to define mock.On call
-//   - ctx context.Context
-//   - info *pb.CollectionInfo
+//  - ctx context.Context
+//  - info *pb.CollectionInfo
 func (_e *ChannelManager_Expecter) StopReadCollection(ctx interface{}, info interface{}) *ChannelManager_StopReadCollection_Call {
 	return &ChannelManager_StopReadCollection_Call{Call: _e.mock.On("StopReadCollection", ctx, info)}
 }

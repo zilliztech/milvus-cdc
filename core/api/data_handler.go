@@ -13,16 +13,21 @@ import (
 type DataHandler interface {
 	CreateCollection(ctx context.Context, param *CreateCollectionParam) error
 	DropCollection(ctx context.Context, param *DropCollectionParam) error
-	Insert(ctx context.Context, param *InsertParam) error
-	Delete(ctx context.Context, param *DeleteParam) error
 	CreatePartition(ctx context.Context, param *CreatePartitionParam) error
 	DropPartition(ctx context.Context, param *DropPartitionParam) error
 
-	CreateIndex(ctx context.Context, param *CreateIndexParam) error
-	DropIndex(ctx context.Context, param *DropIndexParam) error
+	Insert(ctx context.Context, param *InsertParam) error
+	Delete(ctx context.Context, param *DeleteParam) error
+	Flush(ctx context.Context, param *FlushParam) error
+
 	LoadCollection(ctx context.Context, param *LoadCollectionParam) error
 	ReleaseCollection(ctx context.Context, param *ReleaseCollectionParam) error
-	Flush(ctx context.Context, param *FlushParam) error
+	LoadPartitions(ctx context.Context, param *LoadPartitionsParam) error
+	ReleasePartitions(ctx context.Context, param *ReleasePartitionsParam) error
+
+	CreateIndex(ctx context.Context, param *CreateIndexParam) error
+	DropIndex(ctx context.Context, param *DropIndexParam) error
+
 	CreateDatabase(ctx context.Context, param *CreateDatabaseParam) error
 	DropDatabase(ctx context.Context, param *DropDatabaseParam) error
 
@@ -103,6 +108,16 @@ func (d *DefaultDataHandler) DropDatabase(ctx context.Context, param *DropDataba
 
 func (d *DefaultDataHandler) ReplicateMessage(ctx context.Context, param *ReplicateMessageParam) error {
 	log.Warn("Replicate is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) LoadPartitions(ctx context.Context, param *LoadPartitionsParam) error {
+	log.Warn("LoadPartitions is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) ReleasePartitions(ctx context.Context, param *ReleasePartitionsParam) error {
+	log.Warn("ReleasePartitions is not implemented, please check it")
 	return nil
 }
 
@@ -187,6 +202,16 @@ type LoadCollectionParam struct {
 type ReleaseCollectionParam struct {
 	ReplicateParam
 	milvuspb.ReleaseCollectionRequest
+}
+
+type LoadPartitionsParam struct {
+	ReplicateParam
+	milvuspb.LoadPartitionsRequest
+}
+
+type ReleasePartitionsParam struct {
+	ReplicateParam
+	milvuspb.ReleasePartitionsRequest
 }
 
 type CreateDatabaseParam struct {

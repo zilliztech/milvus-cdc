@@ -60,6 +60,8 @@ func (c *ChannelWriter) initOPMessageFuncs() {
 		commonpb.MsgType_DropIndex:         c.dropIndex,
 		commonpb.MsgType_LoadCollection:    c.loadCollection,
 		commonpb.MsgType_ReleaseCollection: c.releaseCollection,
+		commonpb.MsgType_LoadPartitions:    c.loadPartitions,
+		commonpb.MsgType_ReleasePartitions: c.releasePartitions,
 	}
 }
 
@@ -410,6 +412,52 @@ func (c *ChannelWriter) releaseCollection(ctx context.Context, msgBase *commonpb
 	})
 	if err != nil {
 		log.Warn("fail to release collection", zap.Any("msg", releaseCollectionMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelWriter) loadPartitions(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	loadPartitionsMsg := msg.(*msgstream.LoadPartitionsMsg)
+	if !c.WaitDatabaseReady(ctx, loadPartitionsMsg.GetDbName()) {
+		log.Warn("database is not ready", zap.Any("msg", loadPartitionsMsg))
+		return errors.New("database is not ready")
+	}
+	if !c.WaitCollectionReady(ctx, loadPartitionsMsg.GetCollectionName(), loadPartitionsMsg.GetDbName()) {
+		log.Warn("collection is not ready", zap.Any("msg", loadPartitionsMsg))
+		return errors.New("collection is not ready")
+	}
+	err := c.dataHandler.LoadPartitions(ctx, &api.LoadPartitionsParam{
+		ReplicateParam: api.ReplicateParam{
+			Database: loadPartitionsMsg.GetDbName(),
+		},
+		LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+			Base:           msgBase,
+			CollectionName: loadPartitionsMsg.GetCollectionName(),
+			PartitionNames: loadPartitionsMsg.GetPartitionNames(),
+		},
+	})
+	if err != nil {
+		log.Warn("fail to load partitions", zap.Any("msg", loadPartitionsMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelWriter) releasePartitions(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	releasePartitionsMsg := msg.(*msgstream.ReleasePartitionsMsg)
+	err := c.dataHandler.ReleasePartitions(ctx, &api.ReleasePartitionsParam{
+		ReplicateParam: api.ReplicateParam{
+			Database: releasePartitionsMsg.GetDbName(),
+		},
+		ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+			Base:           msgBase,
+			CollectionName: releasePartitionsMsg.GetCollectionName(),
+			PartitionNames: releasePartitionsMsg.GetPartitionNames(),
+		},
+	})
+	if err != nil {
+		log.Warn("fail to release partitions", zap.Any("msg", releasePartitionsMsg), zap.Error(err))
 		return err
 	}
 	return nil

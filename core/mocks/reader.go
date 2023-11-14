@@ -75,7 +75,7 @@ type Reader_QuitRead_Call struct {
 }
 
 // QuitRead is a helper method to define mock.On call
-//   - ctx context.Context
+//  - ctx context.Context
 func (_e *Reader_Expecter) QuitRead(ctx interface{}) *Reader_QuitRead_Call {
 	return &Reader_QuitRead_Call{Call: _e.mock.On("QuitRead", ctx)}
 }
@@ -108,7 +108,7 @@ type Reader_StartRead_Call struct {
 }
 
 // StartRead is a helper method to define mock.On call
-//   - ctx context.Context
+//  - ctx context.Context
 func (_e *Reader_Expecter) StartRead(ctx interface{}) *Reader_StartRead_Call {
 	return &Reader_StartRead_Call{Call: _e.mock.On("StartRead", ctx)}
 }

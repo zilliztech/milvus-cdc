@@ -43,8 +43,8 @@ type DataHandler_CreateCollection_Call struct {
 }
 
 // CreateCollection is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.CreateCollectionParam
+//  - ctx context.Context
+//  - param *api.CreateCollectionParam
 func (_e *DataHandler_Expecter) CreateCollection(ctx interface{}, param interface{}) *DataHandler_CreateCollection_Call {
 	return &DataHandler_CreateCollection_Call{Call: _e.mock.On("CreateCollection", ctx, param)}
 }
@@ -86,8 +86,8 @@ type DataHandler_CreateDatabase_Call struct {
 }
 
 // CreateDatabase is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.CreateDatabaseParam
+//  - ctx context.Context
+//  - param *api.CreateDatabaseParam
 func (_e *DataHandler_Expecter) CreateDatabase(ctx interface{}, param interface{}) *DataHandler_CreateDatabase_Call {
 	return &DataHandler_CreateDatabase_Call{Call: _e.mock.On("CreateDatabase", ctx, param)}
 }
@@ -129,8 +129,8 @@ type DataHandler_CreateIndex_Call struct {
 }
 
 // CreateIndex is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.CreateIndexParam
+//  - ctx context.Context
+//  - param *api.CreateIndexParam
 func (_e *DataHandler_Expecter) CreateIndex(ctx interface{}, param interface{}) *DataHandler_CreateIndex_Call {
 	return &DataHandler_CreateIndex_Call{Call: _e.mock.On("CreateIndex", ctx, param)}
 }
@@ -172,8 +172,8 @@ type DataHandler_CreatePartition_Call struct {
 }
 
 // CreatePartition is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.CreatePartitionParam
+//  - ctx context.Context
+//  - param *api.CreatePartitionParam
 func (_e *DataHandler_Expecter) CreatePartition(ctx interface{}, param interface{}) *DataHandler_CreatePartition_Call {
 	return &DataHandler_CreatePartition_Call{Call: _e.mock.On("CreatePartition", ctx, param)}
 }
@@ -215,8 +215,8 @@ type DataHandler_Delete_Call struct {
 }
 
 // Delete is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.DeleteParam
+//  - ctx context.Context
+//  - param *api.DeleteParam
 func (_e *DataHandler_Expecter) Delete(ctx interface{}, param interface{}) *DataHandler_Delete_Call {
 	return &DataHandler_Delete_Call{Call: _e.mock.On("Delete", ctx, param)}
 }
@@ -258,8 +258,8 @@ type DataHandler_DescribeCollection_Call struct {
 }
 
 // DescribeCollection is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.DescribeCollectionParam
+//  - ctx context.Context
+//  - param *api.DescribeCollectionParam
 func (_e *DataHandler_Expecter) DescribeCollection(ctx interface{}, param interface{}) *DataHandler_DescribeCollection_Call {
 	return &DataHandler_DescribeCollection_Call{Call: _e.mock.On("DescribeCollection", ctx, param)}
 }
@@ -301,8 +301,8 @@ type DataHandler_DescribeDatabase_Call struct {
 }
 
 // DescribeDatabase is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.DescribeDatabaseParam
+//  - ctx context.Context
+//  - param *api.DescribeDatabaseParam
 func (_e *DataHandler_Expecter) DescribeDatabase(ctx interface{}, param interface{}) *DataHandler_DescribeDatabase_Call {
 	return &DataHandler_DescribeDatabase_Call{Call: _e.mock.On("DescribeDatabase", ctx, param)}
 }
@@ -344,8 +344,8 @@ type DataHandler_DropCollection_Call struct {
 }
 
 // DropCollection is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.DropCollectionParam
+//  - ctx context.Context
+//  - param *api.DropCollectionParam
 func (_e *DataHandler_Expecter) DropCollection(ctx interface{}, param interface{}) *DataHandler_DropCollection_Call {
 	return &DataHandler_DropCollection_Call{Call: _e.mock.On("DropCollection", ctx, param)}
 }
@@ -387,8 +387,8 @@ type DataHandler_DropDatabase_Call struct {
 }
 
 // DropDatabase is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.DropDatabaseParam
+//  - ctx context.Context
+//  - param *api.DropDatabaseParam
 func (_e *DataHandler_Expecter) DropDatabase(ctx interface{}, param interface{}) *DataHandler_DropDatabase_Call {
 	return &DataHandler_DropDatabase_Call{Call: _e.mock.On("DropDatabase", ctx, param)}
 }
@@ -430,8 +430,8 @@ type DataHandler_DropIndex_Call struct {
 }
 
 // DropIndex is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.DropIndexParam
+//  - ctx context.Context
+//  - param *api.DropIndexParam
 func (_e *DataHandler_Expecter) DropIndex(ctx interface{}, param interface{}) *DataHandler_DropIndex_Call {
 	return &DataHandler_DropIndex_Call{Call: _e.mock.On("DropIndex", ctx, param)}
 }
@@ -473,8 +473,8 @@ type DataHandler_DropPartition_Call struct {
 }
 
 // DropPartition is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.DropPartitionParam
+//  - ctx context.Context
+//  - param *api.DropPartitionParam
 func (_e *DataHandler_Expecter) DropPartition(ctx interface{}, param interface{}) *DataHandler_DropPartition_Call {
 	return &DataHandler_DropPartition_Call{Call: _e.mock.On("DropPartition", ctx, param)}
 }
@@ -516,8 +516,8 @@ type DataHandler_Flush_Call struct {
 }
 
 // Flush is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.FlushParam
+//  - ctx context.Context
+//  - param *api.FlushParam
 func (_e *DataHandler_Expecter) Flush(ctx interface{}, param interface{}) *DataHandler_Flush_Call {
 	return &DataHandler_Flush_Call{Call: _e.mock.On("Flush", ctx, param)}
 }
@@ -559,8 +559,8 @@ type DataHandler_Insert_Call struct {
 }
 
 // Insert is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.InsertParam
+//  - ctx context.Context
+//  - param *api.InsertParam
 func (_e *DataHandler_Expecter) Insert(ctx interface{}, param interface{}) *DataHandler_Insert_Call {
 	return &DataHandler_Insert_Call{Call: _e.mock.On("Insert", ctx, param)}
 }
@@ -602,8 +602,8 @@ type DataHandler_LoadCollection_Call struct {
 }
 
 // LoadCollection is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.LoadCollectionParam
+//  - ctx context.Context
+//  - param *api.LoadCollectionParam
 func (_e *DataHandler_Expecter) LoadCollection(ctx interface{}, param interface{}) *DataHandler_LoadCollection_Call {
 	return &DataHandler_LoadCollection_Call{Call: _e.mock.On("LoadCollection", ctx, param)}
 }
@@ -621,6 +621,49 @@ func (_c *DataHandler_LoadCollection_Call) Return(_a0 error) *DataHandler_LoadCo
 }
 
 func (_c *DataHandler_LoadCollection_Call) RunAndReturn(run func(context.Context, *api.LoadCollectionParam) error) *DataHandler_LoadCollection_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// LoadPartitions provides a mock function with given fields: ctx, param
+func (_m *DataHandler) LoadPartitions(ctx context.Context, param *api.LoadPartitionsParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.LoadPartitionsParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_LoadPartitions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LoadPartitions'
+type DataHandler_LoadPartitions_Call struct {
+	*mock.Call
+}
+
+// LoadPartitions is a helper method to define mock.On call
+//  - ctx context.Context
+//  - param *api.LoadPartitionsParam
+func (_e *DataHandler_Expecter) LoadPartitions(ctx interface{}, param interface{}) *DataHandler_LoadPartitions_Call {
+	return &DataHandler_LoadPartitions_Call{Call: _e.mock.On("LoadPartitions", ctx, param)}
+}
+
+func (_c *DataHandler_LoadPartitions_Call) Run(run func(ctx context.Context, param *api.LoadPartitionsParam)) *DataHandler_LoadPartitions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.LoadPartitionsParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_LoadPartitions_Call) Return(_a0 error) *DataHandler_LoadPartitions_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_LoadPartitions_Call) RunAndReturn(run func(context.Context, *api.LoadPartitionsParam) error) *DataHandler_LoadPartitions_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -645,8 +688,8 @@ type DataHandler_ReleaseCollection_Call struct {
 }
 
 // ReleaseCollection is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.ReleaseCollectionParam
+//  - ctx context.Context
+//  - param *api.ReleaseCollectionParam
 func (_e *DataHandler_Expecter) ReleaseCollection(ctx interface{}, param interface{}) *DataHandler_ReleaseCollection_Call {
 	return &DataHandler_ReleaseCollection_Call{Call: _e.mock.On("ReleaseCollection", ctx, param)}
 }
@@ -664,6 +707,49 @@ func (_c *DataHandler_ReleaseCollection_Call) Return(_a0 error) *DataHandler_Rel
 }
 
 func (_c *DataHandler_ReleaseCollection_Call) RunAndReturn(run func(context.Context, *api.ReleaseCollectionParam) error) *DataHandler_ReleaseCollection_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ReleasePartitions provides a mock function with given fields: ctx, param
+func (_m *DataHandler) ReleasePartitions(ctx context.Context, param *api.ReleasePartitionsParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ReleasePartitionsParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_ReleasePartitions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReleasePartitions'
+type DataHandler_ReleasePartitions_Call struct {
+	*mock.Call
+}
+
+// ReleasePartitions is a helper method to define mock.On call
+//  - ctx context.Context
+//  - param *api.ReleasePartitionsParam
+func (_e *DataHandler_Expecter) ReleasePartitions(ctx interface{}, param interface{}) *DataHandler_ReleasePartitions_Call {
+	return &DataHandler_ReleasePartitions_Call{Call: _e.mock.On("ReleasePartitions", ctx, param)}
+}
+
+func (_c *DataHandler_ReleasePartitions_Call) Run(run func(ctx context.Context, param *api.ReleasePartitionsParam)) *DataHandler_ReleasePartitions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.ReleasePartitionsParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_ReleasePartitions_Call) Return(_a0 error) *DataHandler_ReleasePartitions_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_ReleasePartitions_Call) RunAndReturn(run func(context.Context, *api.ReleasePartitionsParam) error) *DataHandler_ReleasePartitions_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -688,8 +774,8 @@ type DataHandler_ReplicateMessage_Call struct {
 }
 
 // ReplicateMessage is a helper method to define mock.On call
-//   - ctx context.Context
-//   - param *api.ReplicateMessageParam
+//  - ctx context.Context
+//  - param *api.ReplicateMessageParam
 func (_e *DataHandler_Expecter) ReplicateMessage(ctx interface{}, param interface{}) *DataHandler_ReplicateMessage_Call {
 	return &DataHandler_ReplicateMessage_Call{Call: _e.mock.On("ReplicateMessage", ctx, param)}
 }

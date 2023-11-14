@@ -707,7 +707,7 @@ func TestChannelWriter(t *testing.T) {
 			call.Unset()
 		}
 
-		// release
+		// release fail
 		{
 			dataHandler.EXPECT().ReleaseCollection(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
@@ -735,7 +735,7 @@ func TestChannelWriter(t *testing.T) {
 			assert.Error(t, err)
 		}
 
-		// success
+		// release success
 		{
 			dataHandler.EXPECT().ReleaseCollection(mock.Anything, mock.Anything).Return(nil).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
@@ -750,6 +750,256 @@ func TestChannelWriter(t *testing.T) {
 								SourceID: 1,
 							},
 							CollectionName: "test",
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.NoError(t, err)
+		}
+	})
+
+	t.Run("load partitions", func(t *testing.T) {
+		// load partitions without db, fail
+		{
+			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
+			dataHandler.EXPECT().LoadPartitions(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
+			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.LoadPartitionsMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_LoadPartitions,
+								SourceID: 1,
+							},
+							CollectionName: "test",
+							PartitionNames: []string{"p1", "p2"},
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.Error(t, err)
+		}
+		// load partition with not ready collection
+		{
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+			call := dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
+			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.LoadPartitionsMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_LoadPartitions,
+								SourceID: 1,
+							},
+							CollectionName: "test",
+							PartitionNames: []string{"p1", "p2"},
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.Error(t, err)
+			cancelFunc()
+			call.Unset()
+		}
+		// load partition with not ready db
+		{
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
+			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.LoadPartitionsMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_LoadPartitions,
+								SourceID: 1,
+							},
+							CollectionName: "test",
+							PartitionNames: []string{"p1", "p2"},
+							DbName:         "tree",
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.Error(t, err)
+			cancelFunc()
+			call.Unset()
+		}
+
+		// load partition success
+		{
+			dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(nil).Once()
+			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
+			dataHandler.EXPECT().LoadPartitions(mock.Anything, mock.Anything).Return(nil).Once()
+			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.LoadPartitionsMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_LoadPartitions,
+								SourceID: 1,
+							},
+							CollectionName: "test",
+							PartitionNames: []string{"p1", "p2"},
+							DbName:         "tree",
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.NoError(t, err)
+		}
+	})
+
+	t.Run("release partitions", func(t *testing.T) {
+		// release partitions without db, fail
+		{
+			dataHandler.EXPECT().ReleasePartitions(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
+			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.ReleasePartitionsMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_ReleasePartitions,
+								SourceID: 1,
+							},
+							CollectionName: "test",
+							PartitionNames: []string{"p1", "p2"},
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.Error(t, err)
+		}
+		// release partitions with not ready collection
+		//{
+		//	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		//	call := dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
+		//	_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
+		//		Msgs: []msgstream.TsMsg{
+		//			&msgstream.ReleasePartitionsMsg{
+		//				BaseMsg: msgstream.BaseMsg{
+		//					HashValues: []uint32{1},
+		//				},
+		//				ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+		//					Base: &commonpb.MsgBase{
+		//						MsgType:  commonpb.MsgType_ReleasePartitions,
+		//						SourceID: 1,
+		//					},
+		//					CollectionName: "test",
+		//					PartitionNames: []string{"p1", "p2"},
+		//				},
+		//			},
+		//		},
+		//		EndPositions: []*msgstream.MsgPosition{
+		//			{
+		//				ChannelName: "test",
+		//				MsgID:       []byte("foo"),
+		//			},
+		//		},
+		//	})
+		//	assert.Error(t, err)
+		//	cancelFunc()
+		//	call.Unset()
+		//}
+		//// release partitions with not ready db
+		//{
+		//	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		//	call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
+		//	_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
+		//		Msgs: []msgstream.TsMsg{
+		//			&msgstream.ReleasePartitionsMsg{
+		//				BaseMsg: msgstream.BaseMsg{
+		//					HashValues: []uint32{1},
+		//				},
+		//				ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+		//					Base: &commonpb.MsgBase{
+		//						MsgType:  commonpb.MsgType_ReleasePartitions,
+		//						SourceID: 1,
+		//					},
+		//					CollectionName: "test",
+		//					PartitionNames: []string{"p1", "p2"},
+		//					DbName:         "tree",
+		//				},
+		//			},
+		//		},
+		//		EndPositions: []*msgstream.MsgPosition{
+		//			{
+		//				ChannelName: "test",
+		//				MsgID:       []byte("foo"),
+		//			},
+		//		},
+		//	})
+		//	assert.Error(t, err)
+		//	cancelFunc()
+		//	call.Unset()
+		//}
+		// release partitions success
+		{
+			dataHandler.EXPECT().ReleasePartitions(mock.Anything, mock.Anything).Return(nil).Once()
+			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.ReleasePartitionsMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_ReleasePartitions,
+								SourceID: 1,
+							},
+							CollectionName: "test",
+							PartitionNames: []string{"p1", "p2"},
+							DbName:         "tree",
 						},
 					},
 				},

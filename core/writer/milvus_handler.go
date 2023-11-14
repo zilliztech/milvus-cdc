@@ -187,6 +187,20 @@ func (m *MilvusDataHandler) ReleaseCollection(ctx context.Context, param *api.Re
 	})
 }
 
+func (m *MilvusDataHandler) LoadPartitions(ctx context.Context, param *api.LoadPartitionsParam) error {
+	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
+		return milvus.LoadPartitions(ctx, param.CollectionName, param.PartitionNames, true,
+			client.WithLoadPartitionsMsgBase(param.GetBase()))
+	})
+}
+
+func (m *MilvusDataHandler) ReleasePartitions(ctx context.Context, param *api.ReleasePartitionsParam) error {
+	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
+		return milvus.ReleasePartitions(ctx, param.CollectionName, param.PartitionNames,
+			client.WithReleasePartitionMsgBase(param.GetBase()))
+	})
+}
+
 func (m *MilvusDataHandler) Flush(ctx context.Context, param *api.FlushParam) error {
 	for _, s := range param.GetCollectionNames() {
 		if err := m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
