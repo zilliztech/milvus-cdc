@@ -671,12 +671,12 @@ func replicateMetric(info *meta.TaskInfo, channelName string, msgPack *msgstream
 	msgTime, _ := tsoutil.ParseHybridTs(msgPack.EndTs)
 	metrics.ReplicateTimeDifferenceVec.
 		WithLabelValues(info.TaskID, channelName, op).
-		Observe(float64(time.Since(time.UnixMilli(msgTime)).Milliseconds()))
+		Set(float64(time.Since(time.UnixMilli(msgTime)).Milliseconds()))
 	var packSize int
 	for _, msg := range msgPack.Msgs {
 		packSize += msg.Size()
 	}
-	metrics.ReplicateDataSizeVec.WithLabelValues(info.TaskID, channelName, metrics.OPTypeWrite).Observe(float64(packSize))
+	metrics.ReplicateDataSizeVec.WithLabelValues(info.TaskID, channelName, op).Add(float64(packSize))
 }
 
 func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *ReplicateEntity, channelName, channelPosition string) (api.Reader, error) {
@@ -695,7 +695,7 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 
 			metrics.ReplicateTimeDifferenceVec.
 				WithLabelValues(info.TaskID, channelName, metrics.OPTypeRead).
-				Observe(float64(time.Since(time.UnixMilli(msgTime)).Milliseconds()))
+				Set(float64(time.Since(time.UnixMilli(msgTime)).Milliseconds()))
 
 			positionBytes, err := replicateEntity.writerObj.HandleOpMessagePack(funcCtx, pack)
 			if err != nil {
@@ -706,7 +706,7 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 
 			metrics.ReplicateTimeDifferenceVec.
 				WithLabelValues(info.TaskID, channelName, metrics.OPTypeWrite).
-				Observe(float64(time.Since(time.UnixMilli(msgTime)).Milliseconds()))
+				Set(float64(time.Since(time.UnixMilli(msgTime)).Milliseconds()))
 			metrics.APIExecuteCountVec.WithLabelValues(info.TaskID, pack.Msgs[0].Type().String()).Inc()
 
 			channelName := info.RPCRequestChannelInfo.Name
@@ -815,11 +815,16 @@ func (e *MetaCDC) Delete(req *request.DeleteRequest) (*request.DeleteResponse, e
 
 func (e *MetaCDC) Pause(req *request.PauseRequest) (*request.PauseResponse, error) {
 	e.cdcTasks.RLock()
-	_, ok := e.cdcTasks.data[req.TaskID]
-	e.cdcTasks.RUnlock()
+	cdcTask, ok := e.cdcTasks.data[req.TaskID]
 	if !ok {
+		e.cdcTasks.RUnlock()
 		return nil, servererror.NewClientError("not found the task, task_id: " + req.TaskID)
 	}
+	if cdcTask.State == meta.TaskStatePaused {
+		e.cdcTasks.RUnlock()
+		return nil, servererror.NewClientError("the task has paused, task_id: " + req.TaskID)
+	}
+	e.cdcTasks.RUnlock()
 
 	err := e.pauseTaskWithReason(req.TaskID, "manually pause through http interface", []meta.TaskState{meta.TaskStateRunning})
 	if err != nil {
@@ -832,10 +837,15 @@ func (e *MetaCDC) Pause(req *request.PauseRequest) (*request.PauseResponse, erro
 func (e *MetaCDC) Resume(req *request.ResumeRequest) (*request.ResumeResponse, error) {
 	e.cdcTasks.RLock()
 	cdcTask, ok := e.cdcTasks.data[req.TaskID]
-	e.cdcTasks.RUnlock()
 	if !ok {
+		e.cdcTasks.RUnlock()
 		return nil, servererror.NewClientError("not found the task, task_id: " + req.TaskID)
 	}
+	if cdcTask.State == meta.TaskStateRunning {
+		e.cdcTasks.RUnlock()
+		return nil, servererror.NewClientError("the task has running, task_id: " + req.TaskID)
+	}
+	e.cdcTasks.RUnlock()
 
 	if err := e.startInternal(cdcTask, false); err != nil {
 		log.Warn("fail to start the task", zap.Error(err))

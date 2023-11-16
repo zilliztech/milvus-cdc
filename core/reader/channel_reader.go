@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"math/rand"
 	"sync"
+	"time"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/log"
@@ -74,7 +76,8 @@ func (c *ChannelReader) initMsgStream() error {
 		return err
 	}
 
-	consumeSubName := c.channelName + string(rand.Int31())
+	rand.Seed(time.Now().UnixNano())
+	consumeSubName := fmt.Sprintf("%s-%d", c.channelName, rand.Int31())
 	err = stream.AsConsumer(context.Background(), []string{c.channelName}, consumeSubName, c.subscriptionPosition)
 	if err != nil {
 		log.Warn("fail to create the consumer", zap.Error(err))

@@ -211,6 +211,9 @@ func TestStartReadCollection(t *testing.T) {
 
 		// partition not found
 		{
+			realManager.retryOptions = []retry.Option{
+				retry.Attempts(1),
+			}
 			err := realManager.AddPartition(context.Background(), &pb.CollectionInfo{
 				ID: 41,
 			}, &pb.PartitionInfo{})
