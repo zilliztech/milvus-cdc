@@ -221,15 +221,23 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 	var handlers []*replicateChannelHandler
 	collectionID := collectionInfo.ID
 	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, collectionID)
-	r.channelLock.RLock()
-	for _, handler := range r.channelHandlerMap {
-		handler.recordLock.RLock()
-		if _, ok := handler.collectionRecords[collectionID]; ok {
-			handlers = append(handlers, handler)
+
+	_ = retry.Do(ctx, func() error {
+		r.channelLock.RLock()
+		for _, handler := range r.channelHandlerMap {
+			handler.recordLock.RLock()
+			if _, ok := handler.collectionRecords[collectionID]; ok {
+				handlers = append(handlers, handler)
+			}
+			handler.recordLock.RUnlock()
 		}
-		handler.recordLock.RUnlock()
-	}
-	r.channelLock.RUnlock()
+		r.channelLock.RUnlock()
+		if len(handlers) == 0 {
+			log.Info("waiting handler", zap.Int64("collection_id", collectionID))
+			return errors.New("no handler found")
+		}
+		return nil
+	}, r.retryOptions...)
 	if len(handlers) == 0 {
 		log.Warn("no handler found", zap.Int64("collection_id", collectionID))
 		return errors.New("no handler found")

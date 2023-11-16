@@ -80,8 +80,8 @@ var (
 			Subsystem: systemName,
 			Name:      "request_latency",
 			Help:      "cdc request latency on the client side ",
-			// 0.1 0.2 0.4 0.8 1.6 3.2 6.4 12.8
-			Buckets: prometheus.ExponentialBuckets(0.1, 2, 8),
+			// 1 2 4 8 16 32 64 128
+			Buckets: prometheus.ExponentialBuckets(1, 2, 8),
 		}, []string{requestTypeLabelName})
 
 	TaskRequestCountVec = prometheus.NewCounterVec(
@@ -92,23 +92,20 @@ var (
 			Help:      "cdc request count",
 		}, []string{requestTypeLabelName, requestStatusLabelName})
 
-	ReplicateTimeDifferenceVec = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
+	ReplicateTimeDifferenceVec = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
 			Namespace: milvusNamespace,
 			Subsystem: systemName,
 			Name:      "replicate_tt_lag",
 			Help:      "the time difference between the current time and the current message timestamp, unit: ms",
-			Buckets:   []float64{100, 500, 1000, 5000, 10000, 50000, 100000, 200000, 400000, 800000},
 		}, []string{taskIDLabelName, vchannelLabelName, opTypeName})
 
-	ReplicateDataSizeVec = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
+	ReplicateDataSizeVec = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
 			Namespace: milvusNamespace,
 			Subsystem: systemName,
 			Name:      "replicate_data_size",
 			Help:      "the size of the message",
-			// 16 64 256 1k 4k 16k 64k 256k 1M 4M 16M 64M 256M
-			Buckets: prometheus.ExponentialBuckets(16, 4, 13),
 		}, []string{taskIDLabelName, vchannelLabelName, opTypeName})
 
 	APIExecuteCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{

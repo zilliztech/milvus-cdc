@@ -9,6 +9,7 @@
 - Create/Drop Partition
 - Create/Drop Index
 - Load/Release/Flush
+- Load/Release Partitions
 - Create/Drop Database
 
     **Anything not mentioned is not supported;**

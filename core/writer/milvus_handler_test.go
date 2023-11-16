@@ -269,7 +269,7 @@ func TestDataHandler(t *testing.T) {
 		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
 			Status: &commonpb.Status{},
 			Value:  true,
-		}, nil).Twice()
+		}, nil).Once()
 		milvusService.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(&milvuspb.DescribeCollectionResponse{
 			Status: &commonpb.Status{},
 			Schema: &schemapb.CollectionSchema{
@@ -290,7 +290,6 @@ func TestDataHandler(t *testing.T) {
 				},
 			},
 		}, nil).Once()
-		milvusService.EXPECT().Flush(mock.Anything, mock.Anything).Return(&milvuspb.FlushResponse{Status: &commonpb.Status{}}, nil).Once()
 		milvusService.EXPECT().CreateIndex(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.CreateIndex(ctx, &api.CreateIndexParam{
 			CreateIndexRequest: milvuspb.CreateIndexRequest{
@@ -348,6 +347,10 @@ func TestDataHandler(t *testing.T) {
 			Status: &commonpb.Status{},
 			Value:  true,
 		}, nil).Once()
+		milvusService.EXPECT().HasPartition(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+			Status: &commonpb.Status{},
+			Value:  true,
+		}, nil).Once()
 		milvusService.EXPECT().LoadPartitions(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.LoadPartitions(ctx, &api.LoadPartitionsParam{
 			LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
@@ -360,6 +363,10 @@ func TestDataHandler(t *testing.T) {
 
 	t.Run("release partitions", func(t *testing.T) {
 		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+			Status: &commonpb.Status{},
+			Value:  true,
+		}, nil).Once()
+		milvusService.EXPECT().HasPartition(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
 			Status: &commonpb.Status{},
 			Value:  true,
 		}, nil).Once()
