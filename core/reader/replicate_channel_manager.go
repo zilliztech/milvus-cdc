@@ -676,9 +676,6 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 	for _, position := range newPack.EndPositions {
 		position.ChannelName = pChannel
 	}
-	if r.msgPackCallback != nil {
-		r.msgPackCallback(r.pChannelName, newPack)
-	}
 	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
 	if needTsMsg {
 		timeTickResult := msgpb.TimeTickMsg{
@@ -698,6 +695,9 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 			TimeTickMsg: timeTickResult,
 		}
 		newPack.Msgs = append(newPack.Msgs, timeTickMsg)
+	}
+	if r.msgPackCallback != nil {
+		r.msgPackCallback(r.pChannelName, newPack)
 	}
 	return newPack
 }
