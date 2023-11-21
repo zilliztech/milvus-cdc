@@ -645,6 +645,7 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, info *meta.
 				var metaOpPosition *meta.PositionInfo
 				if msgPack.Msgs != nil && len(msgPack.Msgs) > 0 && msgPack.Msgs[0].Type() != commonpb.MsgType_TimeTick {
 					metaOpPosition = metaPosition
+					metrics.APIExecuteCountVec.WithLabelValues(info.TaskID, "ReplicateMessage").Inc()
 				}
 				metaTargetPosition := &meta.PositionInfo{
 					Time: msgTime,
