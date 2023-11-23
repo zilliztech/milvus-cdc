@@ -33,10 +33,13 @@ func NewParamItem(value string) paramtable.ParamItem {
 	return item
 }
 
-func NewParamGroup() paramtable.ParamGroup {
+func NewParamGroup(m map[string]string) paramtable.ParamGroup {
 	group := paramtable.ParamGroup{
 		GetFunc: func() map[string]string {
-			return map[string]string{}
+			if m == nil {
+				return map[string]string{}
+			}
+			return m
 		},
 	}
 	return group
@@ -49,6 +52,8 @@ type MQConfig struct {
 
 type KafkaConfig struct {
 	Address          string
+	Producer         map[string]string
+	Consumer         map[string]string
 	SaslUsername     string
 	SaslPassword     string
 	SaslMechanisms   string
