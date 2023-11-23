@@ -66,9 +66,18 @@ func (c *ChannelWriter) initOPMessageFuncs() {
 }
 
 func (c *ChannelWriter) HandleReplicateAPIEvent(ctx context.Context, apiEvent *api.ReplicateAPIEvent) error {
-	log.Info("receive replicate api event", zap.Any("event", apiEvent.EventType))
+	fields := []zap.Field{
+		zap.Any("event", apiEvent.EventType),
+	}
+	if apiEvent.CollectionInfo != nil && apiEvent.CollectionInfo.Schema != nil {
+		fields = append(fields, zap.String("collection", apiEvent.CollectionInfo.Schema.GetName()))
+	}
+	if apiEvent.PartitionInfo != nil {
+		fields = append(fields, zap.String("partition", apiEvent.PartitionInfo.PartitionName))
+	}
+	log.Info("receive replicate api event", fields...)
 	defer func() {
-		log.Info("finish to handle replicate api event", zap.Any("event", apiEvent.EventType))
+		log.Info("finish to handle replicate api event", fields...)
 	}()
 
 	f, ok := c.apiEventFuncs[apiEvent.EventType]
