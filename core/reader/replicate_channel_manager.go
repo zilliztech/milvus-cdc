@@ -643,7 +643,7 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 			}
 			if err != nil {
 				r.sendErrEvent(err)
-				log.Warn("fail to get partition info", zap.Any("msg", msg), zap.Error(err))
+				log.Warn("fail to get partition info", zap.Any("msg", msg.Type()), zap.Error(err))
 				return nil
 			}
 			if pChannel != info.PChannel {
@@ -721,7 +721,7 @@ func newReplicateChannelHandler(ctx context.Context,
 		return nil, err
 	}
 	subPositionType := mqwrapper.SubscriptionPositionUnknown
-	if sourceInfo.SeekPosition != nil {
+	if sourceInfo.SeekPosition == nil {
 		subPositionType = mqwrapper.SubscriptionPositionLatest
 	}
 	err = stream.AsConsumer(ctx, []string{sourceInfo.PChannelName}, sourceInfo.PChannelName+strconv.Itoa(rand.Int()), subPositionType)
