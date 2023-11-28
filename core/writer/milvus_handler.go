@@ -113,6 +113,7 @@ func (m *MilvusDataHandler) DropCollection(ctx context.Context, param *api.DropC
 func (m *MilvusDataHandler) Insert(ctx context.Context, param *api.InsertParam) error {
 	partitionName := param.PartitionName
 	if m.ignorePartition {
+		log.Info("ignore partition name in insert request", zap.String("partition", partitionName))
 		partitionName = ""
 	}
 	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
@@ -124,6 +125,7 @@ func (m *MilvusDataHandler) Insert(ctx context.Context, param *api.InsertParam) 
 func (m *MilvusDataHandler) Delete(ctx context.Context, param *api.DeleteParam) error {
 	partitionName := param.PartitionName
 	if m.ignorePartition {
+		log.Info("ignore partition name in delete request", zap.String("partition", partitionName))
 		partitionName = ""
 	}
 
@@ -134,6 +136,7 @@ func (m *MilvusDataHandler) Delete(ctx context.Context, param *api.DeleteParam) 
 
 func (m *MilvusDataHandler) CreatePartition(ctx context.Context, param *api.CreatePartitionParam) error {
 	if m.ignorePartition {
+		log.Warn("ignore create partition", zap.String("collection", param.CollectionName), zap.String("partition", param.PartitionName))
 		return nil
 	}
 	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
@@ -143,6 +146,7 @@ func (m *MilvusDataHandler) CreatePartition(ctx context.Context, param *api.Crea
 
 func (m *MilvusDataHandler) DropPartition(ctx context.Context, param *api.DropPartitionParam) error {
 	if m.ignorePartition {
+		log.Warn("ignore drop partition", zap.String("collection", param.CollectionName), zap.String("partition", param.PartitionName))
 		return nil
 	}
 	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
