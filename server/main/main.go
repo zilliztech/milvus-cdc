@@ -17,19 +17,28 @@
 package main
 
 import (
+	"io/ioutil"
 	"os"
 
-	"github.com/milvus-io/milvus/pkg/log"
+	pkglog "github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/util/paramtable"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/yaml"
 
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/server"
+	"github.com/zilliztech/milvus-cdc/server/tag"
 )
 
 func main() {
-	// TODO check it
+	pkglog.ReplaceGlobals(zap.NewNop(), &pkglog.ZapProperties{
+		Core:   zapcore.NewNopCore(),
+		Syncer: zapcore.AddSync(ioutil.Discard),
+		Level:  zap.NewAtomicLevel(),
+	})
 	paramtable.Init()
+	tag.LogInfo()
 
 	s := &server.CDCServer{}
 

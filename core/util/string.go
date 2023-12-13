@@ -22,8 +22,9 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/milvus-io/milvus/pkg/log"
 	"go.uber.org/zap"
+
+	"github.com/zilliztech/milvus-cdc/core/log"
 )
 
 // ToBytes performs unholy acts to avoid allocations

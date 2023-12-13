@@ -7,7 +7,8 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
-	"github.com/milvus-io/milvus/pkg/log"
+
+	"github.com/zilliztech/milvus-cdc/core/log"
 )
 
 type DataHandler interface {

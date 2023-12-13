@@ -20,10 +20,10 @@ import (
 	"context"
 
 	"github.com/cockroachdb/errors"
-	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/server/api"
 	servererror "github.com/zilliztech/milvus-cdc/server/error"
 	"github.com/zilliztech/milvus-cdc/server/metrics"

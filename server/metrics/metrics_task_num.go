@@ -17,10 +17,10 @@
 package metrics
 
 import (
-	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 )
 

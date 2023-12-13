@@ -5,10 +5,10 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
-	"github.com/milvus-io/milvus/pkg/log"
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )

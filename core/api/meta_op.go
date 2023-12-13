@@ -3,8 +3,7 @@ package api
 import (
 	"context"
 
-	"github.com/milvus-io/milvus/pkg/log"
-
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 )

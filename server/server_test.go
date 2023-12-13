@@ -24,11 +24,11 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/errors"
-	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
+	"github.com/zilliztech/milvus-cdc/core/log"
 	cdcerror "github.com/zilliztech/milvus-cdc/server/error"
 	"github.com/zilliztech/milvus-cdc/server/model"
 	"github.com/zilliztech/milvus-cdc/server/model/request"

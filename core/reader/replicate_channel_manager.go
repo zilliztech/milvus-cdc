@@ -12,7 +12,6 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 	"github.com/milvus-io/milvus/pkg/util/commonpbutil"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	"github.com/zilliztech/milvus-cdc/core/util"
@@ -691,6 +691,7 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 				BeginTimestamp: pack.EndTs,
 				EndTimestamp:   pack.EndTs,
 				HashValues:     []uint32{0},
+				MsgPosition:    newPack.EndPositions[0],
 			},
 			TimeTickMsg: timeTickResult,
 		}

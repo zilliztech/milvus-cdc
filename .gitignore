@@ -13,3 +13,4 @@ coverage.out
 go.work
 go.work.sum
 **/bak/**
+bin/

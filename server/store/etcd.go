@@ -6,10 +6,10 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/goccy/go-json"
-	"github.com/milvus-io/milvus/pkg/log"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/api"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
@@ -253,12 +253,12 @@ func (t *TaskCollectionPositionEtcdStore) Get(ctx context.Context, metaObj *meta
 	defer cancel()
 	key := getTaskCollectionPositionPrefix(t.rootPath)
 	ops := []clientv3.OpOption{clientv3.WithPrefix()}
-	if metaObj.TaskID != "" {
-		key = getTaskCollectionPositionPrefixWithTaskID(t.rootPath, metaObj.TaskID)
-		ops = []clientv3.OpOption{clientv3.WithPrefix()}
-	} else if metaObj.TaskID != "" && metaObj.CollectionID != 0 {
+	if metaObj.TaskID != "" && metaObj.CollectionID != 0 {
 		key = getTaskCollectionPositionKey(t.rootPath, metaObj.TaskID, metaObj.CollectionID)
 		ops = []clientv3.OpOption{}
+	} else if metaObj.TaskID != "" {
+		key = getTaskCollectionPositionPrefixWithTaskID(t.rootPath, metaObj.TaskID)
+		ops = []clientv3.OpOption{clientv3.WithPrefix()}
 	}
 	if txn != nil {
 		if _, ok := t.txnMap[txn]; !ok {

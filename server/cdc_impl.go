@@ -28,7 +28,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/tsoutil"
 	"github.com/samber/lo"
@@ -36,6 +35,7 @@ import (
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	cdcreader "github.com/zilliztech/milvus-cdc/core/reader"
 	"github.com/zilliztech/milvus-cdc/core/util"
@@ -439,7 +439,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 	if err != nil {
 		return err
 	}
-	readCtx, cancelReadFunc := context.WithCancel(context.Background())
+	readCtx, cancelReadFunc := context.WithCancel(log.WithTraceID(context.Background(), info.TaskID))
 	e.replicateEntityMap.Lock()
 	originQuitFunc := replicateEntity.quitFunc
 	replicateEntity.quitFunc = func() {

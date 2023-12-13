@@ -24,11 +24,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/mitchellh/mapstructure"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 
+	"github.com/zilliztech/milvus-cdc/core/log"
 	cdcerror "github.com/zilliztech/milvus-cdc/server/error"
 	"github.com/zilliztech/milvus-cdc/server/metrics"
 	modelrequest "github.com/zilliztech/milvus-cdc/server/model/request"

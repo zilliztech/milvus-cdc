@@ -20,10 +20,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
+
+	"github.com/zilliztech/milvus-cdc/core/log"
 )
 
 var (

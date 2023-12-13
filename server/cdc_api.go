@@ -17,8 +17,7 @@
 package server
 
 import (
-	"github.com/milvus-io/milvus/pkg/log"
-
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/server/model/request"
 )
 

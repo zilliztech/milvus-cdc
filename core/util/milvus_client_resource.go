@@ -9,8 +9,8 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
-	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/util/resource"
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"go.uber.org/zap"
 )
 

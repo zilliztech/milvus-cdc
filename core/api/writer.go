@@ -3,8 +3,9 @@ package api
 import (
 	"context"
 
-	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+
+	"github.com/zilliztech/milvus-cdc/core/log"
 )
 
 type Writer interface {
