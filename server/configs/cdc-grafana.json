@@ -11,6 +11,12 @@
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
         "type": "dashboard"
       }
     ]
@@ -18,14 +24,15 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 102,
+  "iteration": 1703127226995,
   "links": [],
   "liveNow": false,
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -71,23 +78,15 @@
         "showThresholdLabels": false,
         "showThresholdMarkers": true
       },
-      "pluginVersion": "10.2.0",
+      "pluginVersion": "8.5.20",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+            "uid": "${datasource}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "milvus_cdc_task_num{instance=~\"$instance\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
+          "expr": "milvus_cdc_task_num{namespace=\"$namespace\", pod=\"$pod\"}",
+          "refId": "A"
         }
       ],
       "title": "Task",
@@ -96,7 +95,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -145,18 +144,13 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+            "uid": "${datasource}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "milvus_cdc_request_total{request_status=\"total\", instance=~\"$instance\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
+          "editorMode": "code",
+          "expr": "milvus_cdc_request_total{namespace=\"$namespace\", pod=\"$pod\", request_status=\"total\"}",
           "legendFormat": "{{request_type}}",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         }
       ],
       "title": "Request Total",
@@ -165,7 +159,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -213,18 +207,13 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+            "uid": "${datasource}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "milvus_cdc_request_total{request_status=\"success\", instance=~\"$instance\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
+          "editorMode": "code",
+          "expr": "milvus_cdc_request_total{namespace=\"$namespace\", pod=\"$pod\", request_status=\"success\"}",
           "legendFormat": "{{request_type}}",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         }
       ],
       "title": "Request Success",
@@ -233,7 +222,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -241,9 +230,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "task num",
             "axisPlacement": "auto",
             "axisSoftMax": 10,
@@ -256,7 +242,6 @@
               "tooltip": false,
               "viz": false
             },
-            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -314,20 +299,13 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+            "uid": "${datasource}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "exemplar": false,
-          "expr": "milvus_cdc_task_num{instance=~\"$instance\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "interval": "",
-          "legendFormat": "{{instance}} {{task_state}}",
+          "editorMode": "code",
+          "expr": "milvus_cdc_task_num{namespace=\"$namespace\", pod=\"$pod\"}",
+          "legendFormat": "{{task_state}}",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         }
       ],
       "title": "task num",
@@ -336,7 +314,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+        "uid": "${datasource}"
       },
       "description": "0: Initial; 1: Running; 2: Paused; -1: Deleted",
       "fieldConfig": {
@@ -345,9 +323,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "0: Initial; 1: Running; 2: Paused; -1: Deleted",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -359,7 +334,6 @@
               "tooltip": false,
               "viz": false
             },
-            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -377,7 +351,7 @@
             }
           },
           "decimals": 0,
-          "displayName": "${__field.labels.instance}-${__field.labels.task_id}",
+          "displayName": "${__field.labels.task_id}",
           "mappings": [],
           "max": 3,
           "min": -1,
@@ -404,7 +378,7 @@
               "options": {
                 "mode": "exclude",
                 "names": [
-                  "host.docker.internal:8444-30d1e325df604ebb99e14c2a335a1421"
+                  "4ce0077db777454a915b912c5e568285"
                 ],
                 "prefix": "All except:",
                 "readOnly": true
@@ -446,18 +420,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+            "uid": "${datasource}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "milvus_cdc_task_state{instance=~\"$instance\", task_id=~\"$task_id\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
+          "expr": "milvus_cdc_task_state{namespace=\"$namespace\", pod=\"$pod\", task_id=~\"$task_id\"}",
+          "refId": "A"
         }
       ],
       "title": "task state",
@@ -466,7 +432,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -474,9 +440,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -488,7 +451,6 @@
               "tooltip": false,
               "viz": false
             },
-            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -548,18 +510,13 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+            "uid": "${datasource}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "milvus_cdc_request_total{instance=~\"$instance\", request_type=~\"$request_type\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
+          "editorMode": "code",
+          "expr": "milvus_cdc_request_total{namespace=\"$namespace\", pod=\"$pod\", request_type=~\"$request_type\"}",
           "legendFormat": "{{request_type}}-{{request_status}}",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         }
       ],
       "title": "request count",
@@ -568,7 +525,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+        "uid": "${datasource}"
       },
       "description": "The 99th percentile and average request latency over the last 1 minutes.",
       "fieldConfig": {
@@ -577,9 +534,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisGridShow": true,
             "axisLabel": "count",
             "axisPlacement": "auto",
@@ -592,7 +546,6 @@
               "tooltip": false,
               "viz": false
             },
-            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -610,7 +563,6 @@
             }
           },
           "decimals": 0,
-          "fieldMinMax": false,
           "mappings": [],
           "min": 0,
           "thresholds": {
@@ -651,32 +603,23 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+            "uid": "${datasource}"
           },
-          "disableTextWrap": false,
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "histogram_quantile(0.99, sum by (le, instance, request_type) (rate(milvus_cdc_request_latency_bucket{instance=~\"$instance\", request_type=~\"$request_type\"}[1m])))",
-          "format": "time_series",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "p99-{{instance}}-{{request_type}}",
+          "expr": "histogram_quantile(0.99, sum by (le, instance, request_type) (rate(milvus_cdc_request_latency_bucket{namespace=\"$namespace\", pod=\"$pod\", request_type=~\"$request_type\"}[1m])))",
+          "legendFormat": "p99-{{request_type}}",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+            "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(increase(milvus_cdc_request_latency_sum{instance=~\"$instance\", request_type=~\"$request_type\"}[1m])) by(instance, request_type) / sum(increase(milvus_cdc_request_latency_count{instance=~\"$instance\", request_type=~\"$request_type\"}[1m])) by(instance, request_type)",
+          "expr": "sum(increase(milvus_cdc_request_latency_sum{namespace=\"$namespace\", pod=\"$pod\", request_type=~\"$request_type\"}[1m])) by(instance, request_type) / sum(increase(milvus_cdc_request_latency_count{namespace=\"$namespace\", pod=\"$pod\", request_type=~\"$request_type\"}[1m])) by(instance, request_type)",
           "hide": false,
-          "instant": false,
-          "legendFormat": "avg-{{instance}}-{{request_type}}",
+          "legendFormat": "avg-{{request_type}}",
           "range": true,
           "refId": "B"
         }
@@ -688,7 +631,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -696,9 +639,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -710,7 +650,6 @@
               "tooltip": false,
               "viz": false
             },
-            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -768,18 +707,13 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+            "uid": "${datasource}"
           },
-          "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "sum(increase(milvus_cdc_replicate_data_size{instance=~\"$instance\"}[1m])/60) by (task_id, vchannel_name, op_type)",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
+          "expr": "sum(increase(milvus_cdc_replicate_data_size{namespace=\"$namespace\", pod=\"$pod\", task_id=~\"$task_id\", vchannel_name=~\"$channel_name\"}[1m])/60) by (task_id, vchannel_name, op_type)",
           "legendFormat": "{{task_id}}-{{vchannel_name}}-{{op_type}}",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         }
       ],
       "title": "replicate data rate",
@@ -788,7 +722,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -796,9 +730,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -810,7 +741,6 @@
               "tooltip": false,
               "viz": false
             },
-            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -868,18 +798,13 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+            "uid": "${datasource}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "milvus_cdc_replicate_tt_lag{instance=~\"$instance\", task_id=~\"$task_id\", vchannel_name=~\"$channel_name\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
+          "editorMode": "code",
+          "expr": "milvus_cdc_replicate_tt_lag{namespace=\"$namespace\", pod=\"$pod\", task_id=~\"$task_id\", vchannel_name=~\"$channel_name\"}",
           "legendFormat": "{{task_id}}-{{vchannel_name}}-{{op_type}}",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         }
       ],
       "title": "replicate tt lag",
@@ -888,7 +813,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+        "uid": "${datasource}"
       },
       "description": "the counter of executing target api",
       "fieldConfig": {
@@ -897,9 +822,6 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -911,7 +833,6 @@
               "tooltip": false,
               "viz": false
             },
-            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -969,18 +890,13 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+            "uid": "${datasource}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "milvus_cdc_api_execute_total{instance=~\"$instance\", task_id=~\"$task_id\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
+          "editorMode": "code",
+          "expr": "milvus_cdc_api_execute_total{namespace=\"$namespace\", pod=\"$pod\", task_id=~\"$task_id\"}",
           "legendFormat": "{{task_id}}-{{api_type}}",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         }
       ],
       "title": "api execute count",
@@ -988,36 +904,75 @@
     }
   ],
   "refresh": "5s",
-  "schemaVersion": 38,
+  "schemaVersion": 36,
+  "style": "dark",
   "tags": [],
   "templating": {
     "list": [
       {
-        "allValue": ".*",
         "current": {
           "selected": true,
-          "text": [
-            "host.docker.internal:8444"
-          ],
-          "value": [
-            "host.docker.internal:8444"
-          ]
+          "text": "prometheus",
+          "value": "prometheus"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "chaos-testing",
+          "value": "chaos-testing"
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+          "uid": "P1809F7CD0C75ACF3"
         },
-        "definition": "label_values(instance)",
+        "definition": "label_values(kube_pod_info, namespace)",
         "hide": 0,
-        "includeAll": true,
-        "label": "instance",
-        "multi": true,
-        "name": "instance",
+        "includeAll": false,
+        "multi": false,
+        "name": "namespace",
         "options": [],
         "query": {
-          "qryType": 1,
-          "query": "label_values(instance)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "query": "label_values(kube_pod_info, namespace)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "milvus-cdc-77-69c79c655c-b6vkr",
+          "value": "milvus-cdc-77-69c79c655c-b6vkr"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "P1809F7CD0C75ACF3"
+        },
+        "definition": "label_values(milvus_cdc_task_num{namespace=~\"$namespace\"}, pod)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "pod",
+        "multi": false,
+        "name": "pod",
+        "options": [],
+        "query": {
+          "query": "label_values(milvus_cdc_task_num{namespace=~\"$namespace\"}, pod)",
+          "refId": "StandardVariableQuery"
         },
         "refresh": 1,
         "regex": "",
@@ -1038,9 +993,9 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+          "uid": "P1809F7CD0C75ACF3"
         },
-        "definition": "label_values(request_type)",
+        "definition": "label_values(milvus_cdc_request_total{namespace=\"$namespace\", pod=\"$pod\", request_status=\"total\"}, request_type)",
         "hide": 0,
         "includeAll": true,
         "label": "request type",
@@ -1048,9 +1003,8 @@
         "name": "request_type",
         "options": [],
         "query": {
-          "qryType": 1,
-          "query": "label_values(request_type)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "query": "label_values(milvus_cdc_request_total{namespace=\"$namespace\", pod=\"$pod\", request_status=\"total\"}, request_type)",
+          "refId": "StandardVariableQuery"
         },
         "refresh": 1,
         "regex": "",
@@ -1063,17 +1017,17 @@
         "current": {
           "selected": true,
           "text": [
-            "All"
+            "4ce0077db777454a915b912c5e568285"
           ],
           "value": [
-            "$__all"
+            "4ce0077db777454a915b912c5e568285"
           ]
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+          "uid": "P1809F7CD0C75ACF3"
         },
-        "definition": "label_values(task_id)",
+        "definition": "label_values(milvus_cdc_task_state{namespace=\"$namespace\", pod=\"$pod\"}, task_id)",
         "hide": 0,
         "includeAll": true,
         "label": "task id",
@@ -1081,9 +1035,8 @@
         "name": "task_id",
         "options": [],
         "query": {
-          "qryType": 1,
-          "query": "label_values(task_id)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "query": "label_values(milvus_cdc_task_state{namespace=\"$namespace\", pod=\"$pod\"}, task_id)",
+          "refId": "StandardVariableQuery"
         },
         "refresh": 1,
         "regex": "",
@@ -1096,17 +1049,17 @@
         "current": {
           "selected": true,
           "text": [
-            "by-dev-rootcoord-dml_0"
+            "cdc-test-upstream-77-rootcoord-dml_0"
           ],
           "value": [
-            "by-dev-rootcoord-dml_0"
+            "cdc-test-upstream-77-rootcoord-dml_0"
           ]
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "fcf37567-5cc1-4773-9b58-4d9c65d53746"
+          "uid": "P1809F7CD0C75ACF3"
         },
-        "definition": "label_values(vchannel_name)",
+        "definition": "label_values(milvus_cdc_replicate_data_size{namespace=\"$namespace\", pod=\"$pod\", task_id=~\"$task_id\"}, vchannel_name)",
         "hide": 0,
         "includeAll": true,
         "label": "channel name",
@@ -1114,9 +1067,8 @@
         "name": "channel_name",
         "options": [],
         "query": {
-          "qryType": 1,
-          "query": "label_values(vchannel_name)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "query": "label_values(milvus_cdc_replicate_data_size{namespace=\"$namespace\", pod=\"$pod\", task_id=~\"$task_id\"}, vchannel_name)",
+          "refId": "StandardVariableQuery"
         },
         "refresh": 1,
         "regex": "",
@@ -1127,13 +1079,13 @@
     ]
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "cdc",
   "uid": "d8ecc7e9-236f-4ed3-9835-e76e9a9f8ff8",
-  "version": 22,
+  "version": 14,
   "weekStart": ""
 }
