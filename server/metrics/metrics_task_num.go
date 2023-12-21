@@ -19,6 +19,8 @@
 package metrics
 
 import (
+	"sync"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
@@ -27,63 +29,66 @@ import (
 )
 
 type TaskNumMetric struct {
-	metricDesc *prometheus.Desc
-	initialNum int
-	runningNum int
-	pauseNum   int
+	metricDesc     *prometheus.Desc
+	numLock        sync.RWMutex
+	initialTaskMap map[string]struct{}
+	runningTaskMap map[string]struct{}
+	pauseTaskMap   map[string]struct{}
 }
 
-// add it should be adapted if you modify the meta.MinTaskState or the meta.MaxTaskState
-func (t *TaskNumMetric) add(s meta.TaskState, errTip string) {
-	innerLog := log.With(zap.String("tip", errTip), zap.Int("state", int(s)))
-	if !s.IsValidTaskState() {
-		innerLog.Warn("invalid task state")
-		return
-	}
-	switch s {
+func (t *TaskNumMetric) getStateMap(state meta.TaskState) map[string]struct{} {
+	switch state {
 	case meta.TaskStateInitial:
-		t.initialNum++
+		return t.initialTaskMap
 	case meta.TaskStateRunning:
-		t.runningNum++
+		return t.runningTaskMap
 	case meta.TaskStatePaused:
-		t.pauseNum++
+		return t.pauseTaskMap
 	default:
-		innerLog.Warn("add, not handle the state")
-		return
+		return nil
 	}
 }
 
-// reduce it should be adapted if you modify the meta.MinTaskState or the meta.MaxTaskState
-func (t *TaskNumMetric) reduce(s meta.TaskState, errTip string) {
-	innerLog := log.With(zap.String("tip", errTip), zap.Int("state", int(s)))
-	if !s.IsValidTaskState() {
-		innerLog.Warn("invalid task state")
+func (t *TaskNumMetric) UpdateState(taskID string, newState meta.TaskState, oldStates meta.TaskState) {
+	t.numLock.Lock()
+	defer t.numLock.Unlock()
+
+	oldStatesMap := t.getStateMap(oldStates)
+	newStatesMap := t.getStateMap(newState)
+	if oldStatesMap == nil || newStatesMap == nil {
+		log.Warn("update state, not handle the state", zap.String("task", taskID),
+			zap.Any("old_state", oldStates), zap.Any("new_state", newState))
 		return
 	}
-	switch s {
-	case meta.TaskStateInitial:
-		t.initialNum--
-	case meta.TaskStateRunning:
-		t.runningNum--
-	case meta.TaskStatePaused:
-		t.pauseNum--
-	default:
-		innerLog.Warn("reduce, not handle the state", zap.Int("state", int(s)))
+
+	if _, ok := oldStatesMap[taskID]; !ok {
 		return
 	}
+
+	delete(oldStatesMap, taskID)
+	newStatesMap[taskID] = struct{}{}
 }
 
-func (t *TaskNumMetric) UpdateState(newState meta.TaskState, oldStates meta.TaskState) {
-	t.add(newState, "update state, new state")
-	t.reduce(oldStates, "update state, old state")
+func (t *TaskNumMetric) Delete(taskID string, state meta.TaskState) {
+	t.numLock.Lock()
+	defer t.numLock.Unlock()
+
+	stateMap := t.getStateMap(state)
+	if stateMap == nil {
+		return
+	}
+	delete(stateMap, taskID)
 }
 
-func (t *TaskNumMetric) Delete(state meta.TaskState) {
-	t.reduce(state, "delete")
-}
+func (t *TaskNumMetric) Add(taskID string, state meta.TaskState) {
+	t.numLock.Lock()
+	defer t.numLock.Unlock()
 
-func (t *TaskNumMetric) Add(state meta.TaskState) {
-	t.add(state, "add state")
+	stateMap := t.getStateMap(state)
+	if stateMap == nil {
+		return
+	}
+	stateMap[taskID] = struct{}{}
 }
 
 // Describe it should be adapted if you modify the meta.MinTaskState or the meta.MaxTaskState
@@ -93,12 +98,20 @@ func (t *TaskNumMetric) Describe(descs chan<- *prometheus.Desc) {
 	descs <- t.metricDesc
 }
 
+func (t *TaskNumMetric) getStateNum() (float64, float64, float64) {
+	t.numLock.RLock()
+	defer t.numLock.RUnlock()
+
+	return float64(len(t.initialTaskMap)), float64(len(t.runningTaskMap)), float64(len(t.pauseTaskMap))
+}
+
 // Collect it should be adapted if you modify the meta.MinTaskState or the meta.MaxTaskState
 func (t *TaskNumMetric) Collect(metrics chan<- prometheus.Metric) {
+	initialNum, runningNum, pauseNum := t.getStateNum()
 	metrics <- prometheus.MustNewConstMetric(t.metricDesc, prometheus.GaugeValue,
-		float64(t.initialNum), meta.TaskStateInitial.String())
+		initialNum, meta.TaskStateInitial.String())
 	metrics <- prometheus.MustNewConstMetric(t.metricDesc, prometheus.GaugeValue,
-		float64(t.runningNum), meta.TaskStateRunning.String())
+		runningNum, meta.TaskStateRunning.String())
 	metrics <- prometheus.MustNewConstMetric(t.metricDesc, prometheus.GaugeValue,
-		float64(t.pauseNum), meta.TaskStatePaused.String())
+		pauseNum, meta.TaskStatePaused.String())
 }

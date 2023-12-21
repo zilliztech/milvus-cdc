@@ -159,7 +159,7 @@ func (e *MetaCDC) ReloadTask() {
 		e.cdcTasks.data[taskInfo.TaskID] = taskInfo
 		e.cdcTasks.Unlock()
 
-		metrics.TaskNumVec.Add(taskInfo.State)
+		metrics.TaskNumVec.Add(taskInfo.TaskID, taskInfo.State)
 		metrics.TaskStateVec.WithLabelValues(taskInfo.TaskID).Set(float64(taskInfo.State))
 		if err := e.startInternal(taskInfo, taskInfo.State == meta.TaskStateRunning); err != nil {
 			log.Warn("fail to start the task", zap.Any("task_info", taskInfo), zap.Error(err))
@@ -279,7 +279,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		revertCollectionNames()
 		return nil, servererror.NewServerError(errors.WithMessage(err, "fail to put the task info to etcd"))
 	}
-	metrics.TaskNumVec.Add(info.State)
+	metrics.TaskNumVec.Add(info.TaskID, info.State)
 	metrics.TaskStateVec.WithLabelValues(info.TaskID).Set(float64(info.State))
 	e.cdcTasks.Lock()
 	e.cdcTasks.data[info.TaskID] = info

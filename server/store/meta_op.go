@@ -92,7 +92,7 @@ func UpdateTaskState(taskInfoStore api.MetaStore[*meta.TaskInfo], taskID string,
 		return err
 	}
 	metrics.TaskStateVec.WithLabelValues(taskID).Set(float64(newState))
-	metrics.TaskNumVec.UpdateState(newState, oldState)
+	metrics.TaskNumVec.UpdateState(taskID, newState, oldState)
 	return nil
 }
 
@@ -198,7 +198,7 @@ func DeleteTask(factory api.MetaStoreFactory, taskID string) (*meta.TaskInfo, er
 	if err == nil {
 		commitErr := commitFunc(err)
 		if commitErr == nil {
-			metrics.TaskNumVec.Delete(info.State)
+			metrics.TaskNumVec.Delete(info.TaskID, info.State)
 			metrics.TaskStateVec.WithLabelValues(info.TaskID).Set(-1)
 			return info, nil
 		}
