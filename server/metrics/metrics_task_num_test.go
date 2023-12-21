@@ -27,28 +27,33 @@ import (
 )
 
 func TestMetricTaskNum(t *testing.T) {
-	m := &TaskNumMetric{}
-	m.Add(meta.TaskStateInitial)
+	m := &TaskNumMetric{
+		initialTaskMap: make(map[string]struct{}),
+		runningTaskMap: make(map[string]struct{}),
+		pauseTaskMap:   make(map[string]struct{}),
+	}
+	m.Add("0", meta.TaskStateInitial)
 	assertNum(t, m, 1, 0, 0)
 
-	m.Add(meta.TaskStateRunning)
+	m.Add("1", meta.TaskStateRunning)
 	assertNum(t, m, 1, 1, 0)
 
-	m.UpdateState(meta.TaskStatePaused, meta.TaskStateRunning)
+	m.UpdateState("1", meta.TaskStatePaused, meta.TaskStateRunning)
 	assertNum(t, m, 1, 0, 1)
 
-	m.UpdateState(meta.TaskStateRunning, meta.TaskStateInitial)
+	m.UpdateState("0", meta.TaskStateRunning, meta.TaskStateInitial)
 	assertNum(t, m, 0, 1, 1)
 
-	m.Delete(meta.TaskStatePaused)
+	m.Delete("1", meta.TaskStatePaused)
 	assertNum(t, m, 0, 1, 0)
 
-	m.UpdateState(meta.MinTaskState-1, meta.MaxTaskState+1)
+	m.UpdateState("2", meta.MinTaskState-1, meta.MaxTaskState+1)
 	assertNum(t, m, 0, 1, 0)
 }
 
 func assertNum(t *testing.T, metric *TaskNumMetric, initialNum, runningNum, pauseNum int) {
-	assert.Equal(t, initialNum, metric.initialNum)
-	assert.Equal(t, runningNum, metric.runningNum)
-	assert.Equal(t, pauseNum, metric.pauseNum)
+	a, b, c := metric.getStateNum()
+	assert.Equal(t, initialNum, int(a))
+	assert.Equal(t, runningNum, int(b))
+	assert.Equal(t, pauseNum, int(c))
 }

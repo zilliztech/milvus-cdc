@@ -64,8 +64,14 @@ var (
 	registry *prometheus.Registry
 
 	TaskNumVec = &TaskNumMetric{
-		metricDesc: prometheus.NewDesc(prometheus.BuildFQName(milvusNamespace, systemName, "task_num"),
-			"cdc task number", []string{taskStateLabelName}, nil),
+		metricDesc: prometheus.NewDesc(
+			prometheus.BuildFQName(milvusNamespace, systemName, "task_num"),
+			"cdc task number",
+			[]string{taskStateLabelName}, nil,
+		),
+		initialTaskMap: make(map[string]struct{}),
+		runningTaskMap: make(map[string]struct{}),
+		pauseTaskMap:   make(map[string]struct{}),
 	}
 
 	TaskStateVec = prometheus.NewGaugeVec(
