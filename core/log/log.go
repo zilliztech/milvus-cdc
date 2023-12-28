@@ -92,9 +92,24 @@ func Ctx(ctx context.Context) *log.MLogger {
 }
 
 func WithTraceID(ctx context.Context, traceID string) context.Context {
-	return log.WithTraceID(ctx, traceID)
+	return WithFields(ctx, zap.String("traceID", traceID))
+}
+
+func WithFields(ctx context.Context, fields ...zap.Field) context.Context {
+	var zlogger *zap.Logger
+	if ctxLogger, ok := ctx.Value(CtxLogKey).(*log.MLogger); ok {
+		zlogger = ctxLogger.Logger
+	} else {
+		zlogger = L()
+	}
+	mLogger := &log.MLogger{
+		Logger: zlogger.With(fields...),
+	}
+	return context.WithValue(ctx, CtxLogKey, mLogger)
 }
 
 func With(fields ...zap.Field) *log.MLogger {
-	return log.With(fields...)
+	return &log.MLogger{
+		Logger: L().With(fields...).WithOptions(zap.AddCallerSkip(-1)),
+	}
 }

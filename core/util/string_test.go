@@ -42,7 +42,7 @@ func TestToPhysicalChannel(t *testing.T) {
 
 func TestBase64Encode(t *testing.T) {
 	str := "foo"
-	encodeStr := Base64Encode(str)
+	encodeStr := Base64Encode([]byte(str))
 	assert.NotEmpty(t, encodeStr)
 	decodeByte, err := base64.StdEncoding.DecodeString(encodeStr)
 	assert.NoError(t, err)

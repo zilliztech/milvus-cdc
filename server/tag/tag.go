@@ -36,7 +36,7 @@ func LogInfo() {
 	log.Info("base info", zap.String("BuildTime", BuildTime), zap.String("GitCommit", GitCommit), zap.String("GoVersion", GoVersion))
 }
 
-//nolint
+// nolint
 func PrintInfo() {
 	fmt.Println("# Build time:", BuildTime)
 	fmt.Println("# Git commit:", GitCommit)

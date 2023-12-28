@@ -748,6 +748,7 @@ func (e *MetaCDC) isRunningTask(taskID string) bool {
 }
 
 func (e *MetaCDC) pauseTaskWithReason(taskID, reason string, currentStates []meta.TaskState) error {
+	log.Info("pause task", zap.String("task_id", taskID), zap.String("reason", reason))
 	err := store.UpdateTaskState(
 		e.metaStoreFactory.GetTaskInfoMetaStore(context.Background()),
 		taskID,

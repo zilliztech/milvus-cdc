@@ -65,6 +65,14 @@ func (m *Map[K, V]) Store(key K, value V) {
 	m.m.Store(key, value)
 }
 
+func (m *Map[K, V]) LoadWithDefault(key K, value V) V {
+	v, o := m.Load(key)
+	if !o {
+		return value
+	}
+	return v
+}
+
 func (m *Map[K, V]) LoadOrStore(key K, value V) (actual V, loaded bool) {
 	v, o := m.m.LoadOrStore(key, value)
 	return v.(V), o

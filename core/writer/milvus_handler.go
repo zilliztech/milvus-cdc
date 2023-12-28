@@ -261,3 +261,18 @@ func (m *MilvusDataHandler) DescribeDatabase(ctx context.Context, param *api.Des
 	}
 	return errors.Newf("database [%s] not found", param.Name)
 }
+
+func (m *MilvusDataHandler) DescribePartition(ctx context.Context, param *api.DescribePartitionParam) error {
+	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
+		partitions, err := milvus.ShowPartitions(ctx, param.CollectionName)
+		if err != nil {
+			return err
+		}
+		for _, partition := range partitions {
+			if partition.Name == param.PartitionName {
+				return nil
+			}
+		}
+		return errors.Newf("partition [%s] not found", param.PartitionName)
+	})
+}
