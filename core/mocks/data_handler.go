@@ -324,6 +324,49 @@ func (_c *DataHandler_DescribeDatabase_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
+// DescribePartition provides a mock function with given fields: ctx, param
+func (_m *DataHandler) DescribePartition(ctx context.Context, param *api.DescribePartitionParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.DescribePartitionParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_DescribePartition_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DescribePartition'
+type DataHandler_DescribePartition_Call struct {
+	*mock.Call
+}
+
+// DescribePartition is a helper method to define mock.On call
+//  - ctx context.Context
+//  - param *api.DescribePartitionParam
+func (_e *DataHandler_Expecter) DescribePartition(ctx interface{}, param interface{}) *DataHandler_DescribePartition_Call {
+	return &DataHandler_DescribePartition_Call{Call: _e.mock.On("DescribePartition", ctx, param)}
+}
+
+func (_c *DataHandler_DescribePartition_Call) Run(run func(ctx context.Context, param *api.DescribePartitionParam)) *DataHandler_DescribePartition_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.DescribePartitionParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_DescribePartition_Call) Return(_a0 error) *DataHandler_DescribePartition_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_DescribePartition_Call) RunAndReturn(run func(context.Context, *api.DescribePartitionParam) error) *DataHandler_DescribePartition_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DropCollection provides a mock function with given fields: ctx, param
 func (_m *DataHandler) DropCollection(ctx context.Context, param *api.DropCollectionParam) error {
 	ret := _m.Called(ctx, param)

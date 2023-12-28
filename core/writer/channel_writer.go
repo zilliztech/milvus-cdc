@@ -21,6 +21,7 @@ package writer
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 
 	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
@@ -47,6 +48,10 @@ type ChannelWriter struct {
 	messageManager api.MessageManager
 	opMessageFuncs map[commonpb.MsgType]opMessageFunc
 	apiEventFuncs  map[api.ReplicateAPIEventType]apiEventFunc
+
+	dbInfos         util.Map[string, uint64]
+	collectionInfos util.Map[string, uint64]
+	partitionInfos  util.Map[string, uint64]
 }
 
 func NewChannelWriter(dataHandler api.DataHandler, messageBufferSize int) api.Writer {
@@ -56,6 +61,7 @@ func NewChannelWriter(dataHandler api.DataHandler, messageBufferSize int) api.Wr
 	}
 	w.initAPIEventFuncs()
 	w.initOPMessageFuncs()
+	// TODO gc the infos
 
 	return w
 }
@@ -189,7 +195,43 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 	return endPosition.MsgID, nil
 }
 
-func (c *ChannelWriter) WaitCollectionReady(ctx context.Context, collectionName, databaseName string) bool {
+// WaitDatabaseReady wait for database ready, return value: skip the op or not, wait timeout or not
+func (c *ChannelWriter) WaitDatabaseReady(ctx context.Context, databaseName string, msgTs uint64) InfoState {
+	if databaseName == "" {
+		return InfoStateCreated
+	}
+	createKey, dropKey := getDBInfoKeys(databaseName)
+	ctime, cok := c.dbInfos.Load(createKey)
+	dtime, dok := c.dbInfos.Load(dropKey)
+
+	s := getObjState(msgTs, ctime, dtime, cok, dok)
+	if s != InfoStateUnknown {
+		return s
+	}
+
+	err := retry.Do(ctx, func() error {
+		return c.dataHandler.DescribeDatabase(ctx, &api.DescribeDatabaseParam{
+			Name: databaseName,
+		})
+	}, util.GetRetryOptionsFor25s()...)
+	if err == nil {
+		c.dbInfos.Store(createKey, msgTs)
+		return InfoStateCreated
+	}
+	log.Warn("database is not ready", zap.String("database", databaseName))
+	return InfoStateUnknown
+}
+
+func (c *ChannelWriter) WaitCollectionReady(ctx context.Context, collectionName, databaseName string, msgTs uint64) InfoState {
+	createKey, dropKey := getCollectionInfoKeys(collectionName, databaseName)
+	ctime, cok := c.collectionInfos.Load(createKey)
+	dtime, dok := c.collectionInfos.Load(dropKey)
+
+	s := getObjState(msgTs, ctime, dtime, cok, dok)
+	if s != InfoStateUnknown {
+		return s
+	}
+
 	err := retry.Do(ctx, func() error {
 		return c.dataHandler.DescribeCollection(ctx, &api.DescribeCollectionParam{
 			ReplicateParam: api.ReplicateParam{
@@ -198,25 +240,93 @@ func (c *ChannelWriter) WaitCollectionReady(ctx context.Context, collectionName,
 			Name: collectionName,
 		})
 	}, util.GetRetryOptionsFor25s()...)
-	return err == nil
+	if err == nil {
+		c.collectionInfos.Store(createKey, msgTs)
+		return InfoStateCreated
+	}
+	return InfoStateUnknown
 }
 
-func (c *ChannelWriter) WaitDatabaseReady(ctx context.Context, databaseName string) bool {
-	if databaseName == "" {
-		return true
+func (c *ChannelWriter) WaitPartitionReady(ctx context.Context, collectionName, partitionName, databaseName string, msgTs uint64) InfoState {
+	createKey, dropKey := getPartitionInfoKeys(partitionName, collectionName, databaseName)
+	ctime, cok := c.partitionInfos.Load(createKey)
+	dtime, dok := c.partitionInfos.Load(dropKey)
+
+	s := getObjState(msgTs, ctime, dtime, cok, dok)
+	if s != InfoStateUnknown {
+		return s
 	}
+
 	err := retry.Do(ctx, func() error {
-		return c.dataHandler.DescribeDatabase(ctx, &api.DescribeDatabaseParam{
-			Name: databaseName,
+		return c.dataHandler.DescribePartition(ctx, &api.DescribePartitionParam{
+			ReplicateParam: api.ReplicateParam{
+				Database: databaseName,
+			},
+			CollectionName: collectionName,
+			PartitionName:  partitionName,
 		})
 	}, util.GetRetryOptionsFor25s()...)
-	return err == nil
+
+	if err == nil {
+		c.partitionInfos.Store(createKey, msgTs)
+		return InfoStateCreated
+	}
+
+	return InfoStateUnknown
+}
+
+// WaitObjReadyForAPIEvent wait database/collection/partition ready, return value: skip the op or not, and error
+func (c *ChannelWriter) WaitObjReadyForAPIEvent(ctx context.Context, apiEvent *api.ReplicateAPIEvent, waitDatabase, waitCollection, waitPartition bool) (bool, error) {
+	ts := apiEvent.ReplicateInfo.MsgTimestamp
+	db := apiEvent.ReplicateParam.Database
+	collection := ""
+	partition := ""
+	if waitCollection {
+		collection = apiEvent.CollectionInfo.Schema.GetName()
+	}
+	if waitPartition {
+		partition = apiEvent.PartitionInfo.PartitionName
+	}
+
+	return c.WaitObjReady(ctx, db, collection, partition, ts)
+}
+
+func (c *ChannelWriter) WaitObjReady(ctx context.Context, db, collection, partition string, ts uint64) (bool, error) {
+	if db != "" {
+		state := c.WaitDatabaseReady(ctx, db, ts)
+		if state == InfoStateUnknown {
+			return false, errors.New("database is not ready")
+		} else if state == InfoStateDropped {
+			return true, nil
+		}
+	}
+	if db != "" && collection != "" {
+		state := c.WaitCollectionReady(ctx, collection, db, ts)
+		if state == InfoStateUnknown {
+			return false, errors.New("collection is not ready")
+		} else if state == InfoStateDropped {
+			return true, nil
+		}
+	}
+	if db != "" && collection != "" && partition != "" {
+		state := c.WaitPartitionReady(ctx, collection, partition, db, ts)
+		if state == InfoStateUnknown {
+			return false, errors.New("partition is not ready")
+		} else if state == InfoStateDropped {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (c *ChannelWriter) createCollection(ctx context.Context, apiEvent *api.ReplicateAPIEvent) error {
-	if ready := c.WaitDatabaseReady(ctx, apiEvent.ReplicateParam.Database); !ready {
-		log.Warn("database is not ready", zap.String("database", apiEvent.ReplicateParam.Database))
-		return errors.New("database is not ready")
+	if skip, err := c.WaitObjReadyForAPIEvent(ctx, apiEvent, true, false, false); err != nil {
+		return err
+	} else if skip {
+		log.Info("database has been dropped",
+			zap.String("database", apiEvent.ReplicateParam.Database),
+			zap.String("collection", util.Base64ProtoObj(apiEvent.CollectionInfo)))
+		return nil
 	}
 	collectionInfo := apiEvent.CollectionInfo
 	entitySchema := &entity.Schema{}
@@ -238,27 +348,38 @@ func (c *ChannelWriter) createCollection(ctx context.Context, apiEvent *api.Repl
 }
 
 func (c *ChannelWriter) dropCollection(ctx context.Context, apiEvent *api.ReplicateAPIEvent) error {
-	if ready := c.WaitDatabaseReady(ctx, apiEvent.ReplicateParam.Database); !ready {
-		log.Warn("database is not ready", zap.String("database", apiEvent.ReplicateParam.Database))
-		return errors.New("database is not ready")
+	if skip, err := c.WaitObjReadyForAPIEvent(ctx, apiEvent, true, false, false); err != nil {
+		return err
+	} else if skip {
+		log.Info("database has been dropped",
+			zap.String("database", apiEvent.ReplicateParam.Database),
+			zap.String("collection", util.Base64ProtoObj(apiEvent.CollectionInfo)))
+		return nil
 	}
+	collectionName := apiEvent.CollectionInfo.Schema.GetName()
+	databaseName := apiEvent.ReplicateParam.Database
 	dropParam := &api.DropCollectionParam{
 		MsgBaseParam:   api.MsgBaseParam{Base: &commonpb.MsgBase{ReplicateInfo: apiEvent.ReplicateInfo}},
 		ReplicateParam: apiEvent.ReplicateParam,
-		CollectionName: apiEvent.CollectionInfo.Schema.GetName(),
+		CollectionName: collectionName,
 	}
 	err := c.dataHandler.DropCollection(ctx, dropParam)
 	if err != nil {
 		log.Warn("fail to drop collection", zap.Any("event", apiEvent), zap.Error(err))
 		return err
 	}
+	_, dropKey := getCollectionInfoKeys(collectionName, databaseName)
+	c.collectionInfos.Store(dropKey, apiEvent.ReplicateInfo.MsgTimestamp)
 	return nil
 }
 
 func (c *ChannelWriter) createPartition(ctx context.Context, apiEvent *api.ReplicateAPIEvent) error {
-	if ready := c.WaitDatabaseReady(ctx, apiEvent.ReplicateParam.Database); !ready {
-		log.Warn("database is not ready", zap.String("database", apiEvent.ReplicateParam.Database))
-		return errors.New("database is not ready")
+	if skip, err := c.WaitObjReadyForAPIEvent(ctx, apiEvent, true, true, false); err != nil {
+		return err
+	} else if skip {
+		log.Info("collection has been dropped", zap.String("database", apiEvent.ReplicateParam.Database),
+			zap.String("collection", apiEvent.CollectionInfo.Schema.GetName()), zap.String("partition", util.Base64ProtoObj(apiEvent.PartitionInfo)))
+		return nil
 	}
 	createParam := &api.CreatePartitionParam{
 		MsgBaseParam:   api.MsgBaseParam{Base: &commonpb.MsgBase{ReplicateInfo: apiEvent.ReplicateInfo}},
@@ -269,27 +390,45 @@ func (c *ChannelWriter) createPartition(ctx context.Context, apiEvent *api.Repli
 	err := c.dataHandler.CreatePartition(ctx, createParam)
 	if err != nil {
 		log.Warn("fail to create partition", zap.Any("event", apiEvent), zap.Error(err))
-		return err
+		skip, _ := c.WaitObjReadyForAPIEvent(ctx, apiEvent, true, true, false)
+		if !skip {
+			return err
+		}
+		log.Info("collection has been dropped", zap.String("database", apiEvent.ReplicateParam.Database),
+			zap.String("collection", apiEvent.CollectionInfo.Schema.GetName()), zap.String("partition", util.Base64ProtoObj(apiEvent.PartitionInfo)))
 	}
 	return nil
 }
 
 func (c *ChannelWriter) dropPartition(ctx context.Context, apiEvent *api.ReplicateAPIEvent) error {
-	if ready := c.WaitDatabaseReady(ctx, apiEvent.ReplicateParam.Database); !ready {
-		log.Warn("database is not ready", zap.String("database", apiEvent.ReplicateParam.Database))
-		return errors.New("database is not ready")
+	if skip, err := c.WaitObjReadyForAPIEvent(ctx, apiEvent, true, true, false); err != nil {
+		return err
+	} else if skip {
+		log.Info("collection has been dropped", zap.String("database", apiEvent.ReplicateParam.Database),
+			zap.String("collection", apiEvent.CollectionInfo.Schema.GetName()), zap.String("partition", util.Base64ProtoObj(apiEvent.PartitionInfo)))
+		return nil
 	}
+	partitionName := apiEvent.PartitionInfo.PartitionName
+	collectionName := apiEvent.CollectionInfo.Schema.GetName()
+	databaseName := apiEvent.ReplicateParam.Database
 	dropParam := &api.DropPartitionParam{
 		MsgBaseParam:   api.MsgBaseParam{Base: &commonpb.MsgBase{ReplicateInfo: apiEvent.ReplicateInfo}},
 		ReplicateParam: apiEvent.ReplicateParam,
-		CollectionName: apiEvent.CollectionInfo.Schema.GetName(),
-		PartitionName:  apiEvent.PartitionInfo.PartitionName,
+		CollectionName: collectionName,
+		PartitionName:  partitionName,
 	}
 	err := c.dataHandler.DropPartition(ctx, dropParam)
 	if err != nil {
 		log.Warn("fail to drop partition", zap.Any("event", apiEvent), zap.Error(err))
-		return err
+		skip, _ := c.WaitObjReadyForAPIEvent(ctx, apiEvent, true, true, false)
+		if !skip {
+			return err
+		}
+		log.Info("collection has been dropped", zap.String("database", apiEvent.ReplicateParam.Database),
+			zap.String("collection", apiEvent.CollectionInfo.Schema.GetName()), zap.String("partition", util.Base64ProtoObj(apiEvent.PartitionInfo)))
 	}
+	_, dropKey := getPartitionInfoKeys(partitionName, collectionName, databaseName)
+	c.partitionInfos.Store(dropKey, apiEvent.ReplicateInfo.MsgTimestamp)
 	return nil
 }
 
@@ -310,30 +449,37 @@ func (c *ChannelWriter) createDatabase(ctx context.Context, msgBase *commonpb.Ms
 
 func (c *ChannelWriter) dropDatabase(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	dropDatabaseMsg := msg.(*msgstream.DropDatabaseMsg)
+	databaseName := dropDatabaseMsg.GetDbName()
 	err := c.dataHandler.DropDatabase(ctx, &api.DropDatabaseParam{
 		DropDatabaseRequest: milvuspb.DropDatabaseRequest{
 			Base:   msgBase,
-			DbName: dropDatabaseMsg.GetDbName(),
+			DbName: databaseName,
 		},
 	})
 	if err != nil {
 		log.Warn("failed to drop database", zap.Any("msg", dropDatabaseMsg), zap.Error(err))
 		return err
 	}
+	_, dropKey := getDBInfoKeys(databaseName)
+	c.dbInfos.Store(dropKey, dropDatabaseMsg.EndTs())
 	return nil
 }
 
 func (c *ChannelWriter) flush(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	flushMsg := msg.(*msgstream.FlushMsg)
-	if !c.WaitDatabaseReady(ctx, flushMsg.GetDbName()) {
-		log.Warn("database is not ready", zap.Any("msg", flushMsg))
-		return errors.New("database is not ready")
-	}
+	var collectionNames []string
 	for _, s := range flushMsg.GetCollectionNames() {
-		if !c.WaitCollectionReady(ctx, s, flushMsg.GetDbName()) {
-			log.Warn("collection is not ready", zap.Any("msg", flushMsg))
-			return errors.New("collection is not ready")
+		if skip, err := c.WaitObjReady(ctx, flushMsg.GetDbName(), s, "", flushMsg.EndTs()); err != nil {
+			return err
+		} else if skip {
+			log.Info("collection has been dropped", zap.String("database", flushMsg.GetDbName()),
+				zap.String("collection", s), zap.String("msg", util.Base64Msg(msg)))
+			continue
 		}
+		collectionNames = append(collectionNames, s)
+	}
+	if len(collectionNames) == 0 {
+		return nil
 	}
 	err := c.dataHandler.Flush(ctx, &api.FlushParam{
 		ReplicateParam: api.ReplicateParam{
@@ -341,25 +487,31 @@ func (c *ChannelWriter) flush(ctx context.Context, msgBase *commonpb.MsgBase, ms
 		},
 		FlushRequest: milvuspb.FlushRequest{
 			Base:            msgBase,
-			CollectionNames: flushMsg.GetCollectionNames(),
+			CollectionNames: collectionNames,
 		},
 	})
 	if err != nil {
 		log.Warn("failed to flush", zap.Any("msg", flushMsg), zap.Error(err))
-		return err
+		for _, name := range collectionNames {
+			skip, _ := c.WaitObjReady(ctx, flushMsg.GetDbName(), name, "", flushMsg.EndTs())
+			if !skip {
+				return err
+			}
+		}
+		log.Info("collection has been dropped", zap.String("database", flushMsg.GetDbName()),
+			zap.Strings("collections", collectionNames), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
 }
 
 func (c *ChannelWriter) createIndex(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	createIndexMsg := msg.(*msgstream.CreateIndexMsg)
-	if !c.WaitDatabaseReady(ctx, createIndexMsg.GetDbName()) {
-		log.Warn("database is not ready", zap.Any("msg", createIndexMsg))
-		return errors.New("database is not ready")
-	}
-	if !c.WaitCollectionReady(ctx, createIndexMsg.GetCollectionName(), createIndexMsg.GetDbName()) {
-		log.Warn("collection is not ready", zap.Any("msg", createIndexMsg))
-		return errors.New("collection is not ready")
+	if skip, err := c.WaitObjReady(ctx, createIndexMsg.GetDbName(), createIndexMsg.GetCollectionName(), "", createIndexMsg.EndTs()); err != nil {
+		return err
+	} else if skip {
+		log.Info("collection has been dropped", zap.String("database", createIndexMsg.GetDbName()),
+			zap.String("collection", createIndexMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
+		return nil
 	}
 	err := c.dataHandler.CreateIndex(ctx, &api.CreateIndexParam{
 		ReplicateParam: api.ReplicateParam{
@@ -375,13 +527,25 @@ func (c *ChannelWriter) createIndex(ctx context.Context, msgBase *commonpb.MsgBa
 	})
 	if err != nil {
 		log.Warn("fail to create index", zap.Any("msg", createIndexMsg), zap.Error(err))
-		return err
+		skip, _ := c.WaitObjReady(ctx, createIndexMsg.GetDbName(), createIndexMsg.GetCollectionName(), "", createIndexMsg.EndTs())
+		if !skip {
+			return err
+		}
+		log.Info("collection has been dropped", zap.String("database", createIndexMsg.GetDbName()),
+			zap.String("collection", createIndexMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
 }
 
 func (c *ChannelWriter) dropIndex(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	dropIndexMsg := msg.(*msgstream.DropIndexMsg)
+	if skip, err := c.WaitObjReady(ctx, dropIndexMsg.GetDbName(), dropIndexMsg.GetCollectionName(), "", dropIndexMsg.EndTs()); err != nil {
+		return err
+	} else if skip {
+		log.Info("collection has been dropped", zap.String("database", dropIndexMsg.GetDbName()),
+			zap.String("collection", dropIndexMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
+		return nil
+	}
 	err := c.dataHandler.DropIndex(ctx, &api.DropIndexParam{
 		ReplicateParam: api.ReplicateParam{
 			Database: dropIndexMsg.GetDbName(),
@@ -395,20 +559,24 @@ func (c *ChannelWriter) dropIndex(ctx context.Context, msgBase *commonpb.MsgBase
 	})
 	if err != nil {
 		log.Warn("fail to drop index", zap.Any("msg", dropIndexMsg), zap.Error(err))
-		return err
+		skip, _ := c.WaitObjReady(ctx, dropIndexMsg.GetDbName(), dropIndexMsg.GetCollectionName(), "", dropIndexMsg.EndTs())
+		if !skip {
+			return err
+		}
+		log.Info("collection has been dropped", zap.String("database", dropIndexMsg.GetDbName()),
+			zap.String("collection", dropIndexMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
 }
 
 func (c *ChannelWriter) loadCollection(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	loadCollectionMsg := msg.(*msgstream.LoadCollectionMsg)
-	if !c.WaitDatabaseReady(ctx, loadCollectionMsg.GetDbName()) {
-		log.Warn("database is not ready", zap.Any("msg", loadCollectionMsg))
-		return errors.New("database is not ready")
-	}
-	if !c.WaitCollectionReady(ctx, loadCollectionMsg.GetCollectionName(), loadCollectionMsg.GetDbName()) {
-		log.Warn("collection is not ready", zap.Any("msg", loadCollectionMsg))
-		return errors.New("collection is not ready")
+	if skip, err := c.WaitObjReady(ctx, loadCollectionMsg.GetDbName(), loadCollectionMsg.GetCollectionName(), "", loadCollectionMsg.EndTs()); err != nil {
+		return err
+	} else if skip {
+		log.Info("collection has been dropped", zap.String("database", loadCollectionMsg.GetDbName()),
+			zap.String("collection", loadCollectionMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
+		return nil
 	}
 	err := c.dataHandler.LoadCollection(ctx, &api.LoadCollectionParam{
 		ReplicateParam: api.ReplicateParam{
@@ -417,17 +585,30 @@ func (c *ChannelWriter) loadCollection(ctx context.Context, msgBase *commonpb.Ms
 		LoadCollectionRequest: milvuspb.LoadCollectionRequest{
 			Base:           msgBase,
 			CollectionName: loadCollectionMsg.GetCollectionName(),
+			ReplicaNumber:  loadCollectionMsg.GetReplicaNumber(),
 		},
 	})
 	if err != nil {
 		log.Warn("fail to load collection", zap.Any("msg", loadCollectionMsg), zap.Error(err))
-		return err
+		skip, _ := c.WaitObjReady(ctx, loadCollectionMsg.GetDbName(), loadCollectionMsg.GetCollectionName(), "", loadCollectionMsg.EndTs())
+		if !skip {
+			return err
+		}
+		log.Info("collection has been dropped", zap.String("database", loadCollectionMsg.GetDbName()),
+			zap.String("collection", loadCollectionMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
 }
 
 func (c *ChannelWriter) releaseCollection(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	releaseCollectionMsg := msg.(*msgstream.ReleaseCollectionMsg)
+	if skip, err := c.WaitObjReady(ctx, releaseCollectionMsg.GetDbName(), releaseCollectionMsg.GetCollectionName(), "", releaseCollectionMsg.EndTs()); err != nil {
+		return err
+	} else if skip {
+		log.Info("collection has been dropped", zap.String("database", releaseCollectionMsg.GetDbName()),
+			zap.String("collection", releaseCollectionMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
+		return nil
+	}
 	err := c.dataHandler.ReleaseCollection(ctx, &api.ReleaseCollectionParam{
 		ReplicateParam: api.ReplicateParam{
 			Database: releaseCollectionMsg.GetDbName(),
@@ -439,20 +620,31 @@ func (c *ChannelWriter) releaseCollection(ctx context.Context, msgBase *commonpb
 	})
 	if err != nil {
 		log.Warn("fail to release collection", zap.Any("msg", releaseCollectionMsg), zap.Error(err))
-		return err
+		skip, _ := c.WaitObjReady(ctx, releaseCollectionMsg.GetDbName(), releaseCollectionMsg.GetCollectionName(), "", releaseCollectionMsg.EndTs())
+		if !skip {
+			return err
+		}
+		log.Info("collection has been dropped", zap.String("database", releaseCollectionMsg.GetDbName()),
+			zap.String("collection", releaseCollectionMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
 }
 
 func (c *ChannelWriter) loadPartitions(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	loadPartitionsMsg := msg.(*msgstream.LoadPartitionsMsg)
-	if !c.WaitDatabaseReady(ctx, loadPartitionsMsg.GetDbName()) {
-		log.Warn("database is not ready", zap.Any("msg", loadPartitionsMsg))
-		return errors.New("database is not ready")
+	var partitions []string
+	for _, s := range loadPartitionsMsg.GetPartitionNames() {
+		if skip, err := c.WaitObjReady(ctx, loadPartitionsMsg.GetDbName(), loadPartitionsMsg.GetCollectionName(), s, loadPartitionsMsg.EndTs()); err != nil {
+			return err
+		} else if skip {
+			log.Info("partition has been dropped", zap.String("database", loadPartitionsMsg.GetDbName()),
+				zap.String("collection", loadPartitionsMsg.GetCollectionName()), zap.String("partition", s), zap.String("msg", util.Base64Msg(msg)))
+			continue
+		}
+		partitions = append(partitions, s)
 	}
-	if !c.WaitCollectionReady(ctx, loadPartitionsMsg.GetCollectionName(), loadPartitionsMsg.GetDbName()) {
-		log.Warn("collection is not ready", zap.Any("msg", loadPartitionsMsg))
-		return errors.New("collection is not ready")
+	if len(partitions) == 0 {
+		return nil
 	}
 	err := c.dataHandler.LoadPartitions(ctx, &api.LoadPartitionsParam{
 		ReplicateParam: api.ReplicateParam{
@@ -461,18 +653,40 @@ func (c *ChannelWriter) loadPartitions(ctx context.Context, msgBase *commonpb.Ms
 		LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
 			Base:           msgBase,
 			CollectionName: loadPartitionsMsg.GetCollectionName(),
-			PartitionNames: loadPartitionsMsg.GetPartitionNames(),
+			PartitionNames: partitions,
+			ReplicaNumber:  loadPartitionsMsg.GetReplicaNumber(),
 		},
 	})
 	if err != nil {
 		log.Warn("fail to load partitions", zap.Any("msg", loadPartitionsMsg), zap.Error(err))
-		return err
+		for _, p := range partitions {
+			skip, _ := c.WaitObjReady(ctx, loadPartitionsMsg.GetDbName(), loadPartitionsMsg.GetCollectionName(), p, loadPartitionsMsg.EndTs())
+			if !skip {
+				return err
+			}
+		}
+		log.Info("partition has been dropped", zap.String("database", loadPartitionsMsg.GetDbName()),
+			zap.String("collection", loadPartitionsMsg.GetCollectionName()), zap.Strings("partitions", partitions), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
 }
 
 func (c *ChannelWriter) releasePartitions(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	releasePartitionsMsg := msg.(*msgstream.ReleasePartitionsMsg)
+	var partitions []string
+	for _, s := range releasePartitionsMsg.GetPartitionNames() {
+		if skip, err := c.WaitObjReady(ctx, releasePartitionsMsg.GetDbName(), releasePartitionsMsg.GetCollectionName(), s, releasePartitionsMsg.EndTs()); err != nil {
+			return err
+		} else if skip {
+			log.Info("partition has been dropped", zap.String("database", releasePartitionsMsg.GetDbName()),
+				zap.String("collection", releasePartitionsMsg.GetCollectionName()), zap.String("partition", s), zap.String("msg", util.Base64Msg(msg)))
+			continue
+		}
+		partitions = append(partitions, s)
+	}
+	if len(partitions) == 0 {
+		return nil
+	}
 	err := c.dataHandler.ReleasePartitions(ctx, &api.ReleasePartitionsParam{
 		ReplicateParam: api.ReplicateParam{
 			Database: releasePartitionsMsg.GetDbName(),
@@ -480,12 +694,102 @@ func (c *ChannelWriter) releasePartitions(ctx context.Context, msgBase *commonpb
 		ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
 			Base:           msgBase,
 			CollectionName: releasePartitionsMsg.GetCollectionName(),
-			PartitionNames: releasePartitionsMsg.GetPartitionNames(),
+			PartitionNames: partitions,
 		},
 	})
 	if err != nil {
 		log.Warn("fail to release partitions", zap.Any("msg", releasePartitionsMsg), zap.Error(err))
-		return err
+		for _, p := range partitions {
+			skip, _ := c.WaitObjReady(ctx, releasePartitionsMsg.GetDbName(), releasePartitionsMsg.GetCollectionName(), p, releasePartitionsMsg.EndTs())
+			if !skip {
+				return err
+			}
+		}
+		log.Info("partition has been dropped", zap.String("database", releasePartitionsMsg.GetDbName()),
+			zap.String("collection", releasePartitionsMsg.GetCollectionName()), zap.Strings("partitions", partitions), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
 }
+
+func getCreateInfoKey(key string) string {
+	return fmt.Sprintf("%s_c", key)
+}
+
+func getDropInfoKey(key string) string {
+	return fmt.Sprintf("%s_c", key)
+}
+
+func getCollectionInfoKeys(collectionName, dbName string) (string, string) {
+	if dbName == "" {
+		dbName = util.DefaultDbName
+	}
+	key := fmt.Sprintf("%s_%s", dbName, collectionName)
+	return getCreateInfoKey(key), getDropInfoKey(key)
+}
+
+func getPartitionInfoKeys(partitionName, collectionName, dbName string) (string, string) {
+	if dbName == "" {
+		dbName = util.DefaultDbName
+	}
+	key := fmt.Sprintf("%s_%s_%s", dbName, collectionName, partitionName)
+	return getCreateInfoKey(key), getDropInfoKey(key)
+}
+
+func getDBInfoKeys(dbName string) (string, string) {
+	if dbName == "" {
+		dbName = util.DefaultDbName
+	}
+	return getCreateInfoKey(dbName), getDropInfoKey(dbName)
+}
+
+// shouldSkipOp, mtime: msg time, ctime: create time, dtime: drop time
+func getObjState(mtime, ctime, dtime uint64, cok, dok bool) InfoState {
+	// no info, should check it from api
+	if !cok && !dok {
+		return InfoStateUnknown
+	}
+	if !cok && dok {
+		// the object (like database/collection/partition) has been drop, skip the op
+		if mtime <= dtime {
+			log.Info("skip op because the object has been drop",
+				zap.Uint64("mtime", mtime),
+				zap.Uint64("dtime", dtime))
+			return InfoStateDropped
+		}
+		return InfoStateUnknown
+	}
+	if cok && !dok {
+		if ctime <= mtime {
+			return InfoStateCreated
+		}
+		log.Info("skip op because the object has been drop",
+			zap.Uint64("mtime", mtime),
+			zap.Uint64("ctime", ctime))
+		return InfoStateDropped
+	}
+
+	if ctime >= dtime {
+		if mtime >= ctime {
+			return InfoStateCreated
+		}
+		log.Info("skip op because the object has been drop",
+			zap.Uint64("mtime", mtime),
+			zap.Uint64("ctime", ctime))
+		return InfoStateDropped
+	}
+	if mtime > dtime {
+		return InfoStateUnknown
+	}
+	log.Info("skip op because the object has been drop",
+		zap.Uint64("mtime", mtime),
+		zap.Uint64("dtime", dtime))
+	return InfoStateDropped
+}
+
+type InfoState int
+
+const (
+	InfoStateUnknown InfoState = iota + 1
+	InfoStateCreated
+	InfoStateDropped
+)

@@ -24,6 +24,8 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/golang/protobuf/proto"
+	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
@@ -48,11 +50,42 @@ func ToPhysicalChannel(vchannel string) string {
 	return vchannel[:index]
 }
 
-func Base64Encode(obj any) string {
+func Base64Encode(obj []byte) string {
+	return base64.StdEncoding.EncodeToString(obj)
+}
+
+func Base64JSON(obj any) string {
 	objByte, err := json.Marshal(obj)
 	if err != nil {
 		log.Warn("fail to marshal obj", zap.Any("obj", obj))
 		return ""
 	}
 	return base64.StdEncoding.EncodeToString(objByte)
+}
+
+func Base64Msg(msg msgstream.TsMsg) string {
+	msgByte, err := msg.Marshal(msg)
+	if err != nil {
+		log.Warn("fail to marshal msg", zap.Any("msg", msg))
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(msgByte.([]byte))
+}
+
+func Base64ProtoObj(obj proto.Message) string {
+	objByte, err := proto.Marshal(obj)
+	if err != nil {
+		log.Warn("fail to marshal obj", zap.Any("obj", obj))
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(objByte)
+}
+
+func Base64MsgPosition(position *msgstream.MsgPosition) string {
+	positionByte, err := proto.Marshal(position)
+	if err != nil {
+		log.Warn("fail to marshal position", zap.Any("position", position))
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(positionByte)
 }

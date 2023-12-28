@@ -35,7 +35,9 @@ type DataHandler interface {
 	CreatePartition(ctx context.Context, param *CreatePartitionParam) error
 	DropPartition(ctx context.Context, param *DropPartitionParam) error
 
+	// Deprecated
 	Insert(ctx context.Context, param *InsertParam) error
+	// Deprecated
 	Delete(ctx context.Context, param *DeleteParam) error
 	Flush(ctx context.Context, param *FlushParam) error
 
@@ -54,6 +56,7 @@ type DataHandler interface {
 
 	DescribeCollection(ctx context.Context, param *DescribeCollectionParam) error
 	DescribeDatabase(ctx context.Context, param *DescribeDatabaseParam) error
+	DescribePartition(ctx context.Context, param *DescribePartitionParam) error
 }
 
 type DefaultDataHandler struct{}
@@ -147,6 +150,11 @@ func (d *DefaultDataHandler) DescribeCollection(ctx context.Context, param *Desc
 
 func (d *DefaultDataHandler) DescribeDatabase(ctx context.Context, param *DescribeDatabaseParam) error {
 	log.Warn("DescribeDatabase is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) DescribePartition(ctx context.Context, param *DescribePartitionParam) error {
+	log.Warn("DescribePartition is not implemented, please check it")
 	return nil
 }
 
@@ -267,4 +275,10 @@ type DescribeCollectionParam struct {
 type DescribeDatabaseParam struct {
 	ReplicateParam
 	Name string
+}
+
+type DescribePartitionParam struct {
+	ReplicateParam
+	CollectionName string
+	PartitionName  string
 }
