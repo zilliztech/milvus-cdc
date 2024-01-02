@@ -678,9 +678,9 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, info *meta.
 
 func replicateMetric(info *meta.TaskInfo, channelName string, msgPack *msgstream.MsgPack, op string) {
 	msgTime, _ := tsoutil.ParseHybridTs(msgPack.EndTs)
-	metrics.ReplicateTimeDifferenceVec.
+	metrics.ReplicateTimeVec.
 		WithLabelValues(info.TaskID, channelName, op).
-		Set(float64(time.Since(time.UnixMilli(msgTime)).Milliseconds()))
+		Set(float64(msgTime))
 	var packSize int
 	for _, msg := range msgPack.Msgs {
 		packSize += msg.Size()
@@ -702,9 +702,9 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 			}
 			msgTime, _ := tsoutil.ParseHybridTs(pack.EndTs)
 
-			metrics.ReplicateTimeDifferenceVec.
+			metrics.ReplicateTimeVec.
 				WithLabelValues(info.TaskID, channelName, metrics.OPTypeRead).
-				Set(float64(time.Since(time.UnixMilli(msgTime)).Milliseconds()))
+				Set(float64(msgTime))
 
 			positionBytes, err := replicateEntity.writerObj.HandleOpMessagePack(funcCtx, pack)
 			if err != nil {
@@ -713,9 +713,9 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 				return false
 			}
 
-			metrics.ReplicateTimeDifferenceVec.
+			metrics.ReplicateTimeVec.
 				WithLabelValues(info.TaskID, channelName, metrics.OPTypeWrite).
-				Set(float64(time.Since(time.UnixMilli(msgTime)).Milliseconds()))
+				Set(float64(msgTime))
 			metrics.APIExecuteCountVec.WithLabelValues(info.TaskID, pack.Msgs[0].Type().String()).Inc()
 
 			channelName := info.RPCRequestChannelInfo.Name
