@@ -22,14 +22,27 @@ import (
 	"time"
 
 	"github.com/milvus-io/milvus/pkg/util/retry"
+
+	"github.com/zilliztech/milvus-cdc/core/config"
 )
 
-// GetRetryOptionsFor30s 1/2/4/8/10
+// GetRetryOptionsFor25s 1/2/4/8/10
 func GetRetryOptionsFor25s() []retry.Option {
 	return []retry.Option{
 		retry.Attempts(5),
 		retry.Sleep(time.Second),
 		retry.MaxSleepTime(10 * time.Second),
+	}
+}
+
+func GetRetryOptions(c config.RetrySettings) []retry.Option {
+	if c.RetryTimes == 0 || c.InitBackOff == 0 || c.MaxBackOff == 0 {
+		return GetRetryOptionsFor25s()
+	}
+	return []retry.Option{
+		retry.Attempts(uint(c.RetryTimes)),
+		retry.Sleep(time.Duration(c.InitBackOff) * time.Second),
+		retry.MaxSleepTime(time.Duration(c.MaxBackOff) * time.Second),
 	}
 }
 

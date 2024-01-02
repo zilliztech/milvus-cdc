@@ -32,6 +32,7 @@ type CDCServerConfig struct {
 	ReverseMilvus   model.MilvusConnectParam
 	CurrentMilvus   model.MilvusConnectParam
 	MaxNameLength   int
+	Retry           config.RetrySettings
 }
 
 type CDCMetaStoreConfig struct {

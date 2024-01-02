@@ -20,6 +20,7 @@ package model
 
 import (
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/util/retry"
 )
 
 type SourceCollectionInfo struct {
@@ -42,6 +43,7 @@ type TargetCollectionInfo struct {
 type HandlerOpts struct {
 	MessageBufferSize int
 	Factory           msgstream.Factory
+	RetryOptions      []retry.Option
 }
 
 type CollectionInfo struct {

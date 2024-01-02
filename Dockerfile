@@ -2,7 +2,7 @@ FROM  golang:1.18 AS builder
 ENV CGO_ENABLED=1
 WORKDIR /app
 COPY . .
-RUN cd server && go build -o /app/milvus-cdc main/main.go
+RUN cd server && make build && mv ../bin/cdc /app/milvus-cdc
 
 FROM debian:bullseye
 WORKDIR /app

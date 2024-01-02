@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/mocks"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 )
@@ -41,7 +42,7 @@ import (
 func TestChannelWriter(t *testing.T) {
 	dataHandler := mocks.NewDataHandler(t)
 	messageManager := mocks.NewMessageManager(t)
-	w := NewChannelWriter(dataHandler, 10)
+	w := NewChannelWriter(dataHandler, config.WriterConfig{MessageBufferSize: 10})
 	assert.NotNil(t, w)
 
 	realWriter := w.(*ChannelWriter)
@@ -77,6 +78,9 @@ func TestChannelWriter(t *testing.T) {
 					},
 					ShardsNum: 1,
 				},
+				ReplicateInfo: &commonpb.ReplicateInfo{
+					MsgTimestamp: 0,
+				},
 			})
 			assert.Error(t, err)
 		}
@@ -94,6 +98,9 @@ func TestChannelWriter(t *testing.T) {
 				},
 				ReplicateParam: api.ReplicateParam{
 					Database: "link",
+				},
+				ReplicateInfo: &commonpb.ReplicateInfo{
+					MsgTimestamp: 0,
 				},
 			})
 			assert.Error(t, err)
@@ -115,6 +122,9 @@ func TestChannelWriter(t *testing.T) {
 				ReplicateParam: api.ReplicateParam{
 					Database: "link",
 				},
+				ReplicateInfo: &commonpb.ReplicateInfo{
+					MsgTimestamp: 0,
+				},
 			})
 			assert.NoError(t, err)
 		}
@@ -129,6 +139,9 @@ func TestChannelWriter(t *testing.T) {
 						Name: "test",
 					},
 				},
+				ReplicateInfo: &commonpb.ReplicateInfo{
+					MsgTimestamp: 0,
+				},
 			})
 			assert.Error(t, err)
 		}
@@ -142,6 +155,9 @@ func TestChannelWriter(t *testing.T) {
 					Schema: &schemapb.CollectionSchema{
 						Name: "test",
 					},
+				},
+				ReplicateInfo: &commonpb.ReplicateInfo{
+					MsgTimestamp: 0,
 				},
 				ReplicateParam: api.ReplicateParam{Database: "link"},
 			})
@@ -163,6 +179,9 @@ func TestChannelWriter(t *testing.T) {
 				PartitionInfo: &pb.PartitionInfo{
 					PartitionName: "test",
 				},
+				ReplicateInfo: &commonpb.ReplicateInfo{
+					MsgTimestamp: 0,
+				},
 			})
 			assert.Error(t, err)
 		}
@@ -178,6 +197,9 @@ func TestChannelWriter(t *testing.T) {
 				},
 				PartitionInfo: &pb.PartitionInfo{
 					PartitionName: "test",
+				},
+				ReplicateInfo: &commonpb.ReplicateInfo{
+					MsgTimestamp: 0,
 				},
 				ReplicateParam: api.ReplicateParam{Database: "link"},
 			})
@@ -199,6 +221,9 @@ func TestChannelWriter(t *testing.T) {
 				PartitionInfo: &pb.PartitionInfo{
 					PartitionName: "test",
 				},
+				ReplicateInfo: &commonpb.ReplicateInfo{
+					MsgTimestamp: 0,
+				},
 			})
 			assert.Error(t, err)
 		}
@@ -214,6 +239,9 @@ func TestChannelWriter(t *testing.T) {
 				},
 				PartitionInfo: &pb.PartitionInfo{
 					PartitionName: "test",
+				},
+				ReplicateInfo: &commonpb.ReplicateInfo{
+					MsgTimestamp: 0,
 				},
 				ReplicateParam: api.ReplicateParam{Database: "link"},
 			})

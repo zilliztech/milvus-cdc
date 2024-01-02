@@ -72,7 +72,7 @@ type replicateChannelManager struct {
 func NewReplicateChannelManager(mqConfig config.MQConfig,
 	factoryCreator FactoryCreator,
 	client api.TargetAPI,
-	messageBufferSize int,
+	readConfig config.ReaderConfig,
 	metaOp api.MetaOp,
 	msgPackCallback func(string, *msgstream.MsgPack),
 ) (api.ChannelManager, error) {
@@ -91,8 +91,8 @@ func NewReplicateChannelManager(mqConfig config.MQConfig,
 		factory:              factory,
 		targetClient:         client,
 		metaOp:               metaOp,
-		retryOptions:         util.GetRetryOptionsFor25s(),
-		messageBufferSize:    messageBufferSize,
+		retryOptions:         util.GetRetryOptions(readConfig.Retry),
+		messageBufferSize:    readConfig.MessageBufferSize,
 		channelHandlerMap:    make(map[string]*replicateChannelHandler),
 		replicateCollections: make(map[int64]chan struct{}),
 		replicatePartitions:  make(map[int64]map[int64]chan struct{}),
@@ -382,7 +382,7 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 		channelHandler, err = newReplicateChannelHandler(r.getCtx(),
 			sourceInfo, targetInfo,
 			r.targetClient, r.metaOp, r.apiEventChan,
-			&model.HandlerOpts{MessageBufferSize: r.messageBufferSize, Factory: r.factory})
+			&model.HandlerOpts{MessageBufferSize: r.messageBufferSize, Factory: r.factory, RetryOptions: r.retryOptions})
 		if err != nil {
 			log.Warn("fail to new replicate channel handler",
 				zap.String("channel_name", sourceInfo.PChannelName), zap.Int64("collection_id", sourceInfo.CollectionID), zap.Error(err))
@@ -424,6 +424,8 @@ type replicateChannelHandler struct {
 	msgPackChan       chan *msgstream.MsgPack
 	apiEventChan      chan *api.ReplicateAPIEvent
 	msgPackCallback   func(string, *msgstream.MsgPack)
+
+	retryOptions []retry.Option
 }
 
 func (r *replicateChannelHandler) AddCollection(collectionID int64, targetInfo *model.TargetCollectionInfo) {
@@ -557,7 +559,7 @@ func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) (*
 			return nil
 		}
 		return errors.Newf("not found the collection [%d]", collectionID)
-	}, util.GetRetryOptionsFor9s()...)
+	}, r.retryOptions...)
 	if err != nil {
 		log.Warn("fail to find the collection info", zap.Error(err))
 		return nil, err
@@ -588,7 +590,7 @@ func (r *replicateChannelHandler) getPartitionID(sourceCollectionID int64, info 
 			return nil
 		}
 		return errors.Newf("not found the partition [%s]", name)
-	})
+	}, r.retryOptions...)
 	if err != nil {
 		log.Warn("fail to find the partition id", zap.Int64("source_collection", sourceCollectionID), zap.Any("target_collection", info.CollectionID), zap.String("partition_name", name))
 		return 0, err
@@ -768,6 +770,7 @@ func newReplicateChannelHandler(ctx context.Context,
 		collectionNames:   make(map[string]int64),
 		msgPackChan:       make(chan *msgstream.MsgPack, opts.MessageBufferSize),
 		apiEventChan:      apiEventChan,
+		retryOptions:      opts.RetryOptions,
 	}
 	channelHandler.AddCollection(sourceInfo.CollectionID, targetInfo)
 	channelHandler.startReadChannel()

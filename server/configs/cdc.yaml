@@ -24,3 +24,7 @@ sourceConfig:
 #  kafka:
 #    address: 127.0.0.1:9092
 maxNameLength: 256
+retry:
+  retryTimes: 8
+  initBackOff: 1
+  maxBackOff: 10

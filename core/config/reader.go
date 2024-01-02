@@ -18,18 +18,7 @@
 
 package config
 
-type Option[T any] interface {
-	Apply(object T)
-}
-
-type OptionFunc[T any] func(object T)
-
-func (o OptionFunc[T]) Apply(object T) {
-	o(object)
-}
-
-type RetrySettings struct {
-	RetryTimes  int
-	InitBackOff int
-	MaxBackOff  int
+type ReaderConfig struct {
+	MessageBufferSize int
+	Retry             RetrySettings
 }
