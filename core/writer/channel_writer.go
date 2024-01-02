@@ -32,6 +32,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
@@ -52,12 +53,15 @@ type ChannelWriter struct {
 	dbInfos         util.Map[string, uint64]
 	collectionInfos util.Map[string, uint64]
 	partitionInfos  util.Map[string, uint64]
+
+	retryOptions []retry.Option
 }
 
-func NewChannelWriter(dataHandler api.DataHandler, messageBufferSize int) api.Writer {
+func NewChannelWriter(dataHandler api.DataHandler, writerConfig config.WriterConfig) api.Writer {
 	w := &ChannelWriter{
 		dataHandler:    dataHandler,
-		messageManager: NewReplicateMessageManager(dataHandler, messageBufferSize),
+		messageManager: NewReplicateMessageManager(dataHandler, writerConfig.MessageBufferSize),
+		retryOptions:   util.GetRetryOptions(writerConfig.Retry),
 	}
 	w.initAPIEventFuncs()
 	w.initOPMessageFuncs()
@@ -213,7 +217,7 @@ func (c *ChannelWriter) WaitDatabaseReady(ctx context.Context, databaseName stri
 		return c.dataHandler.DescribeDatabase(ctx, &api.DescribeDatabaseParam{
 			Name: databaseName,
 		})
-	}, util.GetRetryOptionsFor25s()...)
+	}, c.retryOptions...)
 	if err == nil {
 		c.dbInfos.Store(createKey, msgTs)
 		return InfoStateCreated
@@ -239,7 +243,7 @@ func (c *ChannelWriter) WaitCollectionReady(ctx context.Context, collectionName,
 			},
 			Name: collectionName,
 		})
-	}, util.GetRetryOptionsFor25s()...)
+	}, c.retryOptions...)
 	if err == nil {
 		c.collectionInfos.Store(createKey, msgTs)
 		return InfoStateCreated
@@ -265,7 +269,7 @@ func (c *ChannelWriter) WaitPartitionReady(ctx context.Context, collectionName, 
 			CollectionName: collectionName,
 			PartitionName:  partitionName,
 		})
-	}, util.GetRetryOptionsFor25s()...)
+	}, c.retryOptions...)
 
 	if err == nil {
 		c.partitionInfos.Store(createKey, msgTs)
@@ -295,7 +299,7 @@ func (c *ChannelWriter) WaitObjReady(ctx context.Context, db, collection, partit
 	if db != "" {
 		state := c.WaitDatabaseReady(ctx, db, ts)
 		if state == InfoStateUnknown {
-			return false, errors.New("database is not ready")
+			return false, errors.Newf("database[%s] is not ready", db)
 		} else if state == InfoStateDropped {
 			return true, nil
 		}
@@ -303,7 +307,7 @@ func (c *ChannelWriter) WaitObjReady(ctx context.Context, db, collection, partit
 	if db != "" && collection != "" {
 		state := c.WaitCollectionReady(ctx, collection, db, ts)
 		if state == InfoStateUnknown {
-			return false, errors.New("collection is not ready")
+			return false, errors.Newf("collection[%s] is not ready, db: %s", collection, db)
 		} else if state == InfoStateDropped {
 			return true, nil
 		}
@@ -311,7 +315,7 @@ func (c *ChannelWriter) WaitObjReady(ctx context.Context, db, collection, partit
 	if db != "" && collection != "" && partition != "" {
 		state := c.WaitPartitionReady(ctx, collection, partition, db, ts)
 		if state == InfoStateUnknown {
-			return false, errors.New("partition is not ready")
+			return false, errors.Newf("partition[%s] is not ready, collection: %s, db: %s", partition, collection, db)
 		} else if state == InfoStateDropped {
 			return true, nil
 		}

@@ -500,7 +500,10 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	channelManager, err := cdcreader.NewReplicateChannelManager(config.MQConfig{
 		Pulsar: e.config.SourceConfig.Pulsar,
 		Kafka:  e.config.SourceConfig.Kafka,
-	}, e.mqFactoryCreator, milvusClient, bufferSize, metaOp, func(s string, pack *msgstream.MsgPack) {
+	}, e.mqFactoryCreator, milvusClient, config.ReaderConfig{
+		MessageBufferSize: bufferSize,
+		Retry:             e.config.Retry,
+	}, metaOp, func(s string, pack *msgstream.MsgPack) {
 		replicateMetric(info, s, pack, metrics.OPTypeRead)
 	})
 	if err != nil {
@@ -518,7 +521,10 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 		taskLog.Warn("fail to new the data handler", zap.Error(err))
 		return nil, servererror.NewClientError("fail to new the data handler, task_id: ")
 	}
-	writerObj := cdcwriter.NewChannelWriter(dataHandler, bufferSize)
+	writerObj := cdcwriter.NewChannelWriter(dataHandler, config.WriterConfig{
+		MessageBufferSize: bufferSize,
+		Retry:             e.config.Retry,
+	})
 
 	e.replicateEntityMap.Lock()
 	defer e.replicateEntityMap.Unlock()
@@ -702,7 +708,7 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 
 			positionBytes, err := replicateEntity.writerObj.HandleOpMessagePack(funcCtx, pack)
 			if err != nil {
-				taskLog.Warn("fail to handle the op message pack", zap.Error(err))
+				taskLog.Warn("fail to handle the op message pack", zap.Any("pack", pack), zap.Error(err))
 				_ = e.pauseTaskWithReason(info.TaskID, "fail to handle the op message pack, err:"+err.Error(), []meta.TaskState{})
 				return false
 			}
