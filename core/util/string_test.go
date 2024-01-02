@@ -46,10 +46,7 @@ func TestBase64Encode(t *testing.T) {
 	assert.NotEmpty(t, encodeStr)
 	decodeByte, err := base64.StdEncoding.DecodeString(encodeStr)
 	assert.NoError(t, err)
-	var s string
-	err = json.Unmarshal(decodeByte, &s)
-	assert.NoError(t, err)
-	assert.Equal(t, str, s)
+	assert.Equal(t, str, string(decodeByte))
 }
 
 func TestChan(t *testing.T) {

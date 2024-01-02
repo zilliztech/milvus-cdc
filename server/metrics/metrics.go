@@ -100,11 +100,11 @@ var (
 			Help:      "cdc request count",
 		}, []string{requestTypeLabelName, requestStatusLabelName})
 
-	ReplicateTimeDifferenceVec = prometheus.NewGaugeVec(
+	ReplicateTimeVec = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: milvusNamespace,
 			Subsystem: systemName,
-			Name:      "replicate_tt_lag",
+			Name:      "replicate_tt",
 			Help:      "the time difference between the current time and the current message timestamp, unit: ms",
 		}, []string{taskIDLabelName, vchannelLabelName, opTypeName})
 
@@ -130,7 +130,7 @@ func init() {
 	registry.MustRegister(TaskStateVec)
 	registry.MustRegister(TaskRequestLatencyVec)
 	registry.MustRegister(TaskRequestCountVec)
-	registry.MustRegister(ReplicateTimeDifferenceVec)
+	registry.MustRegister(ReplicateTimeVec)
 	registry.MustRegister(ReplicateDataSizeVec)
 	registry.MustRegister(APIExecuteCountVec)
 }
