@@ -25,6 +25,5 @@ import (
 )
 
 func TestRetry(t *testing.T) {
-	assert.Len(t, GetRetryOptionsFor25s(), 3)
-	assert.Len(t, GetRetryOptionsFor9s(), 1)
+	assert.Len(t, GetRetryDefaultOptions(), 3)
 }

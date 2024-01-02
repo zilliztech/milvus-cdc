@@ -47,12 +47,14 @@ import (
 var _ api.ChannelManager = (*replicateChannelManager)(nil)
 
 type replicateChannelManager struct {
-	replicateCtx      context.Context
-	factory           msgstream.Factory
-	targetClient      api.TargetAPI
-	metaOp            api.MetaOp
-	retryOptions      []retry.Option
-	messageBufferSize int
+	replicateCtx context.Context
+	factory      msgstream.Factory
+	targetClient api.TargetAPI
+	metaOp       api.MetaOp
+
+	retryOptions          []retry.Option
+	startReadRetryOptions []retry.Option
+	messageBufferSize     int
 
 	channelLock       sync.RWMutex
 	channelHandlerMap map[string]*replicateChannelHandler
@@ -88,10 +90,15 @@ func NewReplicateChannelManager(mqConfig config.MQConfig,
 	}
 
 	return &replicateChannelManager{
-		factory:              factory,
-		targetClient:         client,
-		metaOp:               metaOp,
-		retryOptions:         util.GetRetryOptions(readConfig.Retry),
+		factory:      factory,
+		targetClient: client,
+		metaOp:       metaOp,
+		retryOptions: util.GetRetryOptions(readConfig.Retry),
+		startReadRetryOptions: util.GetRetryOptions(config.RetrySettings{
+			RetryTimes:  readConfig.Retry.RetryTimes,
+			InitBackOff: readConfig.Retry.InitBackOff,
+			MaxBackOff:  readConfig.Retry.InitBackOff,
+		}),
 		messageBufferSize:    readConfig.MessageBufferSize,
 		channelHandlerMap:    make(map[string]*replicateChannelHandler),
 		replicateCollections: make(map[int64]chan struct{}),
@@ -140,7 +147,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 	err = retry.Do(ctx, func() error {
 		targetInfo, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.Name, sourceDBInfo.Name)
 		return err
-	}, r.retryOptions...)
+	}, r.startReadRetryOptions...)
 	if err != nil {
 		log.Warn("failed to get target collection info", zap.Error(err))
 		return err
@@ -470,7 +477,7 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 				return errors.Newf("not found the partition [%s]", partitionName)
 			}
 			return nil
-		}, util.GetRetryOptionsFor25s()...)
+		}, util.GetRetryDefaultOptions()...)
 	}()
 	return nil
 }

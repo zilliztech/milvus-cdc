@@ -23,7 +23,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
@@ -39,36 +38,51 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/pb"
 )
 
-func TestChannelWriter(t *testing.T) {
+func GetMockObjs(t *testing.T) (*mocks.DataHandler, api.Writer) {
 	dataHandler := mocks.NewDataHandler(t)
 	messageManager := mocks.NewMessageManager(t)
-	w := NewChannelWriter(dataHandler, config.WriterConfig{MessageBufferSize: 10})
+	w := NewChannelWriter(dataHandler, config.WriterConfig{
+		MessageBufferSize: 10,
+		Retry: config.RetrySettings{
+			RetryTimes:  2,
+			InitBackOff: 1,
+			MaxBackOff:  1,
+		},
+	})
 	assert.NotNil(t, w)
-
 	realWriter := w.(*ChannelWriter)
 	realWriter.messageManager = messageManager
+	return dataHandler, w
+}
 
+func TestChannelWriter(t *testing.T) {
 	t.Run("wait collection ready", func(t *testing.T) {
+		dataHandler, w := GetMockObjs(t)
 		dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 		dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
+		realWriter := w.(*ChannelWriter)
 		assert.True(t, realWriter.WaitCollectionReady(context.Background(), "test", "", 0) == InfoStateCreated)
 	})
 
 	t.Run("wait database ready", func(t *testing.T) {
+		dataHandler, w := GetMockObjs(t)
 		dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 		dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(nil).Once()
+		realWriter := w.(*ChannelWriter)
 		assert.True(t, realWriter.WaitDatabaseReady(context.Background(), "test", 0) == InfoStateCreated)
 	})
 
 	t.Run("handler api event", func(t *testing.T) {
 		// unknow event type
-		{
+		t.Run("unknow event type", func(t *testing.T) {
+			_, w := GetMockObjs(t)
 			err := w.HandleReplicateAPIEvent(context.Background(), &api.ReplicateAPIEvent{})
 			assert.Error(t, err)
-		}
+		})
 
 		// create collection
-		{
+		t.Run("create collection", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
 			dataHandler.EXPECT().CreateCollection(mock.Anything, mock.Anything).Return(errors.New("create collection mock")).Once()
 			err := w.HandleReplicateAPIEvent(context.Background(), &api.ReplicateAPIEvent{
 				EventType: api.ReplicateCreateCollection,
@@ -83,10 +97,12 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
+
 		// create database with db
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		t.Run("create database with db", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
 			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("describe database mock")).Maybe()
 			err := w.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
 				EventType: api.ReplicateCreateCollection,
@@ -104,11 +120,12 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-			cancelFunc()
 			call.Unset()
-		}
+		})
+
 		// success create collection with db
-		{
+		t.Run("success create collection with db", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
 			dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(nil).Once()
 			dataHandler.EXPECT().CreateCollection(mock.Anything, mock.Anything).Return(nil).Once()
 			err := w.HandleReplicateAPIEvent(context.Background(), &api.ReplicateAPIEvent{
@@ -127,10 +144,11 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-		}
+		})
 
 		// drop collectiom
-		{
+		t.Run("drop collection", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
 			dataHandler.EXPECT().DropCollection(mock.Anything, mock.Anything).Return(errors.New("drop cpllection mock")).Once()
 			err := w.HandleReplicateAPIEvent(context.Background(), &api.ReplicateAPIEvent{
 				EventType: api.ReplicateDropCollection,
@@ -144,10 +162,12 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
+
 		// drop collection with db
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		t.Run("drop collection with db", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
 			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("describe database mock")).Maybe()
 			err := w.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
 				EventType: api.ReplicateDropCollection,
@@ -162,12 +182,13 @@ func TestChannelWriter(t *testing.T) {
 				ReplicateParam: api.ReplicateParam{Database: "link2"},
 			})
 			assert.Error(t, err)
-			cancelFunc()
 			call.Unset()
-		}
+		})
 
 		// create partition
-		{
+		t.Run("create partition", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
 			dataHandler.EXPECT().CreatePartition(mock.Anything, mock.Anything).Return(errors.New("create partition mock")).Once()
 			err := w.HandleReplicateAPIEvent(context.Background(), &api.ReplicateAPIEvent{
 				EventType: api.ReplicateCreatePartition,
@@ -184,9 +205,10 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		})
+		t.Run("create partition with db", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
 			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("describe database mock")).Maybe()
 			err := w.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
 				EventType: api.ReplicateCreatePartition,
@@ -204,12 +226,13 @@ func TestChannelWriter(t *testing.T) {
 				ReplicateParam: api.ReplicateParam{Database: "link3"},
 			})
 			assert.Error(t, err)
-			cancelFunc()
 			call.Unset()
-		}
+		})
 
 		// drop partition
-		{
+		t.Run("drop partition", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
 			dataHandler.EXPECT().DropPartition(mock.Anything, mock.Anything).Return(errors.New("drop partition mock")).Once()
 			err := w.HandleReplicateAPIEvent(context.Background(), &api.ReplicateAPIEvent{
 				EventType: api.ReplicateDropPartition,
@@ -226,9 +249,10 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		})
+		t.Run("drop partition with db", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
 			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("describe database mock")).Maybe()
 			err := w.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
 				EventType: api.ReplicateDropPartition,
@@ -246,20 +270,23 @@ func TestChannelWriter(t *testing.T) {
 				ReplicateParam: api.ReplicateParam{Database: "link4"},
 			})
 			assert.Error(t, err)
-			cancelFunc()
 			call.Unset()
-		}
+		})
 	})
 
 	t.Run("handler replicate msg", func(t *testing.T) {
 		// empty
 		{
+			_, w := GetMockObjs(t)
 			_, _, err := w.HandleReplicateMessage(context.Background(), "test", &msgstream.MsgPack{})
 			assert.Error(t, err)
 		}
 
 		// success
 		{
+			_, w := GetMockObjs(t)
+			realWriter := w.(*ChannelWriter)
+			messageManager := realWriter.messageManager.(*mocks.MessageManager)
 			messageManager.EXPECT().ReplicateMessage(mock.Anything).Run(func(rm *api.ReplicateMessage) {
 				rm.Param.TargetMsgPosition = base64.StdEncoding.EncodeToString([]byte("foo"))
 				rm.SuccessFunc(rm.Param)
@@ -293,6 +320,9 @@ func TestChannelWriter(t *testing.T) {
 
 		// fail
 		{
+			_, w := GetMockObjs(t)
+			realWriter := w.(*ChannelWriter)
+			messageManager := realWriter.messageManager.(*mocks.MessageManager)
 			messageManager.EXPECT().ReplicateMessage(mock.Anything).Run(func(rm *api.ReplicateMessage) {
 				rm.Param.TargetMsgPosition = base64.StdEncoding.EncodeToString([]byte("foo"))
 				rm.FailFunc(rm.Param, errors.New("mock"))
@@ -326,13 +356,15 @@ func TestChannelWriter(t *testing.T) {
 
 	t.Run("handler op msg", func(t *testing.T) {
 		// empty pack
-		{
+		t.Run("empty pack", func(t *testing.T) {
+			_, w := GetMockObjs(t)
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{})
 			assert.Error(t, err)
-		}
+		})
 
 		// more than one message
-		{
+		t.Run("more than one message", func(t *testing.T) {
+			_, w := GetMockObjs(t)
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
 					&msgstream.CreateCollectionMsg{
@@ -368,10 +400,11 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
 
 		// unknown msg type
-		{
+		t.Run("unknown msg type", func(t *testing.T) {
+			_, w := GetMockObjs(t)
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
 					&msgstream.CreateCollectionMsg{
@@ -395,10 +428,11 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
 
 		// create database
-		{
+		t.Run("create database", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
 			dataHandler.EXPECT().CreateDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -423,10 +457,11 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
 
 		// drop database
-		{
+		t.Run("drop database", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
 			dataHandler.EXPECT().DropDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -451,10 +486,11 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
 
 		// flush
-		{
+		t.Run("flush", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
 			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
 			dataHandler.EXPECT().Flush(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
@@ -468,7 +504,7 @@ func TestChannelWriter(t *testing.T) {
 								MsgType:  commonpb.MsgType_Flush,
 								SourceID: 1,
 							},
-							CollectionNames: []string{"test"},
+							CollectionNames: []string{"test2"},
 						},
 					},
 				},
@@ -480,10 +516,12 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
+
 		// flush with not ready collection
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		t.Run("flush with not ready collection", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
 			call := dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
 			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -496,7 +534,7 @@ func TestChannelWriter(t *testing.T) {
 								MsgType:  commonpb.MsgType_Flush,
 								SourceID: 1,
 							},
-							CollectionNames: []string{"test"},
+							CollectionNames: []string{"test3"},
 						},
 					},
 				},
@@ -508,12 +546,13 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-			cancelFunc()
 			call.Unset()
-		}
+		})
+
 		// flush with db
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		t.Run("flush with db", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
 			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
 
 			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
@@ -541,12 +580,12 @@ func TestChannelWriter(t *testing.T) {
 			})
 			assert.Error(t, err)
 
-			cancelFunc()
 			call.Unset()
-		}
+		})
 
 		// create index
-		{
+		t.Run("create index", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
 			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
 			dataHandler.EXPECT().CreateIndex(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
@@ -572,10 +611,12 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
+
 		// create index with not ready collection
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		t.Run("create index with not ready collection", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
 			call := dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
 			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -588,7 +629,7 @@ func TestChannelWriter(t *testing.T) {
 								MsgType:  commonpb.MsgType_CreateIndex,
 								SourceID: 1,
 							},
-							CollectionName: "test",
+							CollectionName: "test-create-index-1",
 						},
 					},
 				},
@@ -600,12 +641,13 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-			cancelFunc()
 			call.Unset()
-		}
+		})
+
 		// create index with db
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		t.Run("create index with db", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
 			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
 			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -619,7 +661,7 @@ func TestChannelWriter(t *testing.T) {
 								SourceID: 1,
 							},
 							CollectionName: "test",
-							DbName:         "tree",
+							DbName:         "tree-create-index-db-1",
 						},
 					},
 				},
@@ -631,12 +673,13 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-			cancelFunc()
 			call.Unset()
-		}
+		})
 
 		// drop index
-		{
+		t.Run("drop index", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
 			dataHandler.EXPECT().DropIndex(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -661,10 +704,11 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
 
 		// load
-		{
+		t.Run("load", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
 			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
 			dataHandler.EXPECT().LoadCollection(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
@@ -690,10 +734,12 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
+
 		// load with not ready collection
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		t.Run("load with not ready collection", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
 			call := dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
 			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -706,7 +752,7 @@ func TestChannelWriter(t *testing.T) {
 								MsgType:  commonpb.MsgType_LoadCollection,
 								SourceID: 1,
 							},
-							CollectionName: "test",
+							CollectionName: "test-load-collection-1",
 						},
 					},
 				},
@@ -718,12 +764,13 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-			cancelFunc()
 			call.Unset()
-		}
+		})
+
 		// load with db
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		t.Run("load with db", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
 			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
 			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -737,7 +784,7 @@ func TestChannelWriter(t *testing.T) {
 								SourceID: 1,
 							},
 							CollectionName: "test",
-							DbName:         "tree",
+							DbName:         "tree-load-db-1",
 						},
 					},
 				},
@@ -749,12 +796,13 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-			cancelFunc()
 			call.Unset()
-		}
+		})
 
 		// release fail
-		{
+		t.Run("release fail", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
 			dataHandler.EXPECT().ReleaseCollection(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -779,10 +827,12 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
 
 		// release success
-		{
+		t.Run("release success", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
 			dataHandler.EXPECT().ReleaseCollection(mock.Anything, mock.Anything).Return(nil).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -807,13 +857,15 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-		}
+		})
 	})
 
 	t.Run("load partitions", func(t *testing.T) {
 		// load partitions without db, fail
-		{
+		t.Run("load partitions without db, fail", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
 			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
+			dataHandler.EXPECT().DescribePartition(mock.Anything, mock.Anything).Return(nil).Twice()
 			dataHandler.EXPECT().LoadPartitions(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -839,10 +891,12 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
+
 		// load partition with not ready collection
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		t.Run("load partition with not ready collection", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
 			call := dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
 			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -855,7 +909,7 @@ func TestChannelWriter(t *testing.T) {
 								MsgType:  commonpb.MsgType_LoadPartitions,
 								SourceID: 1,
 							},
-							CollectionName: "test",
+							CollectionName: "test-collection-load-partition-1",
 							PartitionNames: []string{"p1", "p2"},
 						},
 					},
@@ -868,12 +922,13 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-			cancelFunc()
 			call.Unset()
-		}
+		})
+
 		// load partition with not ready db
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		t.Run("load partition with not ready db", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
 			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
 			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -888,7 +943,7 @@ func TestChannelWriter(t *testing.T) {
 							},
 							CollectionName: "test",
 							PartitionNames: []string{"p1", "p2"},
-							DbName:         "tree",
+							DbName:         "tree-load-partition-db-1",
 						},
 					},
 				},
@@ -900,14 +955,15 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-			cancelFunc()
 			call.Unset()
-		}
+		})
 
 		// load partition success
-		{
+		t.Run("load partition success", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
 			dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(nil).Once()
 			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
+			dataHandler.EXPECT().DescribePartition(mock.Anything, mock.Anything).Return(nil).Twice()
 			dataHandler.EXPECT().LoadPartitions(mock.Anything, mock.Anything).Return(nil).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -934,12 +990,15 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-		}
+		})
 	})
 
 	t.Run("release partitions", func(t *testing.T) {
 		// release partitions without db, fail
-		{
+		t.Run("release partitions without db, fail", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
+			dataHandler.EXPECT().DescribePartition(mock.Anything, mock.Anything).Return(nil).Twice()
 			dataHandler.EXPECT().ReleasePartitions(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -965,72 +1024,79 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.Error(t, err)
-		}
+		})
+
 		// release partitions with not ready collection
-		//{
-		//	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
-		//	call := dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
-		//	_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
-		//		Msgs: []msgstream.TsMsg{
-		//			&msgstream.ReleasePartitionsMsg{
-		//				BaseMsg: msgstream.BaseMsg{
-		//					HashValues: []uint32{1},
-		//				},
-		//				ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
-		//					Base: &commonpb.MsgBase{
-		//						MsgType:  commonpb.MsgType_ReleasePartitions,
-		//						SourceID: 1,
-		//					},
-		//					CollectionName: "test",
-		//					PartitionNames: []string{"p1", "p2"},
-		//				},
-		//			},
-		//		},
-		//		EndPositions: []*msgstream.MsgPosition{
-		//			{
-		//				ChannelName: "test",
-		//				MsgID:       []byte("foo"),
-		//			},
-		//		},
-		//	})
-		//	assert.Error(t, err)
-		//	cancelFunc()
-		//	call.Unset()
-		//}
-		//// release partitions with not ready db
-		//{
-		//	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
-		//	call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
-		//	_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
-		//		Msgs: []msgstream.TsMsg{
-		//			&msgstream.ReleasePartitionsMsg{
-		//				BaseMsg: msgstream.BaseMsg{
-		//					HashValues: []uint32{1},
-		//				},
-		//				ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
-		//					Base: &commonpb.MsgBase{
-		//						MsgType:  commonpb.MsgType_ReleasePartitions,
-		//						SourceID: 1,
-		//					},
-		//					CollectionName: "test",
-		//					PartitionNames: []string{"p1", "p2"},
-		//					DbName:         "tree",
-		//				},
-		//			},
-		//		},
-		//		EndPositions: []*msgstream.MsgPosition{
-		//			{
-		//				ChannelName: "test",
-		//				MsgID:       []byte("foo"),
-		//			},
-		//		},
-		//	})
-		//	assert.Error(t, err)
-		//	cancelFunc()
-		//	call.Unset()
-		//}
+		t.Run("release partitions with not ready collection", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
+			call := dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
+			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.ReleasePartitionsMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_ReleasePartitions,
+								SourceID: 1,
+							},
+							CollectionName: "test-collection-release-collection-1",
+							PartitionNames: []string{"p1", "p2"},
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.Error(t, err)
+			call.Unset()
+		})
+
+		// release partitions with not ready db
+		t.Run("release partitions with not ready db", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			ctx := context.Background()
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("foo")).Maybe()
+			_, err := w.HandleOpMessagePack(ctx, &msgstream.MsgPack{
+				Msgs: []msgstream.TsMsg{
+					&msgstream.ReleasePartitionsMsg{
+						BaseMsg: msgstream.BaseMsg{
+							HashValues: []uint32{1},
+						},
+						ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+							Base: &commonpb.MsgBase{
+								MsgType:  commonpb.MsgType_ReleasePartitions,
+								SourceID: 1,
+							},
+							CollectionName: "test",
+							PartitionNames: []string{"p1", "p2"},
+							DbName:         "tree-release-partition-db-1",
+						},
+					},
+				},
+				EndPositions: []*msgstream.MsgPosition{
+					{
+						ChannelName: "test",
+						MsgID:       []byte("foo"),
+					},
+				},
+			})
+			assert.Error(t, err)
+			call.Unset()
+		})
+
 		// release partitions success
-		{
+		t.Run("release partitions success", func(t *testing.T) {
+			dataHandler, w := GetMockObjs(t)
+			dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(nil).Once()
+			dataHandler.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(nil).Once()
+			dataHandler.EXPECT().DescribePartition(mock.Anything, mock.Anything).Return(nil).Twice()
 			dataHandler.EXPECT().ReleasePartitions(mock.Anything, mock.Anything).Return(nil).Once()
 			_, err := w.HandleOpMessagePack(context.Background(), &msgstream.MsgPack{
 				Msgs: []msgstream.TsMsg{
@@ -1057,6 +1123,6 @@ func TestChannelWriter(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-		}
+		})
 	})
 }

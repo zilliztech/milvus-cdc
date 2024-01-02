@@ -304,7 +304,7 @@ func (c *ChannelWriter) WaitObjReady(ctx context.Context, db, collection, partit
 			return true, nil
 		}
 	}
-	if db != "" && collection != "" {
+	if collection != "" {
 		state := c.WaitCollectionReady(ctx, collection, db, ts)
 		if state == InfoStateUnknown {
 			return false, errors.Newf("collection[%s] is not ready, db: %s", collection, db)
@@ -312,7 +312,7 @@ func (c *ChannelWriter) WaitObjReady(ctx context.Context, db, collection, partit
 			return true, nil
 		}
 	}
-	if db != "" && collection != "" && partition != "" {
+	if collection != "" && partition != "" {
 		state := c.WaitPartitionReady(ctx, collection, partition, db, ts)
 		if state == InfoStateUnknown {
 			return false, errors.Newf("partition[%s] is not ready, collection: %s, db: %s", partition, collection, db)
