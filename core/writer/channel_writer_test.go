@@ -69,7 +69,7 @@ func TestChannelWriter(t *testing.T) {
 
 		// create collection
 		{
-			dataHandler.EXPECT().CreateCollection(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
+			dataHandler.EXPECT().CreateCollection(mock.Anything, mock.Anything).Return(errors.New("create collection mock")).Once()
 			err := w.HandleReplicateAPIEvent(context.Background(), &api.ReplicateAPIEvent{
 				EventType: api.ReplicateCreateCollection,
 				CollectionInfo: &pb.CollectionInfo{
@@ -79,7 +79,7 @@ func TestChannelWriter(t *testing.T) {
 					ShardsNum: 1,
 				},
 				ReplicateInfo: &commonpb.ReplicateInfo{
-					MsgTimestamp: 0,
+					MsgTimestamp: 1,
 				},
 			})
 			assert.Error(t, err)
@@ -87,7 +87,7 @@ func TestChannelWriter(t *testing.T) {
 		// create database with db
 		{
 			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
-			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("describe database mock")).Maybe()
 			err := w.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
 				EventType: api.ReplicateCreateCollection,
 				CollectionInfo: &pb.CollectionInfo{
@@ -100,7 +100,7 @@ func TestChannelWriter(t *testing.T) {
 					Database: "link",
 				},
 				ReplicateInfo: &commonpb.ReplicateInfo{
-					MsgTimestamp: 0,
+					MsgTimestamp: 2,
 				},
 			})
 			assert.Error(t, err)
@@ -123,7 +123,7 @@ func TestChannelWriter(t *testing.T) {
 					Database: "link",
 				},
 				ReplicateInfo: &commonpb.ReplicateInfo{
-					MsgTimestamp: 0,
+					MsgTimestamp: 3,
 				},
 			})
 			assert.NoError(t, err)
@@ -131,7 +131,7 @@ func TestChannelWriter(t *testing.T) {
 
 		// drop collectiom
 		{
-			dataHandler.EXPECT().DropCollection(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
+			dataHandler.EXPECT().DropCollection(mock.Anything, mock.Anything).Return(errors.New("drop cpllection mock")).Once()
 			err := w.HandleReplicateAPIEvent(context.Background(), &api.ReplicateAPIEvent{
 				EventType: api.ReplicateDropCollection,
 				CollectionInfo: &pb.CollectionInfo{
@@ -140,7 +140,7 @@ func TestChannelWriter(t *testing.T) {
 					},
 				},
 				ReplicateInfo: &commonpb.ReplicateInfo{
-					MsgTimestamp: 0,
+					MsgTimestamp: 4,
 				},
 			})
 			assert.Error(t, err)
@@ -148,7 +148,7 @@ func TestChannelWriter(t *testing.T) {
 		// drop collection with db
 		{
 			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
-			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("describe database mock")).Maybe()
 			err := w.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
 				EventType: api.ReplicateDropCollection,
 				CollectionInfo: &pb.CollectionInfo{
@@ -157,9 +157,9 @@ func TestChannelWriter(t *testing.T) {
 					},
 				},
 				ReplicateInfo: &commonpb.ReplicateInfo{
-					MsgTimestamp: 0,
+					MsgTimestamp: 5,
 				},
-				ReplicateParam: api.ReplicateParam{Database: "link"},
+				ReplicateParam: api.ReplicateParam{Database: "link2"},
 			})
 			assert.Error(t, err)
 			cancelFunc()
@@ -168,7 +168,7 @@ func TestChannelWriter(t *testing.T) {
 
 		// create partition
 		{
-			dataHandler.EXPECT().CreatePartition(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
+			dataHandler.EXPECT().CreatePartition(mock.Anything, mock.Anything).Return(errors.New("create partition mock")).Once()
 			err := w.HandleReplicateAPIEvent(context.Background(), &api.ReplicateAPIEvent{
 				EventType: api.ReplicateCreatePartition,
 				CollectionInfo: &pb.CollectionInfo{
@@ -180,14 +180,14 @@ func TestChannelWriter(t *testing.T) {
 					PartitionName: "test",
 				},
 				ReplicateInfo: &commonpb.ReplicateInfo{
-					MsgTimestamp: 0,
+					MsgTimestamp: 6,
 				},
 			})
 			assert.Error(t, err)
 		}
 		{
 			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
-			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("describe database mock")).Maybe()
 			err := w.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
 				EventType: api.ReplicateCreatePartition,
 				CollectionInfo: &pb.CollectionInfo{
@@ -199,9 +199,9 @@ func TestChannelWriter(t *testing.T) {
 					PartitionName: "test",
 				},
 				ReplicateInfo: &commonpb.ReplicateInfo{
-					MsgTimestamp: 0,
+					MsgTimestamp: 7,
 				},
-				ReplicateParam: api.ReplicateParam{Database: "link"},
+				ReplicateParam: api.ReplicateParam{Database: "link3"},
 			})
 			assert.Error(t, err)
 			cancelFunc()
@@ -210,7 +210,7 @@ func TestChannelWriter(t *testing.T) {
 
 		// drop partition
 		{
-			dataHandler.EXPECT().DropPartition(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
+			dataHandler.EXPECT().DropPartition(mock.Anything, mock.Anything).Return(errors.New("drop partition mock")).Once()
 			err := w.HandleReplicateAPIEvent(context.Background(), &api.ReplicateAPIEvent{
 				EventType: api.ReplicateDropPartition,
 				CollectionInfo: &pb.CollectionInfo{
@@ -222,14 +222,14 @@ func TestChannelWriter(t *testing.T) {
 					PartitionName: "test",
 				},
 				ReplicateInfo: &commonpb.ReplicateInfo{
-					MsgTimestamp: 0,
+					MsgTimestamp: 8,
 				},
 			})
 			assert.Error(t, err)
 		}
 		{
 			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
-			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Maybe()
+			call := dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("describe database mock")).Maybe()
 			err := w.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
 				EventType: api.ReplicateDropPartition,
 				CollectionInfo: &pb.CollectionInfo{
@@ -241,9 +241,9 @@ func TestChannelWriter(t *testing.T) {
 					PartitionName: "test",
 				},
 				ReplicateInfo: &commonpb.ReplicateInfo{
-					MsgTimestamp: 0,
+					MsgTimestamp: 9,
 				},
-				ReplicateParam: api.ReplicateParam{Database: "link"},
+				ReplicateParam: api.ReplicateParam{Database: "link4"},
 			})
 			assert.Error(t, err)
 			cancelFunc()
