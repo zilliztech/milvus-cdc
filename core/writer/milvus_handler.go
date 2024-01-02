@@ -48,6 +48,7 @@ type MilvusDataHandler struct {
 }
 
 // NewMilvusDataHandler options must include AddressOption
+// TODO add retry op for all api
 func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*MilvusDataHandler, error) {
 	handler := &MilvusDataHandler{
 		connectTimeout: 5,

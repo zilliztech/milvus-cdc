@@ -81,7 +81,7 @@ func NewEtcdOp(endpoints []string,
 		rootPath:             rootPath,
 		metaSubPath:          metaPath,
 		defaultPartitionName: defaultPartitionName,
-		retryOptions:         util.GetRetryOptionsFor25s(),
+		retryOptions:         util.GetRetryDefaultOptions(),
 	}
 
 	// set default value
