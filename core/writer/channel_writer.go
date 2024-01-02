@@ -720,7 +720,7 @@ func getCreateInfoKey(key string) string {
 }
 
 func getDropInfoKey(key string) string {
-	return fmt.Sprintf("%s_c", key)
+	return fmt.Sprintf("%s_d", key)
 }
 
 func getCollectionInfoKeys(collectionName, dbName string) (string, string) {
