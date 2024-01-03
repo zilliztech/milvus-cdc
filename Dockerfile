@@ -1,5 +1,7 @@
 FROM  golang:1.18 AS builder
 ENV CGO_ENABLED=1
+ARG GIT_COMMIT_ARG
+ENV CDC_GIT_COMMIT=${GIT_COMMIT_ARG}
 WORKDIR /app
 COPY . .
 RUN cd server && make build && mv ../bin/cdc /app/milvus-cdc
