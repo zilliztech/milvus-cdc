@@ -497,7 +497,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.FlushMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						FlushRequest: milvuspb.FlushRequest{
 							Base: &commonpb.MsgBase{
@@ -527,7 +528,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.FlushMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						FlushRequest: milvuspb.FlushRequest{
 							Base: &commonpb.MsgBase{
@@ -559,7 +561,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.FlushMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						FlushRequest: milvuspb.FlushRequest{
 							Base: &commonpb.MsgBase{
@@ -592,7 +595,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.CreateIndexMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						CreateIndexRequest: milvuspb.CreateIndexRequest{
 							Base: &commonpb.MsgBase{
@@ -622,7 +626,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.CreateIndexMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						CreateIndexRequest: milvuspb.CreateIndexRequest{
 							Base: &commonpb.MsgBase{
@@ -653,7 +658,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.CreateIndexMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						CreateIndexRequest: milvuspb.CreateIndexRequest{
 							Base: &commonpb.MsgBase{
@@ -685,7 +691,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.DropIndexMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						DropIndexRequest: milvuspb.DropIndexRequest{
 							Base: &commonpb.MsgBase{
@@ -715,7 +722,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.LoadCollectionMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						LoadCollectionRequest: milvuspb.LoadCollectionRequest{
 							Base: &commonpb.MsgBase{
@@ -745,7 +753,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.LoadCollectionMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						LoadCollectionRequest: milvuspb.LoadCollectionRequest{
 							Base: &commonpb.MsgBase{
@@ -776,7 +785,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.LoadCollectionMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						LoadCollectionRequest: milvuspb.LoadCollectionRequest{
 							Base: &commonpb.MsgBase{
@@ -808,7 +818,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.ReleaseCollectionMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						ReleaseCollectionRequest: milvuspb.ReleaseCollectionRequest{
 							Base: &commonpb.MsgBase{
@@ -838,7 +849,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.ReleaseCollectionMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						ReleaseCollectionRequest: milvuspb.ReleaseCollectionRequest{
 							Base: &commonpb.MsgBase{
@@ -871,7 +883,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.LoadPartitionsMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
 							Base: &commonpb.MsgBase{
@@ -902,7 +915,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.LoadPartitionsMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
 							Base: &commonpb.MsgBase{
@@ -934,7 +948,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.LoadPartitionsMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
 							Base: &commonpb.MsgBase{
@@ -969,7 +984,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.LoadPartitionsMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
 							Base: &commonpb.MsgBase{
@@ -1004,7 +1020,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.ReleasePartitionsMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
 							Base: &commonpb.MsgBase{
@@ -1035,7 +1052,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.ReleasePartitionsMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
 							Base: &commonpb.MsgBase{
@@ -1067,7 +1085,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.ReleasePartitionsMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
 							Base: &commonpb.MsgBase{
@@ -1102,7 +1121,8 @@ func TestChannelWriter(t *testing.T) {
 				Msgs: []msgstream.TsMsg{
 					&msgstream.ReleasePartitionsMsg{
 						BaseMsg: msgstream.BaseMsg{
-							HashValues: []uint32{1},
+							HashValues:   []uint32{1},
+							EndTimestamp: 100,
 						},
 						ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
 							Base: &commonpb.MsgBase{
