@@ -120,7 +120,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 					return nil
 				}
 				return errors.Newf("fail to get collection name by id %d", info.CollectionID)
-			})
+			}, reader.retryOptions...)
 			if retryErr != nil || collectionName == "" {
 				partitionLog.Warn("empty collection name", zap.Int64("collection_id", info.CollectionID), zap.Error(retryErr))
 				return true
@@ -172,7 +172,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 					return nil
 				}
 				return errors.Newf("fail to get collection name by id %d", info.CollectionID)
-			})
+			}, reader.retryOptions...)
 			if retryErr != nil || collectionName == "" {
 				log.Warn("empty collection name", zap.Int64("collection_id", info.CollectionID), zap.Error(retryErr))
 				return true

@@ -31,6 +31,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/common"
+	"github.com/milvus-io/milvus/pkg/util/conc"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
@@ -72,17 +73,20 @@ type EtcdOp struct {
 	// task id -> api.CollectionFilter
 	subscribeCollectionEvent util.Map[string, api.CollectionEventConsumer]
 	subscribePartitionEvent  util.Map[string, api.PartitionEventConsumer]
+
+	handlerWatchEventPool *conc.Pool[struct{}]
 }
 
 func NewEtcdOp(endpoints []string,
 	rootPath, metaPath, defaultPartitionName string, etcdConfig config.EtcdConfig,
 ) (api.MetaOp, error) {
 	etcdOp := &EtcdOp{
-		endpoints:            endpoints,
-		rootPath:             rootPath,
-		metaSubPath:          metaPath,
-		defaultPartitionName: defaultPartitionName,
-		retryOptions:         util.GetRetryOptions(etcdConfig.Retry),
+		endpoints:             endpoints,
+		rootPath:              rootPath,
+		metaSubPath:           metaPath,
+		defaultPartitionName:  defaultPartitionName,
+		retryOptions:          util.GetRetryOptions(etcdConfig.Retry),
+		handlerWatchEventPool: conc.NewPool[struct{}](16, conc.WithExpiryDuration(time.Minute)),
 	}
 
 	// set default value
@@ -170,23 +174,26 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 							continue
 						}
 
-						err = retry.Do(ctx, func() error {
-							return e.fillCollectionField(info)
-						}, e.retryOptions...)
-						if err != nil {
-							log.Warn("fail to fill collection field in the watch process", zap.String("key", collectionKey), zap.Error(err))
-							continue
-						}
-						e.collectionID2Name.Store(info.ID, info.Schema.Name)
-						if databaseID := e.getDatabaseIDFromCollectionKey(collectionKey); databaseID != 0 {
-							e.collectionID2DBID.Store(info.ID, databaseID)
-						}
-						e.subscribeCollectionEvent.Range(func(key string, value api.CollectionEventConsumer) bool {
-							if value != nil && value(info) {
-								log.Info("the collection has been consumed", zap.Int64("collection_id", info.ID), zap.String("task_id", key))
-								return false
+						_ = e.handlerWatchEventPool.Submit(func() (struct{}, error) {
+							err := retry.Do(ctx, func() error {
+								return e.fillCollectionField(info)
+							}, e.retryOptions...)
+							if err != nil {
+								log.Warn("fail to fill collection field in the watch process", zap.String("key", collectionKey), zap.Error(err))
+								return struct{}{}, err
 							}
-							return true
+							e.collectionID2Name.Store(info.ID, info.Schema.Name)
+							if databaseID := e.getDatabaseIDFromCollectionKey(collectionKey); databaseID != 0 {
+								e.collectionID2DBID.Store(info.ID, databaseID)
+							}
+							e.subscribeCollectionEvent.Range(func(key string, value api.CollectionEventConsumer) bool {
+								if value != nil && value(info) {
+									log.Info("the collection has been consumed", zap.Int64("collection_id", info.ID), zap.String("task_id", key))
+									return false
+								}
+								return true
+							})
+							return struct{}{}, nil
 						})
 					}
 				case <-ctx.Done():
@@ -251,12 +258,15 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 						}
 
 						log.Debug("get a new partition in the watch process", zap.String("key", partitionKey))
-						e.subscribePartitionEvent.Range(func(key string, value api.PartitionEventConsumer) bool {
-							if value != nil && value(info) {
-								log.Info("the partition has been consumed", zap.String("key", partitionKey), zap.String("task_id", key))
-								return false
-							}
-							return true
+						_ = e.handlerWatchEventPool.Submit(func() (struct{}, error) {
+							e.subscribePartitionEvent.Range(func(key string, value api.PartitionEventConsumer) bool {
+								if value != nil && value(info) {
+									log.Info("the partition has been consumed", zap.String("key", partitionKey), zap.String("task_id", key))
+									return false
+								}
+								return true
+							})
+							return struct{}{}, nil
 						})
 					}
 				case <-ctx.Done():
@@ -473,7 +483,7 @@ func (e *EtcdOp) GetDatabaseInfoForCollection(ctx context.Context, id int64) mod
 			return errors.Newf("not found the collection %d", id)
 		}
 		return nil
-	})
+	}, e.retryOptions...)
 
 	dbID, _ = e.collectionID2DBID.Load(id)
 	dbName, _ = e.dbID2Name.Load(dbID)
