@@ -36,6 +36,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
@@ -74,14 +75,14 @@ type EtcdOp struct {
 }
 
 func NewEtcdOp(endpoints []string,
-	rootPath, metaPath, defaultPartitionName string,
+	rootPath, metaPath, defaultPartitionName string, etcdConfig config.EtcdConfig,
 ) (api.MetaOp, error) {
 	etcdOp := &EtcdOp{
 		endpoints:            endpoints,
 		rootPath:             rootPath,
 		metaSubPath:          metaPath,
 		defaultPartitionName: defaultPartitionName,
-		retryOptions:         util.GetRetryDefaultOptions(),
+		retryOptions:         util.GetRetryOptions(etcdConfig.Retry),
 	}
 
 	// set default value
@@ -240,8 +241,8 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 							continue
 						}
 						if info.State != pb.PartitionState_PartitionCreated ||
-							info.PartitionName == e.defaultPartitionName {
-							log.Debug("partition state is not created or partition name is default", zap.String("partition name", info.PartitionName), zap.Any("state", info.State))
+							strings.Contains(info.PartitionName, e.defaultPartitionName) {
+							log.Info("partition state is not created or partition name is default", zap.String("partition name", info.PartitionName), zap.Any("state", info.State))
 							continue
 						}
 						if filter != nil && filter(info) {
@@ -322,6 +323,7 @@ func (e *EtcdOp) getCollectionNameByID(ctx context.Context, collectionID int64) 
 	var (
 		resp     *clientv3.GetResponse
 		database model.DatabaseInfo
+		key      string
 		err      error
 	)
 
@@ -332,7 +334,7 @@ func (e *EtcdOp) getCollectionNameByID(ctx context.Context, collectionID int64) 
 	}
 
 	for _, database = range databases {
-		key := path.Join(e.collectionPrefix(), strconv.FormatInt(database.ID, 10), strconv.FormatInt(collectionID, 10))
+		key = path.Join(e.collectionPrefix(), strconv.FormatInt(database.ID, 10), strconv.FormatInt(collectionID, 10))
 		resp, err = util.EtcdGetWithContext(ctx, e.etcdClient, key)
 		if err != nil {
 			log.Warn("fail to get the collection data", zap.Int64("collection_id", collectionID), zap.Error(err))
@@ -347,7 +349,9 @@ func (e *EtcdOp) getCollectionNameByID(ctx context.Context, collectionID int64) 
 		return ""
 	}
 	if len(resp.Kvs) == 0 {
-		log.Warn("the collection isn't existed", zap.Int64("collection_id", collectionID))
+		log.Warn("the collection isn't existed",
+			zap.Int64("collection_id", collectionID), zap.String("key", key),
+			zap.Any("databases", databases))
 		return ""
 	}
 
@@ -443,7 +447,7 @@ func (e *EtcdOp) fillCollectionField(info *pb.CollectionInfo) error {
 
 func (e *EtcdOp) GetCollectionNameByID(ctx context.Context, id int64) string {
 	collectionName, ok := e.collectionID2Name.Load(id)
-	if !ok {
+	if !ok || collectionName == "" {
 		collectionName = e.getCollectionNameByID(ctx, id)
 		if collectionName == "" {
 			log.Warn("not found the collection", zap.Int64("collection_id", id))
@@ -463,7 +467,14 @@ func (e *EtcdOp) GetDatabaseInfoForCollection(ctx context.Context, id int64) mod
 	}
 
 	// it will update all database info and this collection info
-	_ = e.getCollectionNameByID(ctx, id)
+	_ = retry.Do(ctx, func() error {
+		name := e.getCollectionNameByID(ctx, id)
+		if name == "" {
+			return errors.Newf("not found the collection %d", id)
+		}
+		return nil
+	})
+
 	dbID, _ = e.collectionID2DBID.Load(id)
 	dbName, _ = e.dbID2Name.Load(dbID)
 	return model.DatabaseInfo{
@@ -486,8 +497,9 @@ func (e *EtcdOp) GetAllPartition(ctx context.Context, filter api.PartitionFilter
 			log.Warn("fail to unmarshal partition info", zap.String("key", util.ToString(kv.Key)), zap.String("value", util.Base64Encode(kv.Value)), zap.Error(err))
 			continue
 		}
-		if info.State != pb.PartitionState_PartitionCreated || info.PartitionName == e.defaultPartitionName {
-			log.Info("not created partition", zap.String("key", util.ToString(kv.Key)), zap.String("partition_name", info.PartitionName))
+		if info.State != pb.PartitionState_PartitionCreated ||
+			strings.Contains(info.PartitionName, e.defaultPartitionName) {
+			log.Info("partition state is not created or partition name is default", zap.String("key", util.ToString(kv.Key)), zap.String("partition_name", info.PartitionName))
 			continue
 		}
 		if filter != nil && filter(info) {

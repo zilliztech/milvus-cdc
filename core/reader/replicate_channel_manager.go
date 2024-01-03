@@ -477,7 +477,11 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 				return errors.Newf("not found the partition [%s]", partitionName)
 			}
 			return nil
-		}, util.GetRetryDefaultOptions()...)
+		}, util.GetRetryOptions(config.RetrySettings{
+			RetryTimes:  5,
+			InitBackOff: 1,
+			MaxBackOff:  5,
+		})...)
 	}()
 	return nil
 }

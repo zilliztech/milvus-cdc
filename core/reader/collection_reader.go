@@ -22,14 +22,17 @@ import (
 	"context"
 	"sync"
 
+	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/util/retry"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	"github.com/zilliztech/milvus-cdc/core/util"
@@ -61,9 +64,16 @@ type CollectionReader struct {
 	shouldReadFunc         ShouldReadFunc
 	startOnce              sync.Once
 	quitOnce               sync.Once
+
+	retryOptions []retry.Option
 }
 
-func NewCollectionReader(id string, channelManager api.ChannelManager, metaOp api.MetaOp, seekPosition map[string]*msgpb.MsgPosition, shouldReadFunc ShouldReadFunc) (api.Reader, error) {
+func NewCollectionReader(id string,
+	channelManager api.ChannelManager, metaOp api.MetaOp,
+	seekPosition map[string]*msgpb.MsgPosition,
+	shouldReadFunc ShouldReadFunc,
+	readerConfig config.ReaderConfig,
+) (api.Reader, error) {
 	reader := &CollectionReader{
 		id:                   id,
 		channelManager:       channelManager,
@@ -71,6 +81,7 @@ func NewCollectionReader(id string, channelManager api.ChannelManager, metaOp ap
 		channelSeekPositions: seekPosition,
 		shouldReadFunc:       shouldReadFunc,
 		errChan:              make(chan error),
+		retryOptions:         util.GetRetryOptions(readerConfig.Retry),
 	}
 	return reader, nil
 }
@@ -102,9 +113,16 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 		reader.metaOp.SubscribePartitionEvent(reader.id, func(info *pb.PartitionInfo) bool {
 			partitionLog := log.With(zap.Int64("collection_id", info.CollectionID), zap.Int64("partition_id", info.PartitionID), zap.String("partition_name", info.PartitionName))
 			partitionLog.Info("has watched to read partition")
-			collectionName := reader.metaOp.GetCollectionNameByID(ctx, info.CollectionID)
-			if collectionName == "" {
-				partitionLog.Info("the collection name is empty")
+			var collectionName string
+			retryErr := retry.Do(ctx, func() error {
+				collectionName = reader.metaOp.GetCollectionNameByID(ctx, info.CollectionID)
+				if collectionName != "" {
+					return nil
+				}
+				return errors.Newf("fail to get collection name by id %d", info.CollectionID)
+			})
+			if retryErr != nil || collectionName == "" {
+				partitionLog.Warn("empty collection name", zap.Int64("collection_id", info.CollectionID), zap.Error(retryErr))
 				return true
 			}
 			tmpCollectionInfo := &pb.CollectionInfo{
@@ -147,9 +165,16 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			reader.replicateCollectionMap.Store(info.ID, info)
 		}
 		_, err = reader.metaOp.GetAllPartition(ctx, func(info *pb.PartitionInfo) bool {
-			collectionName := reader.metaOp.GetCollectionNameByID(ctx, info.CollectionID)
-			if collectionName == "" {
-				log.Info("the collection name is empty", zap.Int64("collection_id", info.CollectionID), zap.String("partition_name", info.PartitionName))
+			var collectionName string
+			retryErr := retry.Do(ctx, func() error {
+				collectionName = reader.metaOp.GetCollectionNameByID(ctx, info.CollectionID)
+				if collectionName != "" {
+					return nil
+				}
+				return errors.Newf("fail to get collection name by id %d", info.CollectionID)
+			})
+			if retryErr != nil || collectionName == "" {
+				log.Warn("empty collection name", zap.Int64("collection_id", info.CollectionID), zap.Error(retryErr))
 				return true
 			}
 			tmpCollectionInfo := &pb.CollectionInfo{

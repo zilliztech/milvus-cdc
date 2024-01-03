@@ -419,7 +419,12 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 			}
 		}
 	}
-	collectionReader, err := cdcreader.NewCollectionReader(info.TaskID, replicateEntity.channelManager, replicateEntity.metaOp, channelSeekPosition, GetShouldReadFunc(info))
+	collectionReader, err := cdcreader.NewCollectionReader(info.TaskID,
+		replicateEntity.channelManager, replicateEntity.metaOp,
+		channelSeekPosition, GetShouldReadFunc(info),
+		config.ReaderConfig{
+			Retry: e.config.Retry,
+		})
 	if err != nil {
 		taskLog.Warn("fail to new the collection reader", zap.Error(err))
 		return servererror.NewServerError(errors.WithMessage(err, "fail to new the collection reader"))
@@ -490,7 +495,13 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 		return nil, servererror.NewClientError("fail to connect target milvus server")
 	}
 	sourceConfig := e.config.SourceConfig
-	metaOp, err := cdcreader.NewEtcdOp(sourceConfig.EtcdAddress, sourceConfig.EtcdRootPath, sourceConfig.EtcdMetaSubPath, sourceConfig.DefaultPartitionName)
+	metaOp, err := cdcreader.NewEtcdOp(
+		sourceConfig.EtcdAddress,
+		sourceConfig.EtcdRootPath, sourceConfig.EtcdMetaSubPath,
+		sourceConfig.DefaultPartitionName,
+		config.EtcdConfig{
+			Retry: e.config.Retry,
+		})
 	if err != nil {
 		taskLog.Warn("fail to new the meta op", zap.Error(err))
 		return nil, servererror.NewClientError("fail to new the meta op")

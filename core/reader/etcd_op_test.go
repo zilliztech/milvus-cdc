@@ -33,6 +33,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
@@ -41,7 +42,13 @@ import (
 const TestCasePrefix = "test_case/cdc"
 
 func TestEtcdOp(t *testing.T) {
-	etcdOp, err := NewEtcdOp(nil, "", "", "")
+	etcdOp, err := NewEtcdOp(nil, "", "", "", config.EtcdConfig{
+		Retry: config.RetrySettings{
+			RetryTimes:  1,
+			InitBackOff: 1,
+			MaxBackOff:  1,
+		},
+	})
 	assert.NoError(t, err)
 	realOp := etcdOp.(*EtcdOp)
 

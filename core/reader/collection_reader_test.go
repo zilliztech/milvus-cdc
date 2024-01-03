@@ -33,13 +33,20 @@ import (
 	"github.com/stretchr/testify/mock"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/mocks"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 )
 
 // Before running this case, should start the etcd server
 func TestCollectionReader(t *testing.T) {
-	etcdOp, err := NewEtcdOp(nil, "", "", "")
+	etcdOp, err := NewEtcdOp(nil, "", "", "", config.EtcdConfig{
+		Retry: config.RetrySettings{
+			RetryTimes:  1,
+			InitBackOff: 1,
+			MaxBackOff:  1,
+		},
+	})
 	assert.NoError(t, err)
 	realOp := etcdOp.(*EtcdOp)
 
@@ -114,6 +121,12 @@ func TestCollectionReader(t *testing.T) {
 
 	reader, err := NewCollectionReader("reader-1", channelManager, etcdOp, nil, func(ci *pb.CollectionInfo) bool {
 		return !strings.Contains(ci.Schema.Name, "test")
+	}, config.ReaderConfig{
+		Retry: config.RetrySettings{
+			RetryTimes:  1,
+			InitBackOff: 1,
+			MaxBackOff:  1,
+		},
 	})
 	assert.NoError(t, err)
 	go func() {
