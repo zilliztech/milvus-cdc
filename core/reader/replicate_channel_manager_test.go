@@ -43,6 +43,11 @@ func TestNewReplicateChannelManager(t *testing.T) {
 	t.Run("empty config", func(t *testing.T) {
 		_, err := NewReplicateChannelManager(config.MQConfig{}, NewDefaultFactoryCreator(), nil, config.ReaderConfig{
 			MessageBufferSize: 10,
+			Retry: config.RetrySettings{
+				RetryTimes:  1,
+				InitBackOff: 1,
+				MaxBackOff:  1,
+			},
 		}, &api.DefaultMetaOp{}, func(s string, pack *msgstream.MsgPack) {
 		})
 		assert.Error(t, err)
@@ -58,6 +63,11 @@ func TestNewReplicateChannelManager(t *testing.T) {
 			},
 		}, factoryCreator, nil, config.ReaderConfig{
 			MessageBufferSize: 10,
+			Retry: config.RetrySettings{
+				RetryTimes:  1,
+				InitBackOff: 1,
+				MaxBackOff:  1,
+			},
 		}, &api.DefaultMetaOp{}, func(s string, pack *msgstream.MsgPack) {
 		})
 		assert.NoError(t, err)
@@ -121,6 +131,11 @@ func TestStartReadCollection(t *testing.T) {
 		},
 	}, factoryCreator, targetClient, config.ReaderConfig{
 		MessageBufferSize: 10,
+		Retry: config.RetrySettings{
+			RetryTimes:  1,
+			InitBackOff: 1,
+			MaxBackOff:  1,
+		},
 	}, &api.DefaultMetaOp{}, func(s string, pack *msgstream.MsgPack) {
 	})
 	assert.NoError(t, err)

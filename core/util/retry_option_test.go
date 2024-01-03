@@ -19,11 +19,47 @@
 package util
 
 import (
+	"context"
 	"testing"
+	"time"
 
+	"github.com/cockroachdb/errors"
+	"github.com/milvus-io/milvus/pkg/util/retry"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/zilliztech/milvus-cdc/core/config"
 )
 
 func TestRetry(t *testing.T) {
 	assert.Len(t, GetRetryDefaultOptions(), 3)
+
+	t.Run("default options", func(t *testing.T) {
+		options := GetRetryDefaultOptions()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		i := 0
+		err := retry.Do(ctx, func() error {
+			i++
+			return errors.New("retry error")
+		}, options...)
+		assert.Error(t, err)
+		assert.Equal(t, 1, i)
+	})
+
+	t.Run("custome options", func(t *testing.T) {
+		options := GetRetryOptions(config.RetrySettings{
+			RetryTimes:  2,
+			InitBackOff: 1,
+			MaxBackOff:  1,
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		i := 0
+		err := retry.Do(ctx, func() error {
+			i++
+			return errors.New("retry error")
+		}, options...)
+		assert.Error(t, err)
+		assert.Equal(t, 2, i)
+	})
 }

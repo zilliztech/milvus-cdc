@@ -91,6 +91,15 @@ func TestMap(t *testing.T) {
 	assert.Len(t, unsafeMap, 2)
 	assert.Equal(t, "foo", unsafeMap[1])
 	assert.Equal(t, "hoo", unsafeMap[2])
+
+	{
+		v := m.LoadWithDefault(1, "bar")
+		assert.Equal(t, "foo", v)
+	}
+	{
+		v := m.LoadWithDefault(20, "bar")
+		assert.Equal(t, "bar", v)
+	}
 }
 
 func TestArray(t *testing.T) {
