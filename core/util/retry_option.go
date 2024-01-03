@@ -26,7 +26,7 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/config"
 )
 
-// GetRetryDefaultOptions 1/2/4/8/10
+// GetRetryDefaultOptions 2 days retry
 func GetRetryDefaultOptions() []retry.Option {
 	return []retry.Option{
 		// about 2 days

@@ -33,3 +33,7 @@ type RetrySettings struct {
 	InitBackOff int
 	MaxBackOff  int
 }
+
+type EtcdConfig struct {
+	Retry RetrySettings
+}
