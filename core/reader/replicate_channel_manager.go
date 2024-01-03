@@ -662,10 +662,18 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 				needTsMsg = true
 			case *msgstream.DropPartitionMsg:
 				realMsg.CollectionID = info.CollectionID
-				if realMsg.PartitionName == "" || info.PartitionBarrierChan[realMsg.PartitionID] == nil {
-					err = errors.Newf("not found the partition info [%d]", realMsg.PartitionID)
+				if realMsg.PartitionName == "" {
+					err = errors.Newf("empty partition name")
 					log.Warn("invalid drop partition message", zap.Any("msg", msg))
-				} else {
+				}
+				_ = retry.Do(r.replicateCtx, func() error {
+					if info.PartitionBarrierChan[realMsg.PartitionID] == nil {
+						err = errors.Newf("not found the partition info [%d]", realMsg.PartitionID)
+						log.Warn("invalid drop partition message", zap.Any("msg", msg))
+					}
+					return err
+				}, r.retryOptions...)
+				if err == nil {
 					info.PartitionBarrierChan[realMsg.PartitionID] <- msg.EndTs()
 					if realMsg.PartitionName != "" {
 						realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
