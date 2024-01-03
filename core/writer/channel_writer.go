@@ -219,7 +219,7 @@ func (c *ChannelWriter) WaitDatabaseReady(ctx context.Context, databaseName stri
 		})
 	}, c.retryOptions...)
 	if err == nil {
-		c.dbInfos.Store(createKey, msgTs)
+		c.dbInfos.Store(createKey, c.dbInfos.LoadWithDefault(dropKey, 0)+1)
 		return InfoStateCreated
 	}
 	log.Warn("database is not ready", zap.String("database", databaseName))
@@ -245,7 +245,7 @@ func (c *ChannelWriter) WaitCollectionReady(ctx context.Context, collectionName,
 		})
 	}, c.retryOptions...)
 	if err == nil {
-		c.collectionInfos.Store(createKey, msgTs)
+		c.collectionInfos.Store(createKey, c.collectionInfos.LoadWithDefault(dropKey, 0)+1)
 		return InfoStateCreated
 	}
 	return InfoStateUnknown
@@ -272,7 +272,7 @@ func (c *ChannelWriter) WaitPartitionReady(ctx context.Context, collectionName, 
 	}, c.retryOptions...)
 
 	if err == nil {
-		c.partitionInfos.Store(createKey, msgTs)
+		c.partitionInfos.Store(createKey, c.partitionInfos.LoadWithDefault(dropKey, 0)+1)
 		return InfoStateCreated
 	}
 
