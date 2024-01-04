@@ -16,53 +16,35 @@
  * limitations under the License.
  */
 
-package config
+package reader
 
-import "sync"
+import (
+	"sync"
+	"testing"
 
-type Option[T any] interface {
-	Apply(object T)
-}
-
-type OptionFunc[T any] func(object T)
-
-func (o OptionFunc[T]) Apply(object T) {
-	o(object)
-}
-
-type RetrySettings struct {
-	RetryTimes  int
-	InitBackOff int
-	MaxBackOff  int
-}
-
-type EtcdConfig struct {
-	Retry RetrySettings
-}
-
-var (
-	configInstance   *CommonConfig
-	commonConfigOnce sync.Once
+	"github.com/stretchr/testify/assert"
 )
 
-type ConfigOption func(config *CommonConfig)
-
-func InitCommonConfig(options ...ConfigOption) {
-	commonConfigOnce.Do(func() {
-		configInstance = &CommonConfig{}
-		for _, option := range options {
-			option(configInstance)
-		}
-	})
-}
-
-func GetCommonConfig() *CommonConfig {
-	if configInstance == nil {
-		InitCommonConfig()
+func TestTSRef(t *testing.T) {
+	m := GetTSManager()
+	w := sync.WaitGroup{}
+	for i := 0; i < 40; i++ {
+		w.Add(1)
+		go func(start int) {
+			defer w.Done()
+			if start%2 == 0 {
+				for x := 0; x < 10000; x++ {
+					m.AddRef("test")
+				}
+				return
+			}
+			for x := 0; x < 10000; x++ {
+				m.RemoveRef("test")
+			}
+		}(i)
 	}
-	return configInstance
-}
-
-type CommonConfig struct {
-	Retry RetrySettings
+	w.Wait()
+	v, ok := m.channelRef.Load("test")
+	assert.True(t, ok)
+	assert.Equal(t, 0, v.Load())
 }

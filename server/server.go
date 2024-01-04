@@ -30,6 +30,7 @@ import (
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 
+	config2 "github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	cdcerror "github.com/zilliztech/milvus-cdc/server/error"
 	"github.com/zilliztech/milvus-cdc/server/metrics"
@@ -43,6 +44,9 @@ type CDCServer struct {
 
 func (c *CDCServer) Run(config *CDCServerConfig) {
 	metrics.RegisterMetric()
+	config2.InitCommonConfig(func(c *config2.CommonConfig) {
+		c.Retry = config.Retry
+	})
 
 	c.serverConfig = config
 	c.api = GetCDCAPI(c.serverConfig)
