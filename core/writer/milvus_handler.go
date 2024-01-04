@@ -25,6 +25,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
+	"github.com/milvus-io/milvus/pkg/util/retry"
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -42,13 +43,13 @@ type MilvusDataHandler struct {
 	enableTLS       bool
 	ignorePartition bool // sometimes the has partition api is a deny api
 	connectTimeout  int
+	retryOptions    []retry.Option
 
 	// default db milvus client
 	milvus client.Client
 }
 
 // NewMilvusDataHandler options must include AddressOption
-// TODO add retry op for all api
 func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*MilvusDataHandler, error) {
 	handler := &MilvusDataHandler{
 		connectTimeout: 5,
@@ -74,12 +75,23 @@ func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*Milvus
 		log.Warn("fail to new the milvus client", zap.Error(err))
 		return nil, err
 	}
+	handler.retryOptions = util.GetRetryOptions(config.GetCommonConfig().Retry)
 	return handler, nil
 }
 
 func (m *MilvusDataHandler) milvusOp(ctx context.Context, database string, f func(milvus client.Client) error) error {
+	retryMilvusFunc := func(c client.Client) error {
+		// TODO Retryable and non-retryable errors should be distinguished
+		var err error
+		_ = retry.Do(ctx, func() error {
+			err = f(c)
+			return err
+		}, m.retryOptions...)
+		return err
+	}
+
 	if database == "" || database == util.DefaultDbName {
-		return f(m.milvus)
+		return retryMilvusFunc(m.milvus)
 	}
 	milvusClient, err := util.GetMilvusClientManager().GetMilvusClient(ctx,
 		m.address,
@@ -90,7 +102,7 @@ func (m *MilvusDataHandler) milvusOp(ctx context.Context, database string, f fun
 		log.Warn("fail to get milvus client", zap.Error(err))
 		return err
 	}
-	return f(milvusClient)
+	return retryMilvusFunc(milvusClient)
 }
 
 func (m *MilvusDataHandler) CreateCollection(ctx context.Context, param *api.CreateCollectionParam) error {
@@ -220,23 +232,34 @@ func (m *MilvusDataHandler) Flush(ctx context.Context, param *api.FlushParam) er
 }
 
 func (m *MilvusDataHandler) CreateDatabase(ctx context.Context, param *api.CreateDatabaseParam) error {
-	return m.milvus.CreateDatabase(ctx, param.DbName,
-		client.WithCreateDatabaseMsgBase(param.GetBase()),
-	)
+	return m.milvusOp(ctx, "", func(milvus client.Client) error {
+		return milvus.CreateDatabase(ctx, param.DbName,
+			client.WithCreateDatabaseMsgBase(param.GetBase()),
+		)
+	})
 }
 
 func (m *MilvusDataHandler) DropDatabase(ctx context.Context, param *api.DropDatabaseParam) error {
-	return m.milvus.DropDatabase(ctx, param.DbName,
-		client.WithDropDatabaseMsgBase(param.GetBase()),
-	)
+	return m.milvusOp(ctx, "", func(milvus client.Client) error {
+		return milvus.DropDatabase(ctx, param.DbName,
+			client.WithDropDatabaseMsgBase(param.GetBase()),
+		)
+	})
 }
 
 func (m *MilvusDataHandler) ReplicateMessage(ctx context.Context, param *api.ReplicateMessageParam) error {
-	resp, err := m.milvus.ReplicateMessage(ctx, param.ChannelName,
-		param.BeginTs, param.EndTs,
-		param.MsgsBytes,
-		param.StartPositions, param.EndPositions,
-		client.WithReplicateMessageMsgBase(param.Base))
+	var (
+		resp *entity.MessageInfo
+		err  error
+	)
+	_ = m.milvusOp(ctx, "", func(milvus client.Client) error {
+		resp, err = milvus.ReplicateMessage(ctx, param.ChannelName,
+			param.BeginTs, param.EndTs,
+			param.MsgsBytes,
+			param.StartPositions, param.EndPositions,
+			client.WithReplicateMessageMsgBase(param.Base))
+		return err
+	})
 	if err == nil {
 		param.TargetMsgPosition = resp.Position
 	}

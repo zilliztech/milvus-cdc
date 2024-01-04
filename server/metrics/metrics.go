@@ -23,6 +23,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/zilliztech/milvus-cdc/core/reader"
 )
 
 const (
@@ -133,6 +135,7 @@ func init() {
 	registry.MustRegister(ReplicateTimeVec)
 	registry.MustRegister(ReplicateDataSizeVec)
 	registry.MustRegister(APIExecuteCountVec)
+	registry.MustRegister(reader.TSMetricVec)
 }
 
 func RegisterMetric() {

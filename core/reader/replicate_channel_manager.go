@@ -20,6 +20,7 @@ package reader
 
 import (
 	"context"
+	"math"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -34,6 +35,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 	"github.com/milvus-io/milvus/pkg/util/commonpbutil"
 	"github.com/milvus-io/milvus/pkg/util/retry"
+	"github.com/samber/lo"
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -208,7 +210,10 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 			return err
 		}
 		successChannels = append(successChannels, sourcePChannel)
-		log.Info("start read channel", zap.String("channel", sourcePChannel))
+		log.Info("start read channel",
+			zap.String("channel", sourcePChannel),
+			zap.String("target_channel", targetPChannel),
+			zap.Int64("collection_id", info.ID))
 		return nil
 	})
 	return err
@@ -396,12 +401,37 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 			return err
 		}
 		channelHandler.msgPackCallback = r.msgPackCallback
+		channelHandler.forwardMsgFunc = r.forwardMsg
 		r.channelHandlerMap[sourceInfo.PChannelName] = channelHandler
 		r.channelChan <- sourceInfo.PChannelName
 		return nil
 	}
 	channelHandler.AddCollection(sourceInfo.CollectionID, targetInfo)
 	return nil
+}
+
+func (r *replicateChannelManager) forwardMsg(targetPChannel string, msg *msgstream.MsgPack) {
+	r.channelLock.RLock()
+	defer r.channelLock.RUnlock()
+
+	var handler *replicateChannelHandler
+
+	for _, channelHandler := range r.channelHandlerMap {
+		if channelHandler.targetPChannel == targetPChannel {
+			handler = channelHandler
+			break
+		}
+	}
+	if handler == nil {
+		r.apiEventChan <- &api.ReplicateAPIEvent{
+			EventType: api.ReplicateError,
+			Error:     errors.Newf("channel %s not found when forward the msg", targetPChannel),
+		}
+		log.Warn("channel not found when forward the msg",
+			zap.String("target_pchannel", targetPChannel), zap.Strings("channels", lo.Keys(r.channelHandlerMap)))
+		return
+	}
+	handler.forwardPackChan <- msg
 }
 
 func (r *replicateChannelManager) stopReadChannel(pChannelName string, collectionID int64) {
@@ -412,9 +442,9 @@ func (r *replicateChannelManager) stopReadChannel(pChannelName string, collectio
 		return
 	}
 	channelHandler.RemoveCollection(collectionID)
-	if channelHandler.IsEmpty() {
-		channelHandler.Close()
-	}
+	//if channelHandler.IsEmpty() {
+	//	channelHandler.Close()
+	//}
 }
 
 type replicateChannelHandler struct {
@@ -430,7 +460,9 @@ type replicateChannelHandler struct {
 	collectionNames   map[string]int64
 	msgPackChan       chan *msgstream.MsgPack
 	apiEventChan      chan *api.ReplicateAPIEvent
+	forwardPackChan   chan *msgstream.MsgPack
 	msgPackCallback   func(string, *msgstream.MsgPack)
+	forwardMsgFunc    func(string, *msgstream.MsgPack)
 
 	retryOptions []retry.Option
 }
@@ -440,16 +472,21 @@ func (r *replicateChannelHandler) AddCollection(collectionID int64, targetInfo *
 	defer r.recordLock.Unlock()
 	r.collectionRecords[collectionID] = targetInfo
 	r.collectionNames[targetInfo.CollectionName] = collectionID
+	GetTSManager().AddRef(r.pChannelName)
 }
 
 func (r *replicateChannelHandler) RemoveCollection(collectionID int64) {
 	r.recordLock.Lock()
 	defer r.recordLock.Unlock()
-	collectionRecord := r.collectionRecords[collectionID]
+	collectionRecord, ok := r.collectionRecords[collectionID]
+	if !ok {
+		return
+	}
 	delete(r.collectionRecords, collectionID)
 	if collectionRecord != nil {
 		delete(r.collectionNames, collectionRecord.CollectionName)
 	}
+	GetTSManager().RemoveRef(r.pChannelName)
 }
 
 func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo, barrierChan chan<- uint64) error {
@@ -528,18 +565,27 @@ func (r *replicateChannelHandler) IsEmpty() bool {
 }
 
 func (r *replicateChannelHandler) Close() {
-	r.stream.Close()
+	// r.stream.Close()
 }
 
 func (r *replicateChannelHandler) startReadChannel() {
 	go func() {
 		for {
-			msgPack, ok := <-r.stream.Chan()
-			if !ok {
-				close(r.msgPackChan)
+			select {
+			case <-r.replicateCtx.Done():
+				log.Warn("replicate channel handler closed")
 				return
+			case msgPack := <-r.forwardPackChan:
+				r.msgPackChan <- r.handlePack(true, msgPack)
+			case msgPack, ok := <-r.stream.Chan():
+				if !ok {
+					continue
+					//close(r.msgPackChan)
+					//close(r.forwardPackChan)
+					//return
+				}
+				r.msgPackChan <- r.handlePack(false, msgPack)
 			}
-			r.msgPackChan <- r.handlePack(msgPack)
 		}
 	}()
 }
@@ -609,7 +655,8 @@ func (r *replicateChannelHandler) getPartitionID(sourceCollectionID int64, info 
 	return id, nil
 }
 
-func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream.MsgPack {
+func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPack) *msgstream.MsgPack {
+	GetTSManager().CollectTS(r.pChannelName, pack.EndTs)
 	newPack := &msgstream.MsgPack{
 		BeginTs:        pack.BeginTs,
 		EndTs:          pack.EndTs,
@@ -617,15 +664,32 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 		EndPositions:   pack.EndPositions,
 		Msgs:           make([]msgstream.TsMsg, 0),
 	}
+	beginTS := pack.BeginTs
+	endTS := pack.EndTs
+
+	minTS := GetTSManager().GetMinTS(r.pChannelName)
+	if minTS == 0 {
+		r.sendErrEvent(errors.Newf("fail to get channel ts, channel: %s", r.pChannelName))
+		log.Warn("fail to get channel ts", zap.String("channel", r.pChannelName))
+		return nil
+	}
+	endTS = minTS
+	if beginTS > endTS {
+		beginTS = endTS
+	}
+
 	needTsMsg := false
 	pChannel := r.targetPChannel
 	for _, msg := range pack.Msgs {
-		if msg.Type() == commonpb.MsgType_CreateCollection ||
-			msg.Type() == commonpb.MsgType_CreatePartition {
+		if forward {
+			newPack.Msgs = append(newPack.Msgs, msg)
+			if msg.Type() == commonpb.MsgType_DropCollection {
+				needTsMsg = true
+			}
 			continue
 		}
-		if msg.Type() == commonpb.MsgType_TimeTick {
-			newPack.Msgs = append(newPack.Msgs, msg)
+		if msg.Type() == commonpb.MsgType_CreateCollection ||
+			msg.Type() == commonpb.MsgType_CreatePartition {
 			continue
 		}
 		if msg.Type() != commonpb.MsgType_Insert && msg.Type() != commonpb.MsgType_Delete &&
@@ -667,6 +731,7 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 					log.Warn("invalid drop partition message", zap.Any("msg", msg))
 				}
 				_ = retry.Do(r.replicateCtx, func() error {
+					err = nil
 					if info.PartitionBarrierChan[realMsg.PartitionID] == nil {
 						err = errors.Newf("not found the partition info [%d]", realMsg.PartitionID)
 						log.Warn("invalid drop partition message", zap.Any("msg", msg))
@@ -685,17 +750,12 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 				log.Warn("fail to get partition info", zap.Any("msg", msg.Type()), zap.Error(err))
 				return nil
 			}
-			if pChannel != info.PChannel {
-				r.sendErrEvent(errors.New("there is a error about the replicate channel"))
-				log.Warn("pChannel not equal", zap.Any("msg", msg), zap.String("pChannel", pChannel), zap.String("info_pChannel", info.PChannel))
-				return nil
-			}
 			originPosition := msg.Position()
 			msg.SetPosition(&msgpb.MsgPosition{
 				ChannelName: info.PChannel,
 				MsgID:       originPosition.GetMsgID(),
 				MsgGroup:    originPosition.GetMsgGroup(),
-				Timestamp:   originPosition.GetTimestamp(),
+				Timestamp:   msg.EndTs(),
 			})
 			logFields := []zap.Field{
 				zap.String("msg", msg.Type().String()),
@@ -704,6 +764,19 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 				logFields = append(logFields, zap.Int("data_len", dataLen))
 			}
 			log.Info("receive msg", logFields...)
+			if pChannel != info.PChannel {
+				log.Info("forward the msg", zap.Any("msg", msg), zap.String("pChannel", pChannel), zap.String("info_pChannel", info.PChannel))
+				r.forwardMsgFunc(info.PChannel, &msgstream.MsgPack{
+					BeginTs:        msg.BeginTs(),
+					EndTs:          msg.EndTs(),
+					StartPositions: []*msgpb.MsgPosition{originPosition},
+					EndPositions:   []*msgpb.MsgPosition{originPosition},
+					Msgs: []msgstream.TsMsg{
+						msg,
+					},
+				})
+				continue
+			}
 			newPack.Msgs = append(newPack.Msgs, msg)
 		} else {
 			log.Warn("not support msg type", zap.Any("msg", msg))
@@ -711,9 +784,11 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 	}
 	for _, position := range newPack.StartPositions {
 		position.ChannelName = pChannel
+		position.Timestamp = beginTS
 	}
 	for _, position := range newPack.EndPositions {
 		position.ChannelName = pChannel
+		position.Timestamp = endTS
 	}
 	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
 	if needTsMsg {
@@ -721,14 +796,14 @@ func (r *replicateChannelHandler) handlePack(pack *msgstream.MsgPack) *msgstream
 			Base: commonpbutil.NewMsgBase(
 				commonpbutil.WithMsgType(commonpb.MsgType_TimeTick),
 				commonpbutil.WithMsgID(0),
-				commonpbutil.WithTimeStamp(pack.EndTs),
+				commonpbutil.WithTimeStamp(endTS),
 				commonpbutil.WithSourceID(-1),
 			),
 		}
 		timeTickMsg := &msgstream.TimeTickMsg{
 			BaseMsg: msgstream.BaseMsg{
-				BeginTimestamp: pack.EndTs,
-				EndTimestamp:   pack.EndTs,
+				BeginTimestamp: endTS,
+				EndTimestamp:   endTS,
 				HashValues:     []uint32{0},
 				MsgPosition:    newPack.EndPositions[0],
 			},
@@ -789,9 +864,11 @@ func newReplicateChannelHandler(ctx context.Context,
 		collectionNames:   make(map[string]int64),
 		msgPackChan:       make(chan *msgstream.MsgPack, opts.MessageBufferSize),
 		apiEventChan:      apiEventChan,
+		forwardPackChan:   make(chan *msgstream.MsgPack, opts.MessageBufferSize),
 		retryOptions:      opts.RetryOptions,
 	}
 	channelHandler.AddCollection(sourceInfo.CollectionID, targetInfo)
+	GetTSManager().CollectTS(channelHandler.pChannelName, math.MaxUint64)
 	channelHandler.startReadChannel()
 	return channelHandler, nil
 }

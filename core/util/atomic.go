@@ -27,6 +27,12 @@ type Value[T any] struct {
 	v atomic.Value
 }
 
+func NewValue[T any](initValue T) *Value[T] {
+	v := &Value[T]{v: atomic.Value{}}
+	v.Store(initValue)
+	return v
+}
+
 func (value *Value[T]) Load() T {
 	return value.v.Load().(T)
 }
