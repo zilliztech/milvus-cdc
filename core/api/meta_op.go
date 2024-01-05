@@ -40,6 +40,7 @@ type MetaOp interface {
 
 	GetAllCollection(ctx context.Context, filter CollectionFilter) ([]*pb.CollectionInfo, error)
 	GetAllPartition(ctx context.Context, filter PartitionFilter) ([]*pb.PartitionInfo, error)
+	GetAllDroppedObj() map[string]map[string]uint64
 	GetCollectionNameByID(ctx context.Context, id int64) string
 	GetDatabaseInfoForCollection(ctx context.Context, id int64) model.DatabaseInfo
 }
@@ -92,6 +93,11 @@ func (d *DefaultMetaOp) GetAllCollection(ctx context.Context, filter CollectionF
 func (d *DefaultMetaOp) GetAllPartition(ctx context.Context, filter PartitionFilter) ([]*pb.PartitionInfo, error) {
 	log.Warn("GetAllPartition is not implemented, please check it")
 	return nil, nil
+}
+
+func (d *DefaultMetaOp) GetAllDroppedObj() map[string]map[string]uint64 {
+	log.Warn("GetAllDroppedObj is not implemented, please check it")
+	return nil
 }
 
 func (d *DefaultMetaOp) GetCollectionNameByID(ctx context.Context, id int64) string {

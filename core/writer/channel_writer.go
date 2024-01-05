@@ -21,7 +21,6 @@ package writer
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 
 	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
@@ -50,6 +49,7 @@ type ChannelWriter struct {
 	opMessageFuncs map[commonpb.MsgType]opMessageFunc
 	apiEventFuncs  map[api.ReplicateAPIEventType]apiEventFunc
 
+	// TODO how to gc the infos
 	dbInfos         util.Map[string, uint64]
 	collectionInfos util.Map[string, uint64]
 	partitionInfos  util.Map[string, uint64]
@@ -57,7 +57,9 @@ type ChannelWriter struct {
 	retryOptions []retry.Option
 }
 
-func NewChannelWriter(dataHandler api.DataHandler, writerConfig config.WriterConfig) api.Writer {
+func NewChannelWriter(dataHandler api.DataHandler,
+	writerConfig config.WriterConfig,
+	droppedObjs map[string]map[string]uint64) api.Writer {
 	w := &ChannelWriter{
 		dataHandler:    dataHandler,
 		messageManager: NewReplicateMessageManager(dataHandler, writerConfig.MessageBufferSize),
@@ -65,7 +67,17 @@ func NewChannelWriter(dataHandler api.DataHandler, writerConfig config.WriterCon
 	}
 	w.initAPIEventFuncs()
 	w.initOPMessageFuncs()
-	// TODO gc the infos
+	log.Info("new channel writer", zap.Any("droppedObjs", droppedObjs))
+	if droppedObjs[util.DroppedCollectionKey] != nil {
+		for s, u := range droppedObjs[util.DroppedCollectionKey] {
+			w.collectionInfos.Store(s, u)
+		}
+	}
+	if droppedObjs[util.DroppedPartitionKey] != nil {
+		for s, u := range droppedObjs[util.DroppedPartitionKey] {
+			w.partitionInfos.Store(s, u)
+		}
+	}
 
 	return w
 }
@@ -204,7 +216,7 @@ func (c *ChannelWriter) WaitDatabaseReady(ctx context.Context, databaseName stri
 	if databaseName == "" {
 		return InfoStateCreated
 	}
-	createKey, dropKey := getDBInfoKeys(databaseName)
+	createKey, dropKey := util.GetDBInfoKeys(databaseName)
 	ctime, cok := c.dbInfos.Load(createKey)
 	dtime, dok := c.dbInfos.Load(dropKey)
 
@@ -227,7 +239,7 @@ func (c *ChannelWriter) WaitDatabaseReady(ctx context.Context, databaseName stri
 }
 
 func (c *ChannelWriter) WaitCollectionReady(ctx context.Context, collectionName, databaseName string, msgTs uint64) InfoState {
-	createKey, dropKey := getCollectionInfoKeys(collectionName, databaseName)
+	createKey, dropKey := util.GetCollectionInfoKeys(collectionName, databaseName)
 	ctime, cok := c.collectionInfos.Load(createKey)
 	dtime, dok := c.collectionInfos.Load(dropKey)
 
@@ -252,7 +264,7 @@ func (c *ChannelWriter) WaitCollectionReady(ctx context.Context, collectionName,
 }
 
 func (c *ChannelWriter) WaitPartitionReady(ctx context.Context, collectionName, partitionName, databaseName string, msgTs uint64) InfoState {
-	createKey, dropKey := getPartitionInfoKeys(partitionName, collectionName, databaseName)
+	createKey, dropKey := util.GetPartitionInfoKeys(partitionName, collectionName, databaseName)
 	ctime, cok := c.partitionInfos.Load(createKey)
 	dtime, dok := c.partitionInfos.Load(dropKey)
 
@@ -372,7 +384,7 @@ func (c *ChannelWriter) dropCollection(ctx context.Context, apiEvent *api.Replic
 		log.Warn("fail to drop collection", zap.Any("event", apiEvent), zap.Error(err))
 		return err
 	}
-	_, dropKey := getCollectionInfoKeys(collectionName, databaseName)
+	_, dropKey := util.GetCollectionInfoKeys(collectionName, databaseName)
 	c.collectionInfos.Store(dropKey, apiEvent.ReplicateInfo.MsgTimestamp)
 	return nil
 }
@@ -431,7 +443,7 @@ func (c *ChannelWriter) dropPartition(ctx context.Context, apiEvent *api.Replica
 		log.Info("collection has been dropped", zap.String("database", apiEvent.ReplicateParam.Database),
 			zap.String("collection", apiEvent.CollectionInfo.Schema.GetName()), zap.String("partition", util.Base64ProtoObj(apiEvent.PartitionInfo)))
 	}
-	_, dropKey := getPartitionInfoKeys(partitionName, collectionName, databaseName)
+	_, dropKey := util.GetPartitionInfoKeys(partitionName, collectionName, databaseName)
 	c.partitionInfos.Store(dropKey, apiEvent.ReplicateInfo.MsgTimestamp)
 	return nil
 }
@@ -464,7 +476,7 @@ func (c *ChannelWriter) dropDatabase(ctx context.Context, msgBase *commonpb.MsgB
 		log.Warn("failed to drop database", zap.Any("msg", dropDatabaseMsg), zap.Error(err))
 		return err
 	}
-	_, dropKey := getDBInfoKeys(databaseName)
+	_, dropKey := util.GetDBInfoKeys(databaseName)
 	c.dbInfos.Store(dropKey, dropDatabaseMsg.EndTs())
 	return nil
 }
@@ -713,37 +725,6 @@ func (c *ChannelWriter) releasePartitions(ctx context.Context, msgBase *commonpb
 			zap.String("collection", releasePartitionsMsg.GetCollectionName()), zap.Strings("partitions", partitions), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
-}
-
-func getCreateInfoKey(key string) string {
-	return fmt.Sprintf("%s_c", key)
-}
-
-func getDropInfoKey(key string) string {
-	return fmt.Sprintf("%s_d", key)
-}
-
-func getCollectionInfoKeys(collectionName, dbName string) (string, string) {
-	if dbName == "" {
-		dbName = util.DefaultDbName
-	}
-	key := fmt.Sprintf("%s_%s", dbName, collectionName)
-	return getCreateInfoKey(key), getDropInfoKey(key)
-}
-
-func getPartitionInfoKeys(partitionName, collectionName, dbName string) (string, string) {
-	if dbName == "" {
-		dbName = util.DefaultDbName
-	}
-	key := fmt.Sprintf("%s_%s_%s", dbName, collectionName, partitionName)
-	return getCreateInfoKey(key), getDropInfoKey(key)
-}
-
-func getDBInfoKeys(dbName string) (string, string) {
-	if dbName == "" {
-		dbName = util.DefaultDbName
-	}
-	return getCreateInfoKey(dbName), getDropInfoKey(dbName)
 }
 
 // shouldSkipOp, mtime: msg time, ctime: create time, dtime: drop time

@@ -104,6 +104,10 @@ var PartitionState_value = map[string]int32{
 	"PartitionDropped":  3,
 }
 
+func (x PartitionState) String() string {
+	return proto.EnumName(PartitionState_name, int32(x))
+}
+
 type CollectionInfo struct {
 	ID         int64                      `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	Schema     *schemapb.CollectionSchema `protobuf:"bytes,2,opt,name=schema,proto3" json:"schema,omitempty"`
