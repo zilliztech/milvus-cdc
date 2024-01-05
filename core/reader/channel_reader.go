@@ -56,7 +56,10 @@ type ChannelReader struct {
 
 var _ api.Reader = (*ChannelReader)(nil)
 
-func NewChannelReader(channelName, seekPosition string, mqConfig config.MQConfig, dataHandler func(context.Context, *msgstream.MsgPack) bool, creator FactoryCreator) (api.Reader, error) {
+func NewChannelReader(channelName, seekPosition string,
+	mqConfig config.MQConfig,
+	dataHandler func(context.Context, *msgstream.MsgPack) bool,
+	creator FactoryCreator) (api.Reader, error) {
 	channelReader := &ChannelReader{
 		factoryCreator:       creator,
 		channelName:          channelName,
@@ -147,6 +150,8 @@ func (c *ChannelReader) StartRead(ctx context.Context) {
 						log.Warn("the data handler is nil")
 						return
 					}
+					// TODO when cdc chaos kill, maybe the collection has drop,
+					// and the op message has not been handled, which will block the task
 					if !c.dataHandler(ctx, msgPack) {
 						log.Warn("the data handler return false, the channel reader is quit")
 						return

@@ -38,6 +38,8 @@ type TargetCollectionInfo struct {
 	VChannel             string
 	BarrierChan          chan<- uint64
 	PartitionBarrierChan map[int64]chan<- uint64
+	Dropped              bool
+	DroppedPartition     map[int64]struct{} // id is the source partition id
 }
 
 type HandlerOpts struct {
@@ -52,6 +54,7 @@ type CollectionInfo struct {
 	VChannels      []string
 	PChannels      []string
 	Partitions     map[string]int64
+	Dropped        bool
 }
 
 type DatabaseInfo struct {

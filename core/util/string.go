@@ -21,6 +21,7 @@ package util
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"unsafe"
 
@@ -29,6 +30,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
+)
+
+var (
+	DroppedCollectionKey = "collection"
+	DroppedPartitionKey  = "partition"
 )
 
 // ToBytes performs unholy acts to avoid allocations
@@ -88,4 +94,35 @@ func Base64MsgPosition(position *msgstream.MsgPosition) string {
 		return ""
 	}
 	return base64.StdEncoding.EncodeToString(positionByte)
+}
+
+func GetCreateInfoKey(key string) string {
+	return fmt.Sprintf("%s_c", key)
+}
+
+func GetDropInfoKey(key string) string {
+	return fmt.Sprintf("%s_d", key)
+}
+
+func GetCollectionInfoKeys(collectionName, dbName string) (string, string) {
+	if dbName == "" {
+		dbName = DefaultDbName
+	}
+	key := fmt.Sprintf("%s_%s", dbName, collectionName)
+	return GetCreateInfoKey(key), GetDropInfoKey(key)
+}
+
+func GetPartitionInfoKeys(partitionName, collectionName, dbName string) (string, string) {
+	if dbName == "" {
+		dbName = DefaultDbName
+	}
+	key := fmt.Sprintf("%s_%s_%s", dbName, collectionName, partitionName)
+	return GetCreateInfoKey(key), GetDropInfoKey(key)
+}
+
+func GetDBInfoKeys(dbName string) (string, string) {
+	if dbName == "" {
+		dbName = DefaultDbName
+	}
+	return GetCreateInfoKey(dbName), GetDropInfoKey(dbName)
 }

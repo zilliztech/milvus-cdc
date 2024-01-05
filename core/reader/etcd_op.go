@@ -33,6 +33,8 @@ import (
 	"github.com/milvus-io/milvus/pkg/common"
 	"github.com/milvus-io/milvus/pkg/util/conc"
 	"github.com/milvus-io/milvus/pkg/util/retry"
+	"github.com/milvus-io/milvus/pkg/util/tsoutil"
+	"github.com/milvus-io/milvus/pkg/util/typeutil"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 
@@ -51,6 +53,7 @@ const (
 	partitionPrefix  = "root-coord/partitions"
 	fieldPrefix      = "root-coord/fields"
 	databasePrefix   = "root-coord/database/db-info"
+	tsPrefix         = "kv/gid/timestamp" // TODO the kv root is configurable
 )
 
 type EtcdOp struct {
@@ -140,6 +143,10 @@ func (e *EtcdOp) fieldPrefix() string {
 
 func (e *EtcdOp) databasePrefix() string {
 	return fmt.Sprintf("%s/%s/%s", e.rootPath, e.metaSubPath, databasePrefix)
+}
+
+func (e *EtcdOp) tsPrefix() string {
+	return fmt.Sprintf("%s/%s", e.rootPath, tsPrefix)
 }
 
 func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilter) {
@@ -381,7 +388,7 @@ func (e *EtcdOp) getCollectionNameByID(ctx context.Context, collectionID int64) 
 	return collectionName
 }
 
-func (e *EtcdOp) GetAllCollection(ctx context.Context, filter api.CollectionFilter) ([]*pb.CollectionInfo, error) {
+func (e *EtcdOp) internalGetAllCollection(ctx context.Context, fillField bool, filters []api.CollectionFilter) ([]*pb.CollectionInfo, error) {
 	_, _ = e.getDatabases(ctx)
 
 	resp, err := util.EtcdGetWithContext(ctx, e.etcdClient, e.collectionPrefix()+"/", clientv3.WithPrefix())
@@ -398,18 +405,22 @@ func (e *EtcdOp) GetAllCollection(ctx context.Context, filter api.CollectionFilt
 			log.Info("fail to unmarshal collection info, maybe it's a deleted collection", zap.String("key", util.ToString(kv.Key)), zap.String("value", util.Base64Encode(kv.Value)), zap.Error(err))
 			continue
 		}
-		if info.State != pb.CollectionState_CollectionCreated {
-			log.Info("not created collection", zap.String("key", util.ToString(kv.Key)))
+		hasFilter := false
+		for _, filter := range filters {
+			if filter != nil && filter(info) {
+				hasFilter = true
+				break
+			}
+		}
+		if hasFilter {
 			continue
 		}
-		if filter != nil && filter(info) {
-			log.Info("the collection info is filtered", zap.String("key", util.ToString(kv.Key)))
-			continue
-		}
-		err = e.fillCollectionField(info)
-		if err != nil {
-			log.Warn("fail to fill collection field", zap.String("key", util.ToString(kv.Key)), zap.Error(err))
-			continue
+		if info.State == pb.CollectionState_CollectionCreated && fillField {
+			err = e.fillCollectionField(info)
+			if err != nil {
+				log.Warn("fail to fill collection field", zap.String("key", util.ToString(kv.Key)), zap.Error(err))
+				continue
+			}
 		}
 		e.collectionID2Name.Store(info.ID, info.Schema.Name)
 		if databaseID := e.getDatabaseIDFromCollectionKey(util.ToString(kv.Key)); databaseID != 0 {
@@ -418,6 +429,29 @@ func (e *EtcdOp) GetAllCollection(ctx context.Context, filter api.CollectionFilt
 		existedCollectionInfos = append(existedCollectionInfos, info)
 	}
 	return existedCollectionInfos, nil
+}
+
+func (e *EtcdOp) GetAllCollection(ctx context.Context, filter api.CollectionFilter) ([]*pb.CollectionInfo, error) {
+	return e.internalGetAllCollection(ctx, true, []api.CollectionFilter{
+		func(info *pb.CollectionInfo) bool {
+			if info.State != pb.CollectionState_CollectionCreated &&
+				info.State != pb.CollectionState_CollectionDropped &&
+				info.State != pb.CollectionState_CollectionDropping {
+				log.Info("not created/dropped collection",
+					zap.String("collection", info.Schema.GetName()),
+					zap.String("state", info.State.String()))
+				return true
+			}
+			return false
+		},
+		func(info *pb.CollectionInfo) bool {
+			if filter(info) {
+				log.Info("the collection info is filtered", zap.String("collection", info.Schema.GetName()))
+				return true
+			}
+			return false
+		},
+	})
 }
 
 func (e *EtcdOp) fillCollectionField(info *pb.CollectionInfo) error {
@@ -493,7 +527,7 @@ func (e *EtcdOp) GetDatabaseInfoForCollection(ctx context.Context, id int64) mod
 	}
 }
 
-func (e *EtcdOp) GetAllPartition(ctx context.Context, filter api.PartitionFilter) ([]*pb.PartitionInfo, error) {
+func (e *EtcdOp) internalGetAllPartition(ctx context.Context, filters []api.PartitionFilter) ([]*pb.PartitionInfo, error) {
 	resp, err := util.EtcdGetWithContext(ctx, e.etcdClient, e.partitionPrefix()+"/", clientv3.WithPrefix())
 	if err != nil {
 		log.Warn("fail to get all partition data", zap.Error(err))
@@ -507,16 +541,150 @@ func (e *EtcdOp) GetAllPartition(ctx context.Context, filter api.PartitionFilter
 			log.Warn("fail to unmarshal partition info", zap.String("key", util.ToString(kv.Key)), zap.String("value", util.Base64Encode(kv.Value)), zap.Error(err))
 			continue
 		}
-		if info.State != pb.PartitionState_PartitionCreated ||
-			strings.Contains(info.PartitionName, e.defaultPartitionName) {
-			log.Info("partition state is not created or partition name is default", zap.String("key", util.ToString(kv.Key)), zap.String("partition_name", info.PartitionName))
-			continue
+		hasFilter := false
+		for _, filter := range filters {
+			if filter != nil && filter(info) {
+				hasFilter = true
+				break
+			}
 		}
-		if filter != nil && filter(info) {
-			log.Info("the partition info is filtered", zap.String("key", util.ToString(kv.Key)), zap.String("partition_name", info.PartitionName))
+		if hasFilter {
 			continue
 		}
 		existedPartitionInfos = append(existedPartitionInfos, info)
 	}
 	return existedPartitionInfos, nil
+
+}
+
+func (e *EtcdOp) GetAllPartition(ctx context.Context, filter api.PartitionFilter) ([]*pb.PartitionInfo, error) {
+	return e.internalGetAllPartition(ctx, []api.PartitionFilter{
+		func(info *pb.PartitionInfo) bool {
+			if (info.State != pb.PartitionState_PartitionCreated &&
+				info.State != pb.PartitionState_PartitionDropping &&
+				info.State != pb.PartitionState_PartitionDropped) ||
+				strings.Contains(info.PartitionName, e.defaultPartitionName) {
+				log.Info("partition state is not created/dropped or partition name is default",
+					zap.String("partition_name", info.PartitionName),
+					zap.String("state", info.State.String()))
+				return true
+			}
+			return false
+		},
+		func(info *pb.PartitionInfo) bool {
+			if filter(info) {
+				log.Info("the partition info is filtered", zap.String("partition", info.PartitionName))
+				return true
+			}
+			return false
+		},
+	})
+}
+
+func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
+	ctx := context.Background()
+	res := make(map[string]map[string]uint64)
+
+	getResp, err := e.etcdClient.Get(ctx, e.tsPrefix())
+	if err != nil {
+		log.Warn("fail to get the ts data", zap.String("prefix", e.tsPrefix()), zap.Error(err))
+		return res
+	}
+	if len(getResp.Kvs) != 1 {
+		log.Warn("fail to get the ts data", zap.String("prefix", e.tsPrefix()), zap.Int("len", len(getResp.Kvs)))
+		return res
+	}
+	curTime, err := typeutil.ParseTimestamp(getResp.Kvs[0].Value)
+	if err != nil {
+		log.Warn("fail to parse the ts data", zap.String("prefix", e.tsPrefix()), zap.Error(err))
+		return res
+	}
+	log.Info("current time", zap.Time("ts", curTime))
+	tt := tsoutil.ComposeTSByTime(curTime, 0)
+
+	_, err = e.getDatabases(ctx)
+	if err != nil {
+		log.Warn("fail to get all database", zap.Error(err))
+		return res
+	}
+	collections, err := e.internalGetAllCollection(ctx, false, []api.CollectionFilter{})
+	if err != nil {
+		log.Warn("fail to get all collection", zap.Error(err))
+		return res
+	}
+	partitions, err := e.internalGetAllPartition(ctx, []api.PartitionFilter{})
+	if err != nil {
+		log.Warn("fail to get all partition", zap.Error(err))
+		return res
+	}
+
+	droppedCollectionKey := util.DroppedCollectionKey
+	droppedPartitionKey := util.DroppedPartitionKey
+
+	res[droppedCollectionKey] = make(map[string]uint64)
+	res[droppedPartitionKey] = make(map[string]uint64)
+
+	createdCollection := make(map[string]uint64)
+	createdPartition := make(map[string]uint64)
+
+	getDBNameForCollection := func(collectionID int64) string {
+		dbID := e.collectionID2DBID.LoadWithDefault(collectionID, -1)
+		if dbID == 0 {
+			log.Warn("fail to get db id for collection", zap.Int64("collection_id", collectionID))
+			return ""
+		}
+		dbName := e.dbID2Name.LoadWithDefault(dbID, "")
+		if dbName == "" {
+			log.Warn("fail to get db name for collection", zap.Int64("collection_id", collectionID))
+		}
+		return dbName
+	}
+
+	for _, collection := range collections {
+		collectionName := collection.Schema.Name
+		dbName := getDBNameForCollection(collection.ID)
+		if dbName == "" {
+			continue
+		}
+		_, dropKey := util.GetCollectionInfoKeys(collectionName, dbName)
+		if collection.State == pb.CollectionState_CollectionCreated || collection.State == pb.CollectionState_CollectionCreating {
+			createdCollection[dropKey] = collection.CreateTime
+		} else if collection.State == pb.CollectionState_CollectionDropped || collection.State == pb.CollectionState_CollectionDropping {
+			res[droppedCollectionKey][dropKey] = tt - 1
+		}
+	}
+
+	for _, partition := range partitions {
+		collectionName := e.collectionID2Name.LoadWithDefault(partition.CollectionID, "")
+		if collectionName == "" {
+			log.Warn("fail to get collection name for partition",
+				zap.Int64("partition_id", partition.PartitionID), zap.Int64("collection_id", partition.CollectionID))
+			continue
+		}
+		dbName := getDBNameForCollection(partition.CollectionID)
+		if dbName == "" {
+			continue
+		}
+		partitionName := partition.PartitionName
+		_, dropKey := util.GetPartitionInfoKeys(partitionName, collectionName, dbName)
+		if partition.State == pb.PartitionState_PartitionCreated || partition.State == pb.PartitionState_PartitionCreating {
+			createdPartition[dropKey] = partition.PartitionCreatedTimestamp
+		} else if partition.State == pb.PartitionState_PartitionDropped || partition.State == pb.PartitionState_PartitionDropping {
+			res[droppedPartitionKey][dropKey] = tt - 1
+		}
+	}
+
+	for s := range res[droppedCollectionKey] {
+		c, ok := createdCollection[s]
+		if ok {
+			res[droppedCollectionKey][s] = c - 1
+		}
+	}
+	for s := range res[droppedPartitionKey] {
+		p, ok := createdPartition[s]
+		if ok {
+			res[droppedPartitionKey][s] = p - 1
+		}
+	}
+	return res
 }

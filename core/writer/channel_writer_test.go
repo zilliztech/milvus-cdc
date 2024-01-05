@@ -48,7 +48,7 @@ func GetMockObjs(t *testing.T) (*mocks.DataHandler, api.Writer) {
 			InitBackOff: 1,
 			MaxBackOff:  1,
 		},
-	})
+	}, map[string]map[string]uint64{})
 	assert.NotNil(t, w)
 	realWriter := w.(*ChannelWriter)
 	realWriter.messageManager = messageManager

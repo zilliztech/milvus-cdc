@@ -535,7 +535,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	writerObj := cdcwriter.NewChannelWriter(dataHandler, config.WriterConfig{
 		MessageBufferSize: bufferSize,
 		Retry:             e.config.Retry,
-	})
+	}, metaOp.GetAllDroppedObj())
 
 	e.replicateEntityMap.Lock()
 	defer e.replicateEntityMap.Unlock()
@@ -702,51 +702,50 @@ func replicateMetric(info *meta.TaskInfo, channelName string, msgPack *msgstream
 func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *ReplicateEntity, channelName, channelPosition string) (api.Reader, error) {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
 
-	channelReader, err := cdcreader.NewChannelReader(channelName,
-		channelPosition, config.MQConfig{
-			Pulsar: e.config.SourceConfig.Pulsar,
-			Kafka:  e.config.SourceConfig.Kafka,
-		}, func(funcCtx context.Context, pack *msgstream.MsgPack) bool {
-			if !e.isRunningTask(info.TaskID) {
-				taskLog.Warn("not running task", zap.Any("pack", pack))
-				return false
-			}
-			msgTime, _ := tsoutil.ParseHybridTs(pack.EndTs)
+	channelReader, err := cdcreader.NewChannelReader(channelName, channelPosition, config.MQConfig{
+		Pulsar: e.config.SourceConfig.Pulsar,
+		Kafka:  e.config.SourceConfig.Kafka,
+	}, func(funcCtx context.Context, pack *msgstream.MsgPack) bool {
+		if !e.isRunningTask(info.TaskID) {
+			taskLog.Warn("not running task", zap.Any("pack", pack))
+			return false
+		}
+		msgTime, _ := tsoutil.ParseHybridTs(pack.EndTs)
 
-			metrics.ReplicateTimeVec.
-				WithLabelValues(info.TaskID, channelName, metrics.OPTypeRead).
-				Set(float64(msgTime))
+		metrics.ReplicateTimeVec.
+			WithLabelValues(info.TaskID, channelName, metrics.OPTypeRead).
+			Set(float64(msgTime))
 
-			positionBytes, err := replicateEntity.writerObj.HandleOpMessagePack(funcCtx, pack)
-			if err != nil {
-				taskLog.Warn("fail to handle the op message pack", zap.Any("pack", pack), zap.Error(err))
-				_ = e.pauseTaskWithReason(info.TaskID, "fail to handle the op message pack, err:"+err.Error(), []meta.TaskState{})
-				return false
-			}
+		positionBytes, err := replicateEntity.writerObj.HandleOpMessagePack(funcCtx, pack)
+		if err != nil {
+			taskLog.Warn("fail to handle the op message pack", zap.Any("pack", pack), zap.Error(err))
+			_ = e.pauseTaskWithReason(info.TaskID, "fail to handle the op message pack, err:"+err.Error(), []meta.TaskState{})
+			return false
+		}
 
-			metrics.ReplicateTimeVec.
-				WithLabelValues(info.TaskID, channelName, metrics.OPTypeWrite).
-				Set(float64(msgTime))
-			metrics.APIExecuteCountVec.WithLabelValues(info.TaskID, pack.Msgs[0].Type().String()).Inc()
+		metrics.ReplicateTimeVec.
+			WithLabelValues(info.TaskID, channelName, metrics.OPTypeWrite).
+			Set(float64(msgTime))
+		metrics.APIExecuteCountVec.WithLabelValues(info.TaskID, pack.Msgs[0].Type().String()).Inc()
 
-			channelName := info.RPCRequestChannelInfo.Name
-			metaPosition := &meta.PositionInfo{
-				Time: msgTime,
-				DataPair: &commonpb.KeyDataPair{
-					Key:  channelName,
-					Data: positionBytes,
-				},
-			}
-			writeCallback := NewWriteCallback(e.metaStoreFactory, e.rootPath, info.TaskID)
-			err = writeCallback.UpdateTaskCollectionPosition(TmpCollectionID, TmpCollectionName, channelName,
-				metaPosition, metaPosition, nil)
-			if err != nil {
-				log.Warn("fail to update the collection position", zap.Any("pack", pack), zap.Error(err))
-				_ = e.pauseTaskWithReason(info.TaskID, "fail to update task position, err:"+err.Error(), []meta.TaskState{})
-				return false
-			}
-			return true
-		}, e.mqFactoryCreator)
+		channelName := info.RPCRequestChannelInfo.Name
+		metaPosition := &meta.PositionInfo{
+			Time: msgTime,
+			DataPair: &commonpb.KeyDataPair{
+				Key:  channelName,
+				Data: positionBytes,
+			},
+		}
+		writeCallback := NewWriteCallback(e.metaStoreFactory, e.rootPath, info.TaskID)
+		err = writeCallback.UpdateTaskCollectionPosition(TmpCollectionID, TmpCollectionName, channelName,
+			metaPosition, metaPosition, nil)
+		if err != nil {
+			log.Warn("fail to update the collection position", zap.Any("pack", pack), zap.Error(err))
+			_ = e.pauseTaskWithReason(info.TaskID, "fail to update task position, err:"+err.Error(), []meta.TaskState{})
+			return false
+		}
+		return true
+	}, e.mqFactoryCreator)
 	if err != nil {
 		taskLog.Warn("fail to new the channel reader", zap.Error(err))
 		return nil, servererror.NewServerError(errors.WithMessage(err, "fail to new the channel reader"))
