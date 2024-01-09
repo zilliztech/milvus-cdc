@@ -36,6 +36,8 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 func TestDataHandler(t *testing.T) {
@@ -68,7 +70,13 @@ func TestDataHandler(t *testing.T) {
 	dataHandler, err := NewMilvusDataHandler(AddressOption("localhost:50051"))
 	assert.NoError(t, err)
 	dataHandler.ignorePartition = true
-	ctx := context.Background()
+	dataHandler.retryOptions = util.GetRetryOptions(config.RetrySettings{
+		RetryTimes:  1,
+		MaxBackOff:  1,
+		InitBackOff: 1,
+	})
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancelFunc()
 
 	// create collection
 	t.Run("create collection", func(t *testing.T) {
@@ -384,31 +392,35 @@ func TestDataHandler(t *testing.T) {
 
 	t.Run("flush", func(t *testing.T) {
 		{
-			milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+			call := milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
 				Status: &commonpb.Status{},
 				Value:  true,
-			}, nil).Once()
-			milvusService.EXPECT().Flush(mock.Anything, mock.Anything).Return(&milvuspb.FlushResponse{Status: &commonpb.Status{}}, nil).Once()
+			}, nil).Maybe()
+			flushCall := milvusService.EXPECT().Flush(mock.Anything, mock.Anything).Return(&milvuspb.FlushResponse{Status: &commonpb.Status{}}, nil).Once()
 			err := dataHandler.Flush(ctx, &api.FlushParam{
 				FlushRequest: milvuspb.FlushRequest{
 					CollectionNames: []string{"foo"},
 				},
 			})
 			assert.NoError(t, err)
+			call.Unset()
+			flushCall.Unset()
 		}
 
 		{
-			milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+			call := milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
 				Status: &commonpb.Status{},
 				Value:  true,
-			}, nil).Once()
-			milvusService.EXPECT().Flush(mock.Anything, mock.Anything).Return(&milvuspb.FlushResponse{Status: &commonpb.Status{Code: 500, ErrorCode: commonpb.ErrorCode_UnexpectedError}}, nil).Once()
+			}, nil).Maybe()
+			flushCall := milvusService.EXPECT().Flush(mock.Anything, mock.Anything).Return(&milvuspb.FlushResponse{Status: &commonpb.Status{Code: 500, ErrorCode: commonpb.ErrorCode_UnexpectedError}}, nil).Once()
 			err := dataHandler.Flush(ctx, &api.FlushParam{
 				FlushRequest: milvuspb.FlushRequest{
 					CollectionNames: []string{"foo"},
 				},
 			})
 			assert.Error(t, err)
+			call.Unset()
+			flushCall.Unset()
 		}
 	})
 

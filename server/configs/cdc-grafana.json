@@ -25,7 +25,7 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": 102,
-  "iteration": 1703127226995,
+  "iteration": 1704695074161,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -378,7 +378,7 @@
               "options": {
                 "mode": "exclude",
                 "names": [
-                  "4ce0077db777454a915b912c5e568285"
+                  "92e46715897e443fa69685e86a6d669b"
                 ],
                 "prefix": "All except:",
                 "readOnly": true
@@ -771,7 +771,7 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "dateTimeAsLocalNoDateIfToday"
         },
         "overrides": []
       },
@@ -801,7 +801,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "milvus_cdc_replicate_tt_lag{namespace=\"$namespace\", pod=\"$pod\", task_id=~\"$task_id\", vchannel_name=~\"$channel_name\"}",
+          "expr": "milvus_cdc_replicate_tt{namespace=\"$namespace\", pod=\"$pod\", task_id=~\"$task_id\", vchannel_name=~\"$channel_name\"}",
           "legendFormat": "{{task_id}}-{{vchannel_name}}-{{op_type}}",
           "range": true,
           "refId": "A"
@@ -901,6 +901,96 @@
       ],
       "title": "api execute count",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "dateTimeAsLocalNoDateIfToday"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "milvus_cdc_center_tt{namespace=\"$namespace\",pod=\"$pod\"}",
+          "legendFormat": "{{channel_name}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "center ts",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",
@@ -911,7 +1001,7 @@
     "list": [
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "prometheus",
           "value": "prometheus"
         },
@@ -929,7 +1019,7 @@
       },
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "chaos-testing",
           "value": "chaos-testing"
         },
@@ -956,8 +1046,8 @@
       {
         "current": {
           "selected": true,
-          "text": "milvus-cdc-77-69c79c655c-b6vkr",
-          "value": "milvus-cdc-77-69c79c655c-b6vkr"
+          "text": "milvus-cdc-13-7849b6f758-tqtm4",
+          "value": "milvus-cdc-13-7849b6f758-tqtm4"
         },
         "datasource": {
           "type": "prometheus",
@@ -1015,13 +1105,9 @@
       {
         "allValue": ".*",
         "current": {
-          "selected": true,
-          "text": [
-            "4ce0077db777454a915b912c5e568285"
-          ],
-          "value": [
-            "4ce0077db777454a915b912c5e568285"
-          ]
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
         },
         "datasource": {
           "type": "prometheus",
@@ -1047,13 +1133,9 @@
       {
         "allValue": ".*",
         "current": {
-          "selected": true,
-          "text": [
-            "cdc-test-upstream-77-rootcoord-dml_0"
-          ],
-          "value": [
-            "cdc-test-upstream-77-rootcoord-dml_0"
-          ]
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
         },
         "datasource": {
           "type": "prometheus",
@@ -1079,13 +1161,13 @@
     ]
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-3h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "cdc",
   "uid": "d8ecc7e9-236f-4ed3-9835-e76e9a9f8ff8",
-  "version": 14,
+  "version": 21,
   "weekStart": ""
 }

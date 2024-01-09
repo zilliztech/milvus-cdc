@@ -116,3 +116,14 @@ func (m *tsManager) GetMinTS(channelName string) uint64 {
 	TSMetricVec.WithLabelValues(channelName).Set(float64(msgTime))
 	return minTS
 }
+
+// EmptyTS Only for test
+func (m *tsManager) EmptyTS() {
+	for k := range m.channelTS.GetUnsafeMap() {
+		m.channelTS.Delete(k)
+	}
+	for k := range m.channelRef.GetUnsafeMap() {
+		m.channelRef.Delete(k)
+	}
+	m.retryOptions = util.NoRetryOption()
+}

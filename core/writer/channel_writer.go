@@ -59,7 +59,8 @@ type ChannelWriter struct {
 
 func NewChannelWriter(dataHandler api.DataHandler,
 	writerConfig config.WriterConfig,
-	droppedObjs map[string]map[string]uint64) api.Writer {
+	droppedObjs map[string]map[string]uint64,
+) api.Writer {
 	w := &ChannelWriter{
 		dataHandler:    dataHandler,
 		messageManager: NewReplicateMessageManager(dataHandler, writerConfig.MessageBufferSize),

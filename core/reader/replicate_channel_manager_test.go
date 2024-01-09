@@ -34,9 +34,11 @@ import (
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/mocks"
 	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 func TestNewReplicateChannelManager(t *testing.T) {
@@ -255,6 +257,9 @@ func TestStartReadCollection(t *testing.T) {
 			}
 			err := realManager.AddPartition(context.Background(), &pb.CollectionInfo{
 				ID: 41,
+				Schema: &schemapb.CollectionSchema{
+					Name: "test",
+				},
 			}, &pb.PartitionInfo{})
 			assert.Error(t, err)
 		}
@@ -294,6 +299,14 @@ func TestStartReadCollection(t *testing.T) {
 			})
 			assert.NoError(t, err)
 		}
+	})
+}
+
+func noRetry(handler *replicateChannelHandler) {
+	handler.retryOptions = util.GetRetryOptions(config.RetrySettings{
+		RetryTimes:  1,
+		MaxBackOff:  1,
+		InitBackOff: 1,
 	})
 }
 
@@ -337,11 +350,12 @@ func TestReplicateChannelHandler(t *testing.T) {
 		streamChan := make(chan *msgstream.MsgPack)
 		close(streamChan)
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-		stream.EXPECT().Close().Return().Once()
+		stream.EXPECT().Close().Return().Maybe()
 		stream.EXPECT().Seek(mock.Anything, mock.Anything).Return(nil).Once()
-		stream.EXPECT().Chan().Return(streamChan).Once()
+		stream.EXPECT().Chan().Return(streamChan)
 		handler, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, &model.TargetCollectionInfo{PChannel: "test_p"}, api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		assert.NoError(t, err)
+		noRetry(handler)
 		time.Sleep(100 * time.Microsecond)
 		handler.Close()
 	})
@@ -355,9 +369,9 @@ func TestReplicateChannelHandler(t *testing.T) {
 
 		factory.EXPECT().NewTtMsgStream(mock.Anything).Return(stream, nil)
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-		stream.EXPECT().Close().Return().Once()
+		stream.EXPECT().Close().Return().Maybe()
 		stream.EXPECT().Seek(mock.Anything, mock.Anything).Return(nil).Once()
-		stream.EXPECT().Chan().Return(streamChan).Once().Maybe()
+		stream.EXPECT().Chan().Return(streamChan)
 
 		handler, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{
 			PChannelName: "test_p",
@@ -370,6 +384,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			CollectionName: "foo",
 		}, targetClient, &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		assert.NoError(t, err)
+		noRetry(handler)
 		time.Sleep(100 * time.Millisecond)
 		assert.True(t, handler.containCollection("foo"))
 		handler.Close()
@@ -389,10 +404,10 @@ func TestReplicateChannelHandler(t *testing.T) {
 
 		factory.EXPECT().NewTtMsgStream(mock.Anything).Return(stream, nil)
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-		stream.EXPECT().Close().Return().Once()
+		stream.EXPECT().Close().Return().Maybe()
 		stream.EXPECT().Seek(mock.Anything, mock.Anything).Return(nil).Once()
-		stream.EXPECT().Chan().Return(streamChan).Once()
-		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("mock error")).Once()
+		stream.EXPECT().Chan().Return(streamChan)
+		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("mock error 1")).Once()
 		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(&model.CollectionInfo{
 			Partitions: map[string]int64{
 				"p1": 10001,
@@ -406,6 +421,11 @@ func TestReplicateChannelHandler(t *testing.T) {
 			return newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{CollectionID: 1, PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, &model.TargetCollectionInfo{CollectionID: 100, CollectionName: "test", PChannel: "test_p"}, api.TargetAPI(targetClient), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		}()
 		assert.NoError(t, err)
+		handler.retryOptions = util.GetRetryOptions(config.RetrySettings{
+			RetryTimes:  3,
+			MaxBackOff:  1,
+			InitBackOff: 1,
+		})
 		time.Sleep(100 * time.Millisecond)
 		handler.Close()
 
@@ -418,7 +438,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 				},
 			})
 		}()
-		_ = handler.AddPartitionInfo(&pb.CollectionInfo{
+		err = handler.AddPartitionInfo(&pb.CollectionInfo{
 			ID: 2,
 			Schema: &schemapb.CollectionSchema{
 				Name: "test2",
@@ -427,6 +447,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			PartitionID:   2001,
 			PartitionName: "p2",
 		}, make(chan<- uint64))
+		assert.NoError(t, err)
 		time.Sleep(1500 * time.Millisecond)
 		handler.RemovePartitionInfo(2, "p2", 10002)
 
@@ -434,7 +455,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		assert.NotNil(t, handler.msgPackChan)
 
 		// test updateTargetPartitionInfo
-		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("mock error")).Once()
+		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("mock error 2")).Once()
 		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(&model.CollectionInfo{
 			Partitions: map[string]int64{
 				"p1": 30001,
@@ -456,6 +477,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 	})
 
 	t.Run("handle msg pack", func(t *testing.T) {
+		GetTSManager().EmptyTS()
+
 		factory := msgstream.NewMockFactory(t)
 		stream := msgstream.NewMockMsgStream(t)
 		targetClient := mocks.NewTargetAPI(t)
@@ -463,7 +486,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 
 		factory.EXPECT().NewTtMsgStream(mock.Anything).Return(stream, nil)
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-		stream.EXPECT().Close().Return().Once()
+		stream.EXPECT().Close().Return().Maybe()
 		stream.EXPECT().Seek(mock.Anything, mock.Anything).Return(nil).Once()
 		stream.EXPECT().Chan().Return(streamChan)
 
@@ -487,6 +510,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			},
 		}, targetClient, &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		assert.NoError(t, err)
+		noRetry(handler)
 		done := make(chan struct{})
 
 		go func() {
@@ -551,6 +575,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}()
 
 		// create collection msg / create partition msg / timetick msg
+		log.Info("create collection msg / create partition msg / timetick msg")
 		streamChan <- &msgstream.MsgPack{
 			BeginTs: 1,
 			EndTs:   2,
@@ -617,6 +642,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}
 
 		// insert msg
+		log.Info("insert msg")
 		streamChan <- &msgstream.MsgPack{
 			BeginTs: 1,
 			EndTs:   2,
@@ -651,6 +677,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}
 
 		// delete msg
+		log.Info("delete msg")
 		streamChan <- &msgstream.MsgPack{
 			BeginTs: 1,
 			EndTs:   2,
@@ -699,6 +726,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}
 
 		// drop collection msg
+		log.Info("drop collection msg")
 		streamChan <- &msgstream.MsgPack{
 			BeginTs: 1,
 			EndTs:   2,
@@ -730,6 +758,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}
 
 		// drop partition msg
+		log.Info("drop partition msg")
 		streamChan <- &msgstream.MsgPack{
 			BeginTs: 1,
 			EndTs:   2,
@@ -762,6 +791,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 			},
 		}
 
+		// close
+		log.Info("close")
 		handler.Close()
 		close(streamChan)
 		<-done

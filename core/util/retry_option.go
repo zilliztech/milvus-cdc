@@ -46,3 +46,11 @@ func GetRetryOptions(c config.RetrySettings) []retry.Option {
 		retry.MaxSleepTime(time.Duration(c.MaxBackOff) * time.Second),
 	}
 }
+
+func NoRetryOption() []retry.Option {
+	return []retry.Option{
+		retry.Attempts(1),
+		retry.Sleep(time.Second),
+		retry.MaxSleepTime(time.Second),
+	}
+}

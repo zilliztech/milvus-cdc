@@ -554,7 +554,6 @@ func (e *EtcdOp) internalGetAllPartition(ctx context.Context, filters []api.Part
 		existedPartitionInfos = append(existedPartitionInfos, info)
 	}
 	return existedPartitionInfos, nil
-
 }
 
 func (e *EtcdOp) GetAllPartition(ctx context.Context, filter api.PartitionFilter) ([]*pb.PartitionInfo, error) {
