@@ -1,0 +1,3 @@
+etcdAddress: 127.0.0.1:2379
+rootPath: by-dev
+collectionID: 1

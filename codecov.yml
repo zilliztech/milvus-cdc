@@ -40,3 +40,6 @@ ignore:
   - "tests/*"
   - "**/mocks/*"
   - "*_gen.go"
+  - "server/main/*"
+  - "server/tool/*"
+  - "server/configs/*"

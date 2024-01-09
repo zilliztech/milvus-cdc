@@ -493,9 +493,9 @@ func (r *replicateChannelManager) stopReadChannel(pChannelName string, collectio
 		return
 	}
 	channelHandler.RemoveCollection(collectionID)
-	//if channelHandler.IsEmpty() {
+	// if channelHandler.IsEmpty() {
 	//	channelHandler.Close()
-	//}
+	// }
 }
 
 type replicateChannelHandler struct {
@@ -747,7 +747,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		Msgs:           make([]msgstream.TsMsg, 0),
 	}
 	beginTS := pack.BeginTs
-	endTS := pack.EndTs
 
 	minTS := GetTSManager().GetMinTS(r.pChannelName)
 	if minTS == 0 {
@@ -755,7 +754,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		log.Warn("fail to get channel ts", zap.String("channel", r.pChannelName))
 		return nil
 	}
-	endTS = minTS
+	endTS := minTS
 	if beginTS > endTS {
 		beginTS = endTS
 	}

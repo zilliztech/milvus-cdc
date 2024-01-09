@@ -2,6 +2,7 @@ run:
   skip-dirs:
     - pb
     - mocks
+    - tool
 
 linters:
   disable-all: true

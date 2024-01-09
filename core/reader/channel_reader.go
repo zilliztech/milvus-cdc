@@ -59,7 +59,8 @@ var _ api.Reader = (*ChannelReader)(nil)
 func NewChannelReader(channelName, seekPosition string,
 	mqConfig config.MQConfig,
 	dataHandler func(context.Context, *msgstream.MsgPack) bool,
-	creator FactoryCreator) (api.Reader, error) {
+	creator FactoryCreator,
+) (api.Reader, error) {
 	channelReader := &ChannelReader{
 		factoryCreator:       creator,
 		channelName:          channelName,
