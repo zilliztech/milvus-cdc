@@ -254,3 +254,23 @@ func TestDefaultMetaOp_GetDatabaseInfoForCollection(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultMetaOp_GetAllDroppedObj(t *testing.T) {
+	tests := []struct {
+		name string
+		want map[string]map[string]uint64
+	}{
+		{
+			name: "TestDefaultMetaOp_GetAllDroppedObj",
+			want: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &DefaultMetaOp{}
+			if got := d.GetAllDroppedObj(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetAllDroppedObj() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -200,6 +200,47 @@ func TestBase64MsgPosition(t *testing.T) {
 	assert.Equal(t, position.MsgGroup, decodePos.MsgGroup)
 }
 
+func TestKey(t *testing.T) {
+	assert.Equal(t, "a_c", GetCreateInfoKey("a"))
+	assert.Equal(t, "a_d", GetDropInfoKey("a"))
+
+	{
+		a, d := GetCollectionInfoKeys("foo", "db")
+		assert.Equal(t, "db_foo_c", a)
+		assert.Equal(t, "db_foo_d", d)
+	}
+
+	{
+		a, d := GetCollectionInfoKeys("bar", "")
+		assert.Equal(t, "default_bar_c", a)
+		assert.Equal(t, "default_bar_d", d)
+	}
+
+	{
+		a, d := GetPartitionInfoKeys("p1", "bar", "db")
+		assert.Equal(t, "db_bar_p1_c", a)
+		assert.Equal(t, "db_bar_p1_d", d)
+	}
+
+	{
+		a, d := GetPartitionInfoKeys("p1", "bar", "")
+		assert.Equal(t, "default_bar_p1_c", a)
+		assert.Equal(t, "default_bar_p1_d", d)
+	}
+
+	{
+		a, d := GetDBInfoKeys("a")
+		assert.Equal(t, "a_c", a)
+		assert.Equal(t, "a_d", d)
+	}
+
+	{
+		a, d := GetDBInfoKeys("")
+		assert.Equal(t, "default_c", a)
+		assert.Equal(t, "default_d", d)
+	}
+}
+
 func TestChan(t *testing.T) {
 	s := []string{"a", "b", "c"}
 	sByte, err := json.Marshal(s)

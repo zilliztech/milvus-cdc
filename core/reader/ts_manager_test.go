@@ -19,10 +19,15 @@
 package reader
 
 import (
+	"math"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 func TestTSRef(t *testing.T) {
@@ -47,4 +52,27 @@ func TestTSRef(t *testing.T) {
 	v, ok := m.channelRef.Load("test")
 	assert.True(t, ok)
 	assert.Equal(t, 0, v.Load())
+}
+
+func TestTS(t *testing.T) {
+	m := &tsManager{
+		retryOptions: util.GetRetryOptions(config.RetrySettings{
+			RetryTimes:  5,
+			InitBackOff: 1,
+			MaxBackOff:  1,
+		}),
+	}
+
+	m.AddRef("a")
+	m.AddRef("b")
+	m.CollectTS("a", math.MaxUint64)
+	m.CollectTS("b", 1)
+
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		m.CollectTS("a", 2)
+	}()
+	minTS := m.GetMinTS("a")
+	assert.EqualValues(t, 1, minTS)
+	m.EmptyTS()
 }
