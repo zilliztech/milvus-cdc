@@ -22,6 +22,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/cockroachdb/errors"
 	"github.com/stretchr/testify/assert"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -86,4 +87,31 @@ func TestEtcdClient(t *testing.T) {
 			assert.NoError(t, err)
 		}
 	})
+
+	t.Run("etcd mock", func(t *testing.T) {
+		mockKV := &MockKVAPI{
+			statusErr: errors.New("mock status error"),
+			endpoints: []string{"127.0.0.1:2379"},
+		}
+		MockEtcdClient(func(cfg clientv3.Config) (KVApi, error) {
+			return mockKV, nil
+		}, func() {
+			_, err := GetEtcdClient([]string{"127.0.0.1:2379"})
+			assert.Error(t, err)
+		})
+	})
+}
+
+type MockKVAPI struct {
+	KVApi
+	statusErr error
+	endpoints []string
+}
+
+func (m *MockKVAPI) Status(ctx context.Context, endpoint string) (*clientv3.StatusResponse, error) {
+	return nil, m.statusErr
+}
+
+func (m *MockKVAPI) Endpoints() []string {
+	return m.endpoints
 }

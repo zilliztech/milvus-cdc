@@ -62,4 +62,18 @@ func TestRetry(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, 2, i)
 	})
+
+	t.Run("no retry", func(t *testing.T) {
+		options := NoRetryOption()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		i := 0
+		err := retry.Do(ctx, func() error {
+			i++
+			return errors.New("retry error")
+		}, options...)
+		assert.Error(t, err)
+		assert.Equal(t, 1, i)
+	})
 }

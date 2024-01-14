@@ -26,7 +26,8 @@ import (
 )
 
 func TestValue(t *testing.T) {
-	v := Value[int]{}
+	v := NewValue(int(5))
+	assert.Equal(t, 5, v.Load())
 	v.Store(10)
 	assert.Equal(t, 10, v.Load())
 	inc := func() {
@@ -110,5 +111,10 @@ func TestArray(t *testing.T) {
 	a.Range(func(index int, value int) bool {
 		assert.Equal(t, index+1, value)
 		return true
+	})
+
+	a.Range(func(index int, value int) bool {
+		assert.Equal(t, index+1, value)
+		return index != 1
 	})
 }

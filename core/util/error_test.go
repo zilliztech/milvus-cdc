@@ -20,6 +20,7 @@ package util
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -33,10 +34,19 @@ func TestUnRecoverableError(t *testing.T) {
 }
 
 func TestErrorList(t *testing.T) {
-	errorList := ErrorList{}
-	errorList = append(errorList, errors.New("line 1"), errors.New("line 2"))
-	assert.Equal(t, 3, strings.Count(errorList.Error(), "\n"))
+	{
+		errorList := ErrorList{}
+		errorList = append(errorList, errors.New("line 1"), errors.New("line 2"))
+		assert.Equal(t, 3, strings.Count(errorList.Error(), "\n"))
 
-	errorList = append(errorList, nil, errors.New("line 3"))
-	assert.Equal(t, 3, strings.Count(errorList.Error(), "\n"))
+		errorList = append(errorList, nil, errors.New("line 3"))
+		assert.Equal(t, 3, strings.Count(errorList.Error(), "\n"))
+	}
+	{
+		errorList := ErrorList{}
+		for i := 0; i < 15; i++ {
+			errorList = append(errorList, errors.New("line "+strconv.Itoa(i)))
+		}
+		assert.Equal(t, 12, strings.Count(errorList.Error(), "\n"))
+	}
 }

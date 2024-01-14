@@ -437,3 +437,81 @@ func TestDefaultDataHandler_DescribeDatabase(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultDataHandler_DescribePartition(t *testing.T) {
+	type args struct {
+		ctx   context.Context
+		param *DescribePartitionParam
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "TestDefaultDataHandler_DescribePartition",
+			args:    args{},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &DefaultDataHandler{}
+			if err := d.DescribePartition(tt.args.ctx, tt.args.param); (err != nil) != tt.wantErr {
+				t.Errorf("DescribePartition() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestDefaultDataHandler_LoadPartitions(t *testing.T) {
+	type args struct {
+		ctx   context.Context
+		param *LoadPartitionsParam
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "TestDefaultDataHandler_LoadPartitions",
+			args:    args{},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &DefaultDataHandler{}
+			if err := d.LoadPartitions(tt.args.ctx, tt.args.param); (err != nil) != tt.wantErr {
+				t.Errorf("LoadPartitions() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestDefaultDataHandler_ReleasePartitions(t *testing.T) {
+	type args struct {
+		ctx   context.Context
+		param *ReleasePartitionsParam
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "TestDefaultDataHandler_ReleasePartitions",
+			args:    args{},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &DefaultDataHandler{}
+			if err := d.ReleasePartitions(tt.args.ctx, tt.args.param); (err != nil) != tt.wantErr {
+				t.Errorf("ReleasePartitions() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

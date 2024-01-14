@@ -261,3 +261,44 @@ func TestDefaultChannelManager_SetCtx(t *testing.T) {
 		})
 	}
 }
+
+func TestReplicateAPIEventType_String(t *testing.T) {
+	tests := []struct {
+		name string
+		r    ReplicateAPIEventType
+		want string
+	}{
+		{
+			name: "TestReplicateAPIEventType_create_collection",
+			r:    ReplicateCreateCollection,
+			want: "CreateCollection",
+		},
+		{
+			name: "TestReplicateAPIEventType_drop_collection",
+			r:    ReplicateDropCollection,
+			want: "DropCollection",
+		},
+		{
+			name: "TestReplicateAPIEventType_create_partition",
+			r:    ReplicateCreatePartition,
+			want: "CreatePartition",
+		},
+		{
+			name: "TestReplicateAPIEventType_drop_partition",
+			r:    ReplicateDropPartition,
+			want: "DropPartition",
+		},
+		{
+			name: "TestReplicateAPIEventType_add_replica",
+			r:    ReplicateAPIEventType(-1),
+			want: "Unknown",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.r.String(); got != tt.want {
+				t.Errorf("String() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
