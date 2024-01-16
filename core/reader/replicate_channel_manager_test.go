@@ -144,7 +144,6 @@ func TestStartReadCollection(t *testing.T) {
 	manager.SetCtx(context.Background())
 
 	t.Run("context cancel", func(t *testing.T) {
-		targetClient.EXPECT().GetCollectionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("error")).Once()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		cancelFunc()
 		err = manager.StartReadCollection(ctx, &pb.CollectionInfo{}, nil)
@@ -160,8 +159,11 @@ func TestStartReadCollection(t *testing.T) {
 			assert.Equal(t, "test", event.CollectionInfo.Schema.Name)
 			assert.True(t, event.ReplicateInfo.IsReplicate)
 		}()
-		targetClient.EXPECT().GetCollectionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("mock error")).Twice()
+		targetClient.EXPECT().GetCollectionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("collection not found")).Twice()
 		realManager.retryOptions = []retry.Option{
+			retry.Attempts(1),
+		}
+		realManager.startReadRetryOptions = []retry.Option{
 			retry.Attempts(1),
 		}
 		err = manager.StartReadCollection(context.Background(), &pb.CollectionInfo{

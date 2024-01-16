@@ -125,11 +125,28 @@ func (r *replicateChannelManager) getCtx() context.Context {
 	return r.replicateCtx
 }
 
+func IsCollectionNotFoundError(err error) bool {
+	return strings.Contains(err.Error(), "collection not found")
+}
+
 func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
 	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, info.ID)
 
-	// TODO the error should be collection is not existed
-	if _, err := r.targetClient.GetCollectionInfo(ctx, info.Schema.GetName(), sourceDBInfo.Name); err != nil {
+	var err error
+	retryErr := retry.Do(ctx, func() error {
+		_, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.GetName(), sourceDBInfo.Name)
+		if err != nil && !IsCollectionNotFoundError(err) {
+			return err
+		}
+		// collection not found will exit the retry
+		return nil
+	}, r.startReadRetryOptions...)
+
+	if retryErr != nil {
+		return retryErr
+	}
+
+	if err != nil {
 		// the collection is not existed in the target and source collection has dropped, skip it
 		if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
 			r.droppedCollections.Store(info.ID, struct{}{})
@@ -155,7 +172,6 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 	// TODO handle the dropped collection
 
 	var targetInfo *model.CollectionInfo
-	var err error
 
 	err = retry.Do(ctx, func() error {
 		targetInfo, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.Name, sourceDBInfo.Name)
