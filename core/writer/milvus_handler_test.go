@@ -80,8 +80,7 @@ func TestDataHandler(t *testing.T) {
 
 	// create collection
 	t.Run("create collection", func(t *testing.T) {
-		milvusService.EXPECT().CreateCollection(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
-		err := dataHandler.CreateCollection(ctx, &api.CreateCollectionParam{
+		createCollectionParam := &api.CreateCollectionParam{
 			Properties: []*commonpb.KeyValuePair{
 				{
 					Key:   "foo",
@@ -111,7 +110,35 @@ func TestDataHandler(t *testing.T) {
 				},
 			},
 			ShardsNum: 1,
-		})
+		}
+
+		milvusService.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(&milvuspb.DescribeCollectionResponse{
+			Status: &commonpb.Status{
+				Code:      500,
+				ErrorCode: commonpb.ErrorCode_UnexpectedError,
+			},
+		}, nil).Once()
+		milvusService.EXPECT().CreateCollection(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
+
+		err := dataHandler.CreateCollection(ctx, createCollectionParam)
+		assert.NoError(t, err)
+
+		milvusService.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(&milvuspb.DescribeCollectionResponse{
+			Status:         &commonpb.Status{},
+			CollectionName: "foo",
+			Schema: &schemapb.CollectionSchema{
+				Name: "foo",
+				Fields: []*schemapb.FieldSchema{
+					{
+						FieldID:      100,
+						Name:         "age",
+						IsPrimaryKey: true,
+						DataType:     schemapb.DataType_Int64,
+					},
+				},
+			},
+		}, nil).Once()
+		err = dataHandler.CreateCollection(ctx, createCollectionParam)
 		assert.NoError(t, err)
 	})
 
@@ -227,6 +254,15 @@ func TestDataHandler(t *testing.T) {
 			Status: &commonpb.Status{},
 			Value:  false,
 		}, nil).Once()
+		milvusService.EXPECT().ShowPartitions(mock.Anything, mock.Anything).Return(&milvuspb.ShowPartitionsResponse{
+			Status: &commonpb.Status{},
+			PartitionNames: []string{
+				"default",
+			},
+			PartitionIDs: []int64{
+				1000,
+			},
+		}, nil).Once()
 		milvusService.EXPECT().CreatePartition(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		{
 			err := dataHandler.CreatePartition(ctx, &api.CreatePartitionParam{
@@ -237,6 +273,40 @@ func TestDataHandler(t *testing.T) {
 		}
 		dataHandler.ignorePartition = false
 		{
+			err := dataHandler.CreatePartition(ctx, &api.CreatePartitionParam{
+				CollectionName: "foo",
+				PartitionName:  "bar",
+			})
+			assert.NoError(t, err)
+		}
+		{
+			// show partition error
+			milvusService.EXPECT().ShowPartitions(mock.Anything, mock.Anything).Return(&milvuspb.ShowPartitionsResponse{
+				Status: &commonpb.Status{
+					Code:      500,
+					ErrorCode: commonpb.ErrorCode_UnexpectedError,
+					Reason:    "mock show partitions error",
+				},
+			}, nil).Once()
+			err := dataHandler.CreatePartition(ctx, &api.CreatePartitionParam{
+				CollectionName: "foo",
+				PartitionName:  "bar",
+			})
+			assert.Error(t, err)
+		}
+		{
+			// has partitions
+			milvusService.EXPECT().ShowPartitions(mock.Anything, mock.Anything).Return(&milvuspb.ShowPartitionsResponse{
+				Status: &commonpb.Status{},
+				PartitionNames: []string{
+					"default",
+					"bar",
+				},
+				PartitionIDs: []int64{
+					1000,
+					2000,
+				},
+			}, nil).Once()
 			err := dataHandler.CreatePartition(ctx, &api.CreatePartitionParam{
 				CollectionName: "foo",
 				PartitionName:  "bar",

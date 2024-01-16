@@ -115,6 +115,10 @@ func (m *MilvusDataHandler) CreateCollection(ctx context.Context, param *api.Cre
 		client.WithCreateCollectionMsgBase(param.Base),
 	)
 	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
+		if _, err := milvus.DescribeCollection(ctx, param.Schema.CollectionName); err == nil {
+			log.Info("skip to create collection, because it's has existed", zap.String("collection", param.Schema.CollectionName))
+			return nil
+		}
 		return milvus.CreateCollection(ctx, param.Schema, param.ShardsNum, options...)
 	})
 }
@@ -155,6 +159,19 @@ func (m *MilvusDataHandler) CreatePartition(ctx context.Context, param *api.Crea
 		return nil
 	}
 	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
+		partitions, err := milvus.ShowPartitions(ctx, param.CollectionName)
+		if err != nil {
+			log.Warn("fail to show partitions", zap.String("collection", param.CollectionName), zap.Error(err))
+			return err
+		}
+		for _, partition := range partitions {
+			if partition.Name == param.PartitionName {
+				log.Info("skip to create partition, because it's has existed",
+					zap.String("collection", param.CollectionName),
+					zap.String("partition", param.PartitionName))
+				return nil
+			}
+		}
 		return milvus.CreatePartition(ctx, param.CollectionName, param.PartitionName)
 	})
 }
