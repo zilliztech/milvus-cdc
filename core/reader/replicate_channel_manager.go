@@ -233,6 +233,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 			BarrierChan:          barrier.BarrierChan,
 			PartitionBarrierChan: make(map[int64]chan<- uint64),
 			Dropped:              targetInfo.Dropped,
+			DroppedPartition:     make(map[int64]struct{}),
 		})
 		if err != nil {
 			log.Warn("start read channel failed", zap.String("channel", sourcePChannel), zap.Int64("collection_id", info.ID), zap.Error(err))
