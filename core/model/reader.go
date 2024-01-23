@@ -37,7 +37,7 @@ type TargetCollectionInfo struct {
 	PChannel             string
 	VChannel             string
 	BarrierChan          chan<- uint64
-	PartitionBarrierChan map[int64]chan<- uint64
+	PartitionBarrierChan map[int64]chan<- uint64 // id is the source partition id
 	Dropped              bool
 	DroppedPartition     map[int64]struct{} // id is the source partition id
 }

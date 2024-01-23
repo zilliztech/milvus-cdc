@@ -83,11 +83,17 @@ func (m *MilvusDataHandler) milvusOp(ctx context.Context, database string, f fun
 	retryMilvusFunc := func(c client.Client) error {
 		// TODO Retryable and non-retryable errors should be distinguished
 		var err error
-		_ = retry.Do(ctx, func() error {
+		retryErr := retry.Do(ctx, func() error {
 			err = f(c)
 			return err
 		}, m.retryOptions...)
-		return err
+		if retryErr != nil && err != nil {
+			return err
+		}
+		if retryErr != nil {
+			return retryErr
+		}
+		return nil
 	}
 
 	if database == "" || database == util.DefaultDbName {
@@ -266,10 +272,11 @@ func (m *MilvusDataHandler) DropDatabase(ctx context.Context, param *api.DropDat
 
 func (m *MilvusDataHandler) ReplicateMessage(ctx context.Context, param *api.ReplicateMessageParam) error {
 	var (
-		resp *entity.MessageInfo
-		err  error
+		resp  *entity.MessageInfo
+		err   error
+		opErr error
 	)
-	_ = m.milvusOp(ctx, "", func(milvus client.Client) error {
+	opErr = m.milvusOp(ctx, "", func(milvus client.Client) error {
 		resp, err = milvus.ReplicateMessage(ctx, param.ChannelName,
 			param.BeginTs, param.EndTs,
 			param.MsgsBytes,
@@ -277,10 +284,14 @@ func (m *MilvusDataHandler) ReplicateMessage(ctx context.Context, param *api.Rep
 			client.WithReplicateMessageMsgBase(param.Base))
 		return err
 	})
-	if err == nil {
-		param.TargetMsgPosition = resp.Position
+	if err != nil {
+		return err
 	}
-	return err
+	if opErr != nil {
+		return opErr
+	}
+	param.TargetMsgPosition = resp.Position
+	return nil
 }
 
 func (m *MilvusDataHandler) DescribeCollection(ctx context.Context, param *api.DescribeCollectionParam) error {

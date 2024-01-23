@@ -251,7 +251,8 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 						info := &pb.PartitionInfo{}
 						err := proto.Unmarshal(event.Kv.Value, info)
 						if err != nil {
-							log.Warn("fail to unmarshal the partition info", zap.String("key", partitionKey), zap.Error(err))
+							log.Warn("fail to unmarshal the partition info",
+								zap.String("key", partitionKey), zap.String("value", util.Base64Encode(event.Kv.Value)), zap.Error(err))
 							continue
 						}
 						if info.State != pb.PartitionState_PartitionCreated ||
