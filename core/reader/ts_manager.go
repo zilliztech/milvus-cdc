@@ -87,7 +87,7 @@ func (m *tsManager) getUnsafeTSInfo() (map[string]uint64, map[string]int) {
 	return a, c
 }
 
-func (m *tsManager) GetMinTS(channelName string) uint64 {
+func (m *tsManager) GetMinTS(channelName string, ignoreRef bool) uint64 {
 	minTS := m.channelTS.LoadWithDefault(channelName, math.MaxUint64)
 
 	err := retry.Do(context.Background(), func() error {
@@ -96,7 +96,7 @@ func (m *tsManager) GetMinTS(channelName string) uint64 {
 				minTS = math.MaxUint64
 				return false
 			}
-			if v < minTS && m.channelRef.LoadWithDefault(k, util.NewValue[int](0)).Load() > 0 {
+			if v < minTS && (ignoreRef || m.channelRef.LoadWithDefault(k, util.NewValue[int](0)).Load() > 0) {
 				minTS = v
 			}
 			return true
