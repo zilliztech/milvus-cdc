@@ -7,15 +7,8 @@ image:
     repository: milvusdb/milvus
     tag: master-latest
     pullPolicy: IfNotPresent
-
 standalone:
   messageQueue: kafka
-kafka:
-  enabled: true
-  name: kafka
-  replicaCount: 3
-  defaultReplicationFactor: 2
-
 etcd:
   replicaCount: 3
   image:
@@ -26,3 +19,13 @@ minio:
   mode: standalone
 pulsar:
   enabled: false
+kafka:
+  enabled: true
+  name: kafka
+  replicaCount: 3
+  defaultReplicationFactor: 2
+extraConfigFiles:
+  user.yaml: |+
+    common:
+      ttMsgEnabled: false
+ 
