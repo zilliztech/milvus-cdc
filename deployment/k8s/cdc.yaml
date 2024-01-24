@@ -1,0 +1,26 @@
+address: 0.0.0.0:8444
+maxTaskNum: 100
+metaStoreConfig:
+  storeType: etcd
+  etcdEndpoints:
+    - 10.255.193.40:2379
+  mysqlSourceUrl: root:root@tcp(127.0.0.1:3306)/milvuscdc?charset=utf8
+  rootPath: cdc
+sourceConfig:
+  etcdAddress:
+    - 10.255.193.40:2379
+  etcdRootPath: cdc-test-upstream
+  etcdMetaSubPath: meta
+  readChanLen: 10
+  defaultPartitionName: _default
+  # pulsar:
+#     address: pulsar://localhost:6650
+#     webAddress: localhost:80
+#     maxMessageSize: 5242880
+#     tenant: public
+#     namespace: default
+# #    authPlugin: org.apache.pulsar.client.impl.auth.AuthenticationToken
+# #    authParams: token:xxx
+  kafka:
+    address: 10.255.124.212:9092
+maxNameLength: 256
