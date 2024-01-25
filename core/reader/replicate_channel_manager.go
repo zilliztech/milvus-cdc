@@ -695,7 +695,7 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 	r.recordLock.Lock()
 	defer r.recordLock.Unlock()
 	if targetInfo.PartitionBarrierChan[partitionID] != nil {
-		log.Info("the partition barrier chan is not nil")
+		partitionLog.Info("the partition barrier chan is not nil")
 		return nil
 	}
 	targetInfo.PartitionBarrierChan[partitionID] = barrierChan
@@ -703,7 +703,7 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 		partitionInfo.State == pb.PartitionState_PartitionDropped {
 		targetInfo.DroppedPartition[partitionID] = struct{}{}
 	}
-	log.Info("add partition info done")
+	partitionLog.Info("add partition info done")
 
 	// TODO use goroutine pool
 	go func() {
@@ -974,10 +974,10 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 					log.Info("skip drop partition msg because partition has been dropped", zap.Int64("partition_id", realMsg.PartitionID))
 					continue
 				}
-				if r.isDroppingPartition(realMsg.PartitionID, info) {
-					log.Info("skip drop partition msg because partition is dropping", zap.Int64("partition_id", realMsg.PartitionID))
-					continue
-				}
+				//if r.isDroppingPartition(realMsg.PartitionID, info) {
+				//	log.Info("skip drop partition msg because partition is dropping", zap.Int64("partition_id", realMsg.PartitionID))
+				//	continue
+				//}
 				realMsg.CollectionID = info.CollectionID
 				if realMsg.PartitionName == "" {
 					err = errors.Newf("empty partition name")
