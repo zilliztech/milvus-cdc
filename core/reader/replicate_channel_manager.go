@@ -1023,7 +1023,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		}
 	}
 
-	minTS := GetTSManager().GetMinTS(r.pChannelName, len(newPack.Msgs) == 0)
+	minTS := GetTSManager().GetMinTS(r.pChannelName)
 	if minTS == 0 {
 		r.sendErrEvent(errors.Newf("fail to get channel ts, channel: %s", r.pChannelName))
 		log.Warn("fail to get channel ts", zap.String("channel", r.pChannelName))
