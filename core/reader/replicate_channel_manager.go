@@ -552,21 +552,6 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 func (r *replicateChannelManager) forwardMsg(targetPChannel string, msg *msgstream.MsgPack) {
 	var handler *replicateChannelHandler
 
-	//forwardReplicateChannelFunc := func() {
-	//	tick := time.NewTicker(5 * time.Second)
-	//	defer tick.Stop()
-	//	for {
-	//		select {
-	//		case <-tick.C:
-	//			log.Info("wait the replicate channel handler ready", zap.String("target_pchannel", targetPChannel))
-	//		case r.forwardReplicateChannel <- targetPChannel:
-	//			log.Info("success to forward replicate channel", zap.String("target_pchannel", targetPChannel))
-	//			return
-	//		}
-	//	}
-	//}
-	//forwardReplicateChannelFunc()
-
 	_ = retry.Do(r.replicateCtx, func() error {
 		r.channelLock.RLock()
 		defer r.channelLock.RUnlock()
@@ -582,7 +567,6 @@ func (r *replicateChannelManager) forwardMsg(targetPChannel string, msg *msgstre
 			case r.forwardReplicateChannel <- targetPChannel:
 				log.Info("success to forward replicate channel", zap.String("target_pchannel", targetPChannel))
 			default:
-
 			}
 			return errors.Newf("channel %s not found when forward the msg", targetPChannel)
 		}
@@ -974,10 +958,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 					log.Info("skip drop partition msg because partition has been dropped", zap.Int64("partition_id", realMsg.PartitionID))
 					continue
 				}
-				//if r.isDroppingPartition(realMsg.PartitionID, info) {
-				//	log.Info("skip drop partition msg because partition is dropping", zap.Int64("partition_id", realMsg.PartitionID))
-				//	continue
-				//}
 				realMsg.CollectionID = info.CollectionID
 				if realMsg.PartitionName == "" {
 					err = errors.Newf("empty partition name")
