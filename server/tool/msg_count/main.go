@@ -66,6 +66,7 @@ type PositionConfig struct {
 	Pulsar             config.PulsarConfig
 	Kafka              config.KafkaConfig
 	TaskPositions      []model.ChannelInfo
+	DecodePositionType int
 
 	CollectionID int64
 	Data         string
@@ -73,6 +74,7 @@ type PositionConfig struct {
 
 func main() {
 	paramtable.Init()
+	paramtable.Get().Save(paramtable.Get().ServiceParam.MQCfg.EnablePursuitMode.Key, "false")
 	log.ReplaceGlobals(zap.NewNop(), &log.ZapProperties{
 		Core:   zapcore.NewNopCore(),
 		Syncer: zapcore.AddSync(ioutil.Discard),
@@ -136,6 +138,12 @@ func decodePosition(pchannel, position string) (*commonpb.KeyDataPair, error) {
 	if err != nil {
 		return nil, err
 	}
+	if GlobalConfig.DecodePositionType == 1 {
+		return &commonpb.KeyDataPair{
+			Key:  pchannel,
+			Data: positionBytes,
+		}, nil
+	}
 	msgPosition := &msgpb.MsgPosition{}
 	err = proto.Unmarshal(positionBytes, msgPosition)
 	if err != nil {
@@ -172,6 +180,7 @@ func GetMQMessageDetail(ctx context.Context, config PositionConfig, pchannel str
 	//}
 
 	msgStream := MsgStream(config, false)
+	//msgStream := MsgStream(config, true)
 	defer msgStream.Close()
 
 	consumeSubName := pchannel + strconv.Itoa(rand.Int())
@@ -189,7 +198,7 @@ func GetMQMessageDetail(ctx context.Context, config PositionConfig, pchannel str
 			ChannelName: pchannel,
 			MsgID:       kd.GetData(),
 		},
-	})
+	}, false)
 	if err != nil {
 		msgStream.Close()
 		panic(err)
@@ -281,6 +290,7 @@ func GetLatestMsgInfo(ctx context.Context, config PositionConfig, pchannel strin
 func MsgCount(msgpack *msgstream.MsgPack, msgCount map[string]int, detail int, pk string) {
 	for _, msg := range msgpack.Msgs {
 		msgCount[msg.Type().String()] += 1
+		markPrintln("msg type:", msg.Type().String())
 		if msg.Type() == commonpb.MsgType_Insert {
 			insertMsg := msg.(*msgstream.InsertMsg)
 			if GlobalConfig.CollectionID != 0 {

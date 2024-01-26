@@ -118,7 +118,7 @@ func (c *ChannelReader) initMsgStream() error {
 			ChannelName: c.channelName,
 			MsgID:       decodeBytes,
 		}
-		err = stream.Seek(context.Background(), []*msgstream.MsgPosition{msgPosition})
+		err = stream.Seek(context.Background(), []*msgstream.MsgPosition{msgPosition}, false)
 		if err != nil {
 			log.Warn("fail to seek the msg position", zap.Any("position", msgPosition), zap.Error(err))
 			stream.Close()

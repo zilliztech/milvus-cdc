@@ -17,6 +17,7 @@ collectionID: 1
 dataKey: 1
 pkFieldName: pk
 taskPositionMode: false
+decodePositionType: 1
 
 taskPositions:
   - name: by-dev-rootcoord-dml_0
