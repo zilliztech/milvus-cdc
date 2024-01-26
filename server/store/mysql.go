@@ -142,7 +142,10 @@ func NewTaskInfoMysqlStore(ctx context.Context, db *sql.DB, rootPath string, txn
 
 func (m *TaskInfoMysqlStore) init(ctx context.Context, db *sql.DB, rootPath string) error {
 	m.log = log.With(zap.String("meta_store", "mysql"), zap.String("table", "task_info"), zap.String("root_path", rootPath)).Logger
-	_, err := db.ExecContext(ctx, `
+	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
+
+	_, err := db.ExecContext(cancelCtx, `
 		CREATE TABLE IF NOT EXISTS task_info (
 			task_info_key VARCHAR(255) NOT NULL,
 			task_id VARCHAR(255) NOT NULL,
@@ -174,23 +177,25 @@ func (m *TaskInfoMysqlStore) Put(ctx context.Context, metaObj *meta.TaskInfo, tx
 			m.log.Warn("fail to put task info", zap.Error(err))
 		}
 	}()
+	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
 	if txn != nil {
 		if _, ok := m.txnMap[txn]; !ok {
 			return errors.New("txn not exist")
 		}
-		stmt, err := m.txnMap[txn]().PrepareContext(ctx, sqlStr)
+		stmt, err := m.txnMap[txn]().PrepareContext(cancelCtx, sqlStr)
 		if err != nil {
 			m.log.Warn("fail to prepare put statement", zap.Error(err))
 			return err
 		}
 		defer stmt.Close()
-		_, err = stmt.ExecContext(ctx, taskInfoKey, metaObj.TaskID, util.ToString(objBytes), util.ToString(objBytes))
+		_, err = stmt.ExecContext(cancelCtx, taskInfoKey, metaObj.TaskID, util.ToString(objBytes), util.ToString(objBytes))
 		if err != nil {
 			return err
 		}
 		return nil
 	}
-	_, err = m.db.ExecContext(ctx, sqlStr, taskInfoKey, metaObj.TaskID, util.ToString(objBytes), util.ToString(objBytes))
+	_, err = m.db.ExecContext(cancelCtx, sqlStr, taskInfoKey, metaObj.TaskID, util.ToString(objBytes), util.ToString(objBytes))
 	if err != nil {
 		return err
 	}
@@ -209,24 +214,27 @@ func (m *TaskInfoMysqlStore) Get(ctx context.Context, metaObj *meta.TaskInfo, tx
 	var err error
 	var rows *sql.Rows
 
+	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
+
 	if txn != nil {
 		if _, ok := m.txnMap[txn]; !ok {
 			return nil, errors.New("txn not exist")
 		}
-		stmt, err := m.txnMap[txn]().PrepareContext(ctx, sqlStr)
+		stmt, err := m.txnMap[txn]().PrepareContext(cancelCtx, sqlStr)
 		if err != nil {
 			m.log.Warn("fail to prepare get statement", zap.Error(err))
 			return nil, err
 		}
 		defer stmt.Close()
 
-		rows, err = stmt.QueryContext(ctx, sqlArgs...)
+		rows, err = stmt.QueryContext(cancelCtx, sqlArgs...)
 		if err != nil {
 			m.log.Warn("fail to get task info", zap.Error(err))
 			return nil, err
 		}
 	} else {
-		rows, err = m.db.QueryContext(ctx, sqlStr, sqlArgs...)
+		rows, err = m.db.QueryContext(cancelCtx, sqlStr, sqlArgs...)
 		if err != nil {
 			m.log.Warn("fail to get task info", zap.Error(err))
 			return nil, err
@@ -265,22 +273,26 @@ func (m *TaskInfoMysqlStore) Delete(ctx context.Context, metaObj *meta.TaskInfo,
 			m.log.Warn("fail to delete task info", zap.Error(err))
 		}
 	}()
+
+	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
+
 	if txn != nil {
 		if _, ok := m.txnMap[txn]; !ok {
 			return errors.New("txn not exist")
 		}
-		stmt, err := m.txnMap[txn]().PrepareContext(ctx, sqlStr)
+		stmt, err := m.txnMap[txn]().PrepareContext(cancelCtx, sqlStr)
 		if err != nil {
 			return err
 		}
 		defer stmt.Close()
-		_, err = stmt.ExecContext(ctx, taskID)
+		_, err = stmt.ExecContext(cancelCtx, taskID)
 		if err != nil {
 			return err
 		}
 		return nil
 	}
-	_, err = m.db.ExecContext(ctx, sqlStr, taskID)
+	_, err = m.db.ExecContext(cancelCtx, sqlStr, taskID)
 	if err != nil {
 		return err
 	}
@@ -310,7 +322,9 @@ func NewTaskCollectionPositionMysqlStore(ctx context.Context, db *sql.DB, rootPa
 
 func (m *TaskCollectionPositionMysqlStore) init(ctx context.Context, db *sql.DB, rootPath string) error {
 	m.log = log.With(zap.String("meta_store", "mysql"), zap.String("table", "task_position"), zap.String("root_path", rootPath)).Logger
-	_, err := db.ExecContext(ctx, `
+	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
+	_, err := db.ExecContext(cancelCtx, `
 		CREATE TABLE IF NOT EXISTS task_position (
 			task_position_key VARCHAR(255) NOT NULL,
 			task_id VARCHAR(255) NOT NULL,
@@ -346,22 +360,24 @@ func (m *TaskCollectionPositionMysqlStore) Put(ctx context.Context, metaObj *met
 			m.log.Warn("fail to put task position", zap.Error(err))
 		}
 	}()
+	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
 	if txn != nil {
 		if _, ok := m.txnMap[txn]; !ok {
 			return errors.New("txn not exist")
 		}
-		stmt, err := m.txnMap[txn]().PrepareContext(ctx, sqlStr)
+		stmt, err := m.txnMap[txn]().PrepareContext(cancelCtx, sqlStr)
 		if err != nil {
 			return err
 		}
 		defer stmt.Close()
-		_, err = stmt.ExecContext(ctx, taskPositionKey, metaObj.TaskID, metaObj.CollectionID, metaObj.CollectionName, util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes), util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes))
+		_, err = stmt.ExecContext(cancelCtx, taskPositionKey, metaObj.TaskID, metaObj.CollectionID, metaObj.CollectionName, util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes), util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes))
 		if err != nil {
 			return err
 		}
 		return nil
 	}
-	_, err = m.db.ExecContext(ctx, sqlStr, taskPositionKey, metaObj.TaskID, metaObj.CollectionID, metaObj.CollectionName, util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes), util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes))
+	_, err = m.db.ExecContext(cancelCtx, sqlStr, taskPositionKey, metaObj.TaskID, metaObj.CollectionID, metaObj.CollectionName, util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes), util.ToString(positionBytes), util.ToString(opPositionBytes), util.ToString(targetPositionBytes))
 	if err != nil {
 		return err
 	}
@@ -387,29 +403,34 @@ func (m *TaskCollectionPositionMysqlStore) Get(ctx context.Context, metaObj *met
 	var rows *sql.Rows
 	var err error
 
+	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
+
 	if txn != nil {
 		if _, ok := m.txnMap[txn]; !ok {
 			return nil, errors.New("txn not exist")
 		}
-		stmt, err := m.txnMap[txn]().PrepareContext(ctx, sqlStr)
+		stmt, err := m.txnMap[txn]().PrepareContext(cancelCtx, sqlStr)
 		if err != nil {
 			m.log.Warn("fail to prepare get statement", zap.Error(err))
 			return nil, err
 		}
 		defer stmt.Close()
 
-		rows, err = stmt.QueryContext(ctx, sqlArgs...)
+		rows, err = stmt.QueryContext(cancelCtx, sqlArgs...)
 		if err != nil {
 			m.log.Warn("fail to get task info", zap.Error(err))
 			return nil, err
 		}
 	} else {
-		rows, err = m.db.QueryContext(ctx, sqlStr, sqlArgs...)
+		rows, err = m.db.QueryContext(cancelCtx, sqlStr, sqlArgs...)
 		if err != nil {
 			m.log.Warn("fail to get task info", zap.Error(err))
 			return nil, err
 		}
 	}
+
+	defer rows.Close()
 
 	for rows.Next() {
 		var taskPosition meta.TaskCollectionPosition
@@ -462,23 +483,27 @@ func (m *TaskCollectionPositionMysqlStore) Delete(ctx context.Context, metaObj *
 			m.log.Warn("fail to delete task position", zap.Error(err))
 		}
 	}()
+
+	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
+
 	if txn != nil {
 		if _, ok := m.txnMap[txn]; !ok {
 			return errors.New("txn not exist")
 		}
-		stmt, err := m.txnMap[txn]().PrepareContext(ctx, sqlStr)
+		stmt, err := m.txnMap[txn]().PrepareContext(cancelCtx, sqlStr)
 		if err != nil {
 			m.log.Warn("fail to prepare delete statement", zap.Error(err))
 			return err
 		}
 		defer stmt.Close()
-		_, err = stmt.ExecContext(ctx, sqlArgs...)
+		_, err = stmt.ExecContext(cancelCtx, sqlArgs...)
 		if err != nil {
 			return err
 		}
 		return nil
 	}
-	_, err = m.db.ExecContext(ctx, sqlStr, sqlArgs...)
+	_, err = m.db.ExecContext(cancelCtx, sqlStr, sqlArgs...)
 	if err != nil {
 		return err
 	}
