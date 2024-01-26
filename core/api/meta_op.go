@@ -31,6 +31,7 @@ type MetaOp interface {
 	// WatchCollection its implementation should make sure it's only called once. The WatchPartition is same
 	WatchCollection(ctx context.Context, filter CollectionFilter)
 	WatchPartition(ctx context.Context, filter PartitionFilter)
+	StartWatch()
 
 	// SubscribeCollectionEvent an event only is consumed once. The SubscribePartitionEvent is same
 	// TODO need to consider the many target, maybe try the method a meta op corresponds to a target
@@ -71,6 +72,10 @@ func (d *DefaultMetaOp) WatchCollection(ctx context.Context, filter CollectionFi
 
 func (d *DefaultMetaOp) WatchPartition(ctx context.Context, filter PartitionFilter) {
 	log.Warn("WatchPartition is not implemented, please check it")
+}
+
+func (d *DefaultMetaOp) StartWatch() {
+	log.Warn("StartWatch is not implemented, please check it")
 }
 
 func (d *DefaultMetaOp) SubscribeCollectionEvent(taskID string, consumer CollectionEventConsumer) {

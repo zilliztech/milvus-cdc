@@ -78,6 +78,8 @@ type EtcdOp struct {
 	subscribePartitionEvent  util.Map[string, api.PartitionEventConsumer]
 
 	handlerWatchEventPool *conc.Pool[struct{}]
+
+	startWatch chan struct{}
 }
 
 func NewEtcdOp(endpoints []string,
@@ -90,6 +92,7 @@ func NewEtcdOp(endpoints []string,
 		defaultPartitionName:  defaultPartitionName,
 		retryOptions:          util.GetRetryOptions(etcdConfig.Retry),
 		handlerWatchEventPool: conc.NewPool[struct{}](16, conc.WithExpiryDuration(time.Minute)),
+		startWatch:            make(chan struct{}),
 	}
 
 	// set default value
@@ -129,6 +132,10 @@ func NewEtcdOp(endpoints []string,
 	return etcdOp, nil
 }
 
+func (e *EtcdOp) StartWatch() {
+	close(e.startWatch)
+}
+
 func (e *EtcdOp) collectionPrefix() string {
 	return fmt.Sprintf("%s/%s/%s", e.rootPath, e.metaSubPath, collectionPrefix)
 }
@@ -153,6 +160,12 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 	e.watchCollectionOnce.Do(func() {
 		watchChan := e.etcdClient.Watch(ctx, e.collectionPrefix()+"/", clientv3.WithPrefix())
 		go func() {
+			select {
+			case <-e.startWatch:
+			case <-ctx.Done():
+				log.Warn("watch collection context done")
+				return
+			}
 			for {
 				select {
 				case watchResp, ok := <-watchChan:
@@ -235,6 +248,12 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 	e.watchPartitionOnce.Do(func() {
 		watchChan := e.etcdClient.Watch(ctx, e.partitionPrefix()+"/", clientv3.WithPrefix())
 		go func() {
+			select {
+			case <-e.startWatch:
+			case <-ctx.Done():
+				log.Warn("watch partition context done")
+				return
+			}
 			for {
 				select {
 				case watchResp, ok := <-watchChan:

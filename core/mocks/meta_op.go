@@ -82,6 +82,49 @@ func (_c *MetaOp_GetAllCollection_Call) RunAndReturn(run func(context.Context, a
 	return _c
 }
 
+// GetAllDroppedObj provides a mock function with given fields:
+func (_m *MetaOp) GetAllDroppedObj() map[string]map[string]uint64 {
+	ret := _m.Called()
+
+	var r0 map[string]map[string]uint64
+	if rf, ok := ret.Get(0).(func() map[string]map[string]uint64); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]map[string]uint64)
+		}
+	}
+
+	return r0
+}
+
+// MetaOp_GetAllDroppedObj_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAllDroppedObj'
+type MetaOp_GetAllDroppedObj_Call struct {
+	*mock.Call
+}
+
+// GetAllDroppedObj is a helper method to define mock.On call
+func (_e *MetaOp_Expecter) GetAllDroppedObj() *MetaOp_GetAllDroppedObj_Call {
+	return &MetaOp_GetAllDroppedObj_Call{Call: _e.mock.On("GetAllDroppedObj")}
+}
+
+func (_c *MetaOp_GetAllDroppedObj_Call) Run(run func()) *MetaOp_GetAllDroppedObj_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MetaOp_GetAllDroppedObj_Call) Return(_a0 map[string]map[string]uint64) *MetaOp_GetAllDroppedObj_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MetaOp_GetAllDroppedObj_Call) RunAndReturn(run func() map[string]map[string]uint64) *MetaOp_GetAllDroppedObj_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetAllPartition provides a mock function with given fields: ctx, filter
 func (_m *MetaOp) GetAllPartition(ctx context.Context, filter api.PartitionFilter) ([]*pb.PartitionInfo, error) {
 	ret := _m.Called(ctx, filter)
@@ -219,6 +262,38 @@ func (_c *MetaOp_GetDatabaseInfoForCollection_Call) Return(_a0 model.DatabaseInf
 }
 
 func (_c *MetaOp_GetDatabaseInfoForCollection_Call) RunAndReturn(run func(context.Context, int64) model.DatabaseInfo) *MetaOp_GetDatabaseInfoForCollection_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// StartWatch provides a mock function with given fields:
+func (_m *MetaOp) StartWatch() {
+	_m.Called()
+}
+
+// MetaOp_StartWatch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'StartWatch'
+type MetaOp_StartWatch_Call struct {
+	*mock.Call
+}
+
+// StartWatch is a helper method to define mock.On call
+func (_e *MetaOp_Expecter) StartWatch() *MetaOp_StartWatch_Call {
+	return &MetaOp_StartWatch_Call{Call: _e.mock.On("StartWatch")}
+}
+
+func (_c *MetaOp_StartWatch_Call) Run(run func()) *MetaOp_StartWatch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MetaOp_StartWatch_Call) Return() *MetaOp_StartWatch_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MetaOp_StartWatch_Call) RunAndReturn(run func()) *MetaOp_StartWatch_Call {
 	_c.Call.Return(run)
 	return _c
 }

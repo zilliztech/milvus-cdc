@@ -63,7 +63,7 @@ type replicateChannelManager struct {
 	forwardLock       sync.RWMutex
 	channelForwardMap map[string]struct{}
 
-	collectionLock       sync.Mutex
+	collectionLock       sync.RWMutex
 	replicateCollections map[int64]chan struct{}
 
 	partitionLock       sync.Mutex
@@ -134,6 +134,13 @@ func IsCollectionNotFoundError(err error) bool {
 	return strings.Contains(err.Error(), "collection not found")
 }
 
+func (r *replicateChannelManager) AddDroppedCollection(ids []int64) {
+	for _, id := range ids {
+		r.droppedCollections.Store(id, struct{}{})
+	}
+	log.Info("has added dropped collection", zap.Int64s("ids", ids))
+}
+
 func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
 	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, info.ID)
 
@@ -142,6 +149,12 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 		_, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.GetName(), sourceDBInfo.Name)
 		if err != nil && !IsCollectionNotFoundError(err) {
 			return err
+		}
+		r.collectionLock.RLock()
+		_, ok := r.replicateCollections[info.ID]
+		r.collectionLock.Unlock()
+		if ok {
+			return errors.Newf("the collection has been replicated, wait it [collection name: %s] to drop...", info.Schema.Name)
 		}
 		// collection not found will exit the retry
 		return nil
