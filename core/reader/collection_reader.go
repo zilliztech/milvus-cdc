@@ -155,9 +155,40 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			reader.sendError(err)
 			return
 		}
+
+		recordCreateCollectionTime := make(map[string]*pb.CollectionInfo)
+		repeatedCollectionID := make(map[int64]struct{})
+		for _, info := range existedCollectionInfos {
+			collectionName := info.Schema.GetName()
+			createTime := info.CreateTime
+			lastCollectionInfo, recordOK := recordCreateCollectionTime[collectionName]
+			if recordOK {
+				if createTime > lastCollectionInfo.CreateTime {
+					repeatedCollectionID[lastCollectionInfo.ID] = struct{}{}
+					recordCreateCollectionTime[collectionName] = info
+				} else {
+					repeatedCollectionID[info.ID] = struct{}{}
+				}
+			} else {
+				recordCreateCollectionTime[collectionName] = info
+			}
+		}
+
+		// for the dropped collection when cdc is down, like:
+		// 1. create collection and cdc server is healthy
+		// 2. cdc server is down
+		// 3. drop collection, or drop and create the same collection
+		// 4. cdc server restart
+		// 5. create the same collection again
+		reader.channelManager.AddDroppedCollection(lo.Keys(repeatedCollectionID))
+
 		seekPositions := lo.Values(reader.channelSeekPositions)
 		for _, info := range existedCollectionInfos {
-			log.Info("exist collection", zap.String("name", info.Schema.Name))
+			if _, ok := repeatedCollectionID[info.ID]; ok {
+				log.Info("skip to start to read collection", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
+				continue
+			}
+			log.Info("exist collection", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
 			if err := reader.channelManager.StartReadCollection(ctx, info, seekPositions); err != nil {
 				log.Warn("fail to start to replicate the collection data", zap.Any("collection", info), zap.Error(err))
 				reader.sendError(err)
@@ -165,6 +196,13 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			reader.replicateCollectionMap.Store(info.ID, info)
 		}
 		_, err = reader.metaOp.GetAllPartition(ctx, func(info *pb.PartitionInfo) bool {
+			if _, ok := repeatedCollectionID[info.CollectionID]; ok {
+				log.Info("skip to start to add partition",
+					zap.String("name", info.PartitionName),
+					zap.Int64("partition_id", info.PartitionID),
+					zap.Int64("collection_id", info.CollectionID))
+				return true
+			}
 			var collectionName string
 			retryErr := retry.Do(ctx, func() error {
 				collectionName = reader.metaOp.GetCollectionNameByID(ctx, info.CollectionID)
@@ -198,6 +236,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			log.Warn("get all partition failed", zap.Error(err))
 			reader.sendError(err)
 		}
+		reader.metaOp.StartWatch()
 	})
 }
 

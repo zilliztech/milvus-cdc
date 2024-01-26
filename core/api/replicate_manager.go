@@ -33,6 +33,7 @@ import (
 // ChannelManager a target must promise a manager
 type ChannelManager interface {
 	SetCtx(ctx context.Context)
+	AddDroppedCollection(ids []int64)
 
 	StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error
 	StopReadCollection(ctx context.Context, info *pb.CollectionInfo) error
@@ -89,6 +90,10 @@ var _ ChannelManager = (*DefaultChannelManager)(nil)
 
 func (d *DefaultChannelManager) SetCtx(ctx context.Context) {
 	log.Warn("SetCtx is not implemented, please check it")
+}
+
+func (d *DefaultChannelManager) AddDroppedCollection(ids []int64) {
+	log.Warn("AddDroppedCollection is not implemented, please check it")
 }
 
 func (d *DefaultChannelManager) StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {

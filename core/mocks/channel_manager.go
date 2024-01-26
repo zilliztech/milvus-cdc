@@ -29,6 +29,39 @@ func (_m *ChannelManager) EXPECT() *ChannelManager_Expecter {
 	return &ChannelManager_Expecter{mock: &_m.Mock}
 }
 
+// AddDroppedCollection provides a mock function with given fields: ids
+func (_m *ChannelManager) AddDroppedCollection(ids []int64) {
+	_m.Called(ids)
+}
+
+// ChannelManager_AddDroppedCollection_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddDroppedCollection'
+type ChannelManager_AddDroppedCollection_Call struct {
+	*mock.Call
+}
+
+// AddDroppedCollection is a helper method to define mock.On call
+//  - ids []int64
+func (_e *ChannelManager_Expecter) AddDroppedCollection(ids interface{}) *ChannelManager_AddDroppedCollection_Call {
+	return &ChannelManager_AddDroppedCollection_Call{Call: _e.mock.On("AddDroppedCollection", ids)}
+}
+
+func (_c *ChannelManager_AddDroppedCollection_Call) Run(run func(ids []int64)) *ChannelManager_AddDroppedCollection_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]int64))
+	})
+	return _c
+}
+
+func (_c *ChannelManager_AddDroppedCollection_Call) Return() *ChannelManager_AddDroppedCollection_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *ChannelManager_AddDroppedCollection_Call) RunAndReturn(run func([]int64)) *ChannelManager_AddDroppedCollection_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // AddPartition provides a mock function with given fields: ctx, collectionInfo, partitionInfo
 func (_m *ChannelManager) AddPartition(ctx context.Context, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo) error {
 	ret := _m.Called(ctx, collectionInfo, partitionInfo)
