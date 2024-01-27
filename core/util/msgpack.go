@@ -20,6 +20,4 @@ package util
 
 import "github.com/milvus-io/milvus/pkg/mq/msgstream"
 
-var (
-	EmptyMsgPack = &msgstream.MsgPack{}
-)
+var EmptyMsgPack = &msgstream.MsgPack{}
