@@ -180,7 +180,7 @@ func GetMQMessageDetail(ctx context.Context, config PositionConfig, pchannel str
 	//}
 
 	msgStream := MsgStream(config, false)
-	//msgStream := MsgStream(config, true)
+	// msgStream := MsgStream(config, true)
 	defer msgStream.Close()
 
 	consumeSubName := pchannel + strconv.Itoa(rand.Int())

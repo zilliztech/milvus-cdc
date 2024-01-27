@@ -219,7 +219,9 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 		log.Info("the collection is already replicated", zap.String("collection_name", info.Schema.Name))
 		return nil
 	}
-	barrier := NewBarrier(len(info.StartPositions), func(msgTs uint64, b *Barrier) {
+
+	targetMsgCount := len(info.StartPositions)
+	barrier := NewBarrier(targetMsgCount, func(msgTs uint64, b *Barrier) {
 		select {
 		case <-b.CloseChan:
 		case r.apiEventChan <- &api.ReplicateAPIEvent{
@@ -653,6 +655,21 @@ func (r *replicateChannelHandler) AddCollection(collectionID int64, targetInfo *
 	r.collectionRecords[collectionID] = targetInfo
 	r.collectionNames[targetInfo.CollectionName] = collectionID
 	GetTSManager().AddRef(r.pChannelName)
+	if targetInfo.Dropped {
+		go func() {
+			minTS := GetTSManager().GetMinTS(r.pChannelName)
+			if minTS == 0 {
+				r.sendErrEvent(errors.Newf("fail to get channel ts, channel: %s", r.pChannelName))
+				log.Warn("fail to get channel ts", zap.String("channel", r.pChannelName))
+				return
+			}
+			targetInfo.BarrierChan <- minTS
+			log.Info("has sent the min ts for the dropped collection",
+				zap.Int64("source_collection", collectionID),
+				zap.Int64("target_collection", targetInfo.CollectionID),
+				zap.String("collection_name", targetInfo.CollectionName))
+		}()
+	}
 }
 
 func (r *replicateChannelHandler) RemoveCollection(collectionID int64) {
@@ -701,6 +718,18 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 	if partitionInfo.State == pb.PartitionState_PartitionDropping ||
 		partitionInfo.State == pb.PartitionState_PartitionDropped {
 		targetInfo.DroppedPartition[partitionID] = struct{}{}
+		log.Info("the partition is dropped", zap.Int64("partition_id", partitionID), zap.String("partition_name", partitionName))
+		go func() {
+			minTS := GetTSManager().GetMinTS(r.pChannelName)
+			if minTS == 0 {
+				r.sendErrEvent(errors.Newf("fail to get channel ts, channel: %s", r.pChannelName))
+				log.Warn("fail to get channel ts", zap.String("channel", r.pChannelName))
+				return
+			}
+			targetInfo.PartitionBarrierChan[partitionID] <- minTS
+			log.Info("has sent the min ts for the dropped partition",
+				zap.Int64("partition_id", partitionID), zap.String("partition_name", partitionName))
+		}()
 	}
 	partitionLog.Info("add partition info done")
 
@@ -967,9 +996,13 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				realMsg.ShardName = info.VChannel
 				dataLen = int(realMsg.GetNumRows())
 			case *msgstream.DropCollectionMsg:
+				collectionID := realMsg.CollectionID
 				realMsg.CollectionID = info.CollectionID
-				info.BarrierChan <- msg.EndTs()
+				if !info.Dropped {
+					info.BarrierChan <- msg.EndTs()
+				}
 				needTsMsg = true
+				r.RemoveCollection(collectionID)
 			case *msgstream.DropPartitionMsg:
 				if info.Dropped {
 					log.Info("skip drop partition msg because collection has been dropped", zap.Int64("collection_id", sourceCollectionID))
@@ -994,16 +1027,21 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 						log.Warn("invalid drop partition message", zap.Any("msg", msg))
 					}
 					r.recordLock.RUnlock()
+					if r.isDroppingPartition(realMsg.PartitionID, info) {
+						return nil
+					}
 					return err
 				}, r.retryOptions...)
 				if retryErr != nil && err == nil {
 					err = retryErr
 				}
-				if err == nil {
+				if err == nil && !r.isDroppingPartition(realMsg.PartitionID, info) {
 					partitionBarrierChan <- msg.EndTs()
+					partitionID := realMsg.PartitionID
 					if realMsg.PartitionName != "" {
 						realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
 					}
+					r.RemovePartitionInfo(sourceCollectionID, realMsg.PartitionName, partitionID)
 				}
 			}
 			if err != nil {
