@@ -21,6 +21,8 @@ package model
 import (
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/retry"
+
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 type SourceCollectionInfo struct {
@@ -31,13 +33,14 @@ type SourceCollectionInfo struct {
 }
 
 type TargetCollectionInfo struct {
+	DatabaseName         string
 	CollectionID         int64
 	CollectionName       string
 	PartitionInfo        map[string]int64
 	PChannel             string
 	VChannel             string
-	BarrierChan          chan<- uint64
-	PartitionBarrierChan map[int64]chan<- uint64 // id is the source partition id
+	BarrierChan          *util.OnceWriteChan[uint64]
+	PartitionBarrierChan map[int64]*util.OnceWriteChan[uint64] // id is the source partition id
 	Dropped              bool
 	DroppedPartition     map[int64]struct{} // id is the source partition id
 }
@@ -49,6 +52,7 @@ type HandlerOpts struct {
 }
 
 type CollectionInfo struct {
+	DatabaseName   string
 	CollectionID   int64
 	CollectionName string
 	VChannels      []string
