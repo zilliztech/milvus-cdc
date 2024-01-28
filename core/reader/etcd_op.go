@@ -344,7 +344,9 @@ func (e *EtcdOp) getDatabases(ctx context.Context) ([]model.DatabaseInfo, error)
 		info := &pb.DatabaseInfo{}
 		err = proto.Unmarshal(kv.Value, info)
 		if err != nil {
-			log.Warn("fail to unmarshal database info", zap.Error(err))
+			log.Warn("fail to unmarshal database info",
+				zap.String("key", string(kv.Key)),
+				zap.String("value", util.Base64Encode(kv.Value)), zap.Error(err))
 			return nil, err
 		}
 		databases = append(databases, model.DatabaseInfo{

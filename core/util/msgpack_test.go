@@ -19,26 +19,21 @@
 package util
 
 import (
-	"sync"
+	"testing"
 
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/stretchr/testify/assert"
 )
 
-var EmptyMsgPack = &msgstream.MsgPack{}
-
-type OnceWriteChan[T any] struct {
-	once sync.Once
-	ch   chan<- T
-}
-
-func NewOnceWriteChan[T any](c chan<- T) *OnceWriteChan[T] {
-	return &OnceWriteChan[T]{
-		ch: c,
+func TestOnceChan(t *testing.T) {
+	c := make(chan int, 1)
+	onceChan := NewOnceWriteChan(c)
+	onceChan.Write(1)
+	onceChan.Write(2)
+	data := <-c
+	assert.Equal(t, 1, data)
+	select {
+	case <-c:
+		assert.Fail(t, "channel should be empty")
+	default:
 	}
-}
-
-func (o *OnceWriteChan[T]) Write(data T) {
-	o.once.Do(func() {
-		o.ch <- data
-	})
 }

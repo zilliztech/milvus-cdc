@@ -100,6 +100,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				startPositions = append(startPositions, &msgstream.MsgPosition{
 					ChannelName: v.GetKey(),
 					MsgID:       v.GetData(),
+					Timestamp:   info.CreateTime,
 				})
 			}
 			if err := reader.channelManager.StartReadCollection(ctx, info, startPositions); err != nil {

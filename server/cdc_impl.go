@@ -416,6 +416,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 			channelSeekPosition[dataPair.GetKey()] = &msgpb.MsgPosition{
 				ChannelName: dataPair.GetKey(),
 				MsgID:       dataPair.GetData(),
+				Timestamp:   tsoutil.ComposeTS(p.Time+1, 0),
 			}
 		}
 	}
@@ -570,13 +571,13 @@ func (e *MetaCDC) startReplicateAPIEvent(replicateCtx context.Context, info *met
 					taskLog.Warn("the replicate api event channel has closed")
 					return
 				}
-				if !e.isRunningTask(info.TaskID) {
-					taskLog.Warn("not running task", zap.Any("event", replicateAPIEvent))
-					return
-				}
 				if replicateAPIEvent.EventType == api.ReplicateError {
 					taskLog.Warn("receive the error event", zap.Any("event", replicateAPIEvent))
 					_ = e.pauseTaskWithReason(info.TaskID, "fail to read the replicate event", []meta.TaskState{})
+					return
+				}
+				if !e.isRunningTask(info.TaskID) {
+					taskLog.Warn("not running task", zap.Any("event", replicateAPIEvent))
 					return
 				}
 				err := entity.writerObj.HandleReplicateAPIEvent(replicateCtx, replicateAPIEvent)
@@ -653,7 +654,6 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, info *meta.
 				msgTime, _ := tsoutil.ParseHybridTs(msgPack.EndTs)
 				replicateMetric(info, channelName, msgPack, metrics.OPTypeWrite)
 
-				// TODO should delete the position when drop collection？
 				metaPosition := &meta.PositionInfo{
 					Time: msgTime,
 					DataPair: &commonpb.KeyDataPair{

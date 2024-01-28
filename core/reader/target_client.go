@@ -96,6 +96,7 @@ func (t *TargetClient) GetCollectionInfo(ctx context.Context, collectionName, da
 		log.Warn("fail to describe collection", zap.Error(err))
 		return nil, err
 	}
+	collectionInfo.DatabaseName = databaseName
 	collectionInfo.CollectionID = collection.ID
 	collectionInfo.CollectionName = collectionName
 	collectionInfo.PChannels = collection.PhysicalChannels
