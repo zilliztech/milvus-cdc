@@ -19,12 +19,16 @@
 package util
 
 import (
+	"bytes"
 	"sync"
 
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 )
 
-var EmptyMsgPack = &msgstream.MsgPack{}
+var (
+	EmptyMsgPack            = &msgstream.MsgPack{}
+	SuffixSnapshotTombstone = []byte{0xE2, 0x9B, 0xBC} // base64 value: "4pu8"
+)
 
 type OnceWriteChan[T any] struct {
 	once sync.Once
@@ -41,4 +45,8 @@ func (o *OnceWriteChan[T]) Write(data T) {
 	o.once.Do(func() {
 		o.ch <- data
 	})
+}
+
+func IsTombstone(data []byte) bool {
+	return bytes.Equal(data, SuffixSnapshotTombstone)
 }

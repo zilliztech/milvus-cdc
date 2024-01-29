@@ -158,6 +158,7 @@ func DeleteTaskCollectionPosition(taskPositionStore api.MetaStore[*meta.TaskColl
 	return err
 }
 
+// // TODO fubang can't delete the task position when delete the task
 func DeleteTask(factory api.MetaStoreFactory, taskID string) (*meta.TaskInfo, error) {
 	ctx := context.Background()
 	infos, err := factory.GetTaskInfoMetaStore(ctx).Get(ctx, &meta.TaskInfo{TaskID: taskID}, nil)

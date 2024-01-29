@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	api2 "github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/mocks"
 	"github.com/zilliztech/milvus-cdc/core/pb"
@@ -46,7 +47,7 @@ func TestCollectionReader(t *testing.T) {
 			InitBackOff: 1,
 			MaxBackOff:  1,
 		},
-	})
+	}, &api2.DefaultTargetAPI{})
 	assert.NoError(t, err)
 	realOp := etcdOp.(*EtcdOp)
 

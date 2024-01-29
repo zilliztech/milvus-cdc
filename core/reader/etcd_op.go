@@ -54,6 +54,7 @@ const (
 	fieldPrefix      = "root-coord/fields"
 	databasePrefix   = "root-coord/database/db-info"
 	tsPrefix         = "kv/gid/timestamp" // TODO the kv root is configurable
+	TomeObject       = "_tome"            // has marked deleted object
 )
 
 type EtcdOp struct {
@@ -78,13 +79,14 @@ type EtcdOp struct {
 	subscribePartitionEvent  util.Map[string, api.PartitionEventConsumer]
 
 	handlerWatchEventPool *conc.Pool[struct{}]
+	startWatch            chan struct{}
 
-	startWatch chan struct{}
+	targetMilvus api.TargetAPI
 }
 
 func NewEtcdOp(endpoints []string,
-	rootPath, metaPath, defaultPartitionName string, etcdConfig config.EtcdConfig,
-) (api.MetaOp, error) {
+	rootPath, metaPath, defaultPartitionName string,
+	etcdConfig config.EtcdConfig, target api.TargetAPI) (api.MetaOp, error) {
 	etcdOp := &EtcdOp{
 		endpoints:             endpoints,
 		rootPath:              rootPath,
@@ -93,6 +95,7 @@ func NewEtcdOp(endpoints []string,
 		retryOptions:          util.GetRetryOptions(etcdConfig.Retry),
 		handlerWatchEventPool: conc.NewPool[struct{}](16, conc.WithExpiryDuration(time.Minute)),
 		startWatch:            make(chan struct{}),
+		targetMilvus:          target,
 	}
 
 	// set default value
@@ -179,6 +182,10 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 							continue
 						}
 						collectionKey := util.ToString(event.Kv.Key)
+						if util.IsTombstone(event.Kv.Value) {
+							log.Info("the collection is deleted", zap.String("key", collectionKey))
+							continue
+						}
 						info := &pb.CollectionInfo{}
 						err := proto.Unmarshal(event.Kv.Value, info)
 						if err != nil {
@@ -267,6 +274,10 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 							continue
 						}
 						partitionKey := util.ToString(event.Kv.Key)
+						if util.IsTombstone(event.Kv.Value) {
+							log.Info("the partition is deleted", zap.String("key", partitionKey))
+							continue
+						}
 						info := &pb.PartitionInfo{}
 						err := proto.Unmarshal(event.Kv.Value, info)
 						if err != nil {
@@ -341,6 +352,20 @@ func (e *EtcdOp) getDatabases(ctx context.Context) ([]model.DatabaseInfo, error)
 	}
 	var databases []model.DatabaseInfo
 	for _, kv := range resp.Kvs {
+		if util.IsTombstone(kv.Value) {
+			idStr := util.ToString(kv.Key)[len(e.databasePrefix())+1:]
+			databaseID, err := strconv.ParseInt(idStr, 10, 64)
+			if err != nil {
+				log.Panic("fail to parse the database id", zap.String("id", idStr), zap.Error(err))
+				continue
+			}
+			databases = append(databases, model.DatabaseInfo{
+				ID:      databaseID,
+				Dropped: true,
+			})
+			e.dbID2Name.Store(databaseID, TomeObject)
+			continue
+		}
 		info := &pb.DatabaseInfo{}
 		err = proto.Unmarshal(kv.Value, info)
 		if err != nil {
@@ -394,6 +419,13 @@ func (e *EtcdOp) getCollectionNameByID(ctx context.Context, collectionID int64) 
 		return ""
 	}
 
+	e.collectionID2DBID.Store(collectionID, database.ID)
+	if util.IsTombstone(resp.Kvs[0].Value) {
+		e.collectionID2Name.Store(collectionID, TomeObject)
+		log.Warn("the collection is deleted", zap.Int64("collection_id", collectionID))
+		return TomeObject
+	}
+
 	info := &pb.CollectionInfo{}
 	err = proto.Unmarshal(resp.Kvs[0].Value, info)
 	if err != nil {
@@ -405,7 +437,6 @@ func (e *EtcdOp) getCollectionNameByID(ctx context.Context, collectionID int64) 
 	}
 	collectionName := info.Schema.GetName()
 	e.collectionID2Name.Store(collectionID, collectionName)
-	e.collectionID2DBID.Store(collectionID, database.ID)
 
 	return collectionName
 }
@@ -419,7 +450,7 @@ func (e *EtcdOp) internalGetAllCollection(ctx context.Context, fillField bool, f
 		return nil, err
 	}
 	var existedCollectionInfos []*pb.CollectionInfo
-
+	log.Info("get all collection data", zap.Int("count", len(resp.Kvs)))
 	for _, kv := range resp.Kvs {
 		info := &pb.CollectionInfo{}
 		err = proto.Unmarshal(kv.Value, info)
@@ -527,8 +558,9 @@ func (e *EtcdOp) GetDatabaseInfoForCollection(ctx context.Context, id int64) mod
 	dbName, _ := e.dbID2Name.Load(dbID)
 	if dbName != "" {
 		return model.DatabaseInfo{
-			ID:   dbID,
-			Name: dbName,
+			ID:      dbID,
+			Name:    dbName,
+			Dropped: IsDroppedObject(dbName),
 		}
 	}
 
@@ -544,8 +576,9 @@ func (e *EtcdOp) GetDatabaseInfoForCollection(ctx context.Context, id int64) mod
 	dbID, _ = e.collectionID2DBID.Load(id)
 	dbName, _ = e.dbID2Name.Load(dbID)
 	return model.DatabaseInfo{
-		ID:   dbID,
-		Name: dbName,
+		ID:      dbID,
+		Name:    dbName,
+		Dropped: IsDroppedObject(dbName),
 	}
 }
 
@@ -556,6 +589,7 @@ func (e *EtcdOp) internalGetAllPartition(ctx context.Context, filters []api.Part
 		return nil, err
 	}
 	var existedPartitionInfos []*pb.PartitionInfo
+	log.Info("get all partition data", zap.Int("partition_num", len(resp.Kvs)))
 	for _, kv := range resp.Kvs {
 		info := &pb.PartitionInfo{}
 		err = proto.Unmarshal(kv.Value, info)
@@ -608,16 +642,16 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 
 	getResp, err := e.etcdClient.Get(ctx, e.tsPrefix())
 	if err != nil {
-		log.Warn("fail to get the ts data", zap.String("prefix", e.tsPrefix()), zap.Error(err))
+		log.Panic("fail to get the ts data", zap.String("prefix", e.tsPrefix()), zap.Error(err))
 		return res
 	}
 	if len(getResp.Kvs) != 1 {
-		log.Warn("fail to get the ts data", zap.String("prefix", e.tsPrefix()), zap.Int("len", len(getResp.Kvs)))
+		log.Panic("fail to get the ts data", zap.String("prefix", e.tsPrefix()), zap.Int("len", len(getResp.Kvs)))
 		return res
 	}
 	curTime, err := typeutil.ParseTimestamp(getResp.Kvs[0].Value)
 	if err != nil {
-		log.Warn("fail to parse the ts data", zap.String("prefix", e.tsPrefix()), zap.Error(err))
+		log.Panic("fail to parse the ts data", zap.String("prefix", e.tsPrefix()), zap.Error(err))
 		return res
 	}
 	log.Info("current time", zap.Time("ts", curTime))
@@ -625,23 +659,25 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 
 	_, err = e.getDatabases(ctx)
 	if err != nil {
-		log.Warn("fail to get all database", zap.Error(err))
+		log.Panic("fail to get all database", zap.Error(err))
 		return res
 	}
 	collections, err := e.internalGetAllCollection(ctx, false, []api.CollectionFilter{})
 	if err != nil {
-		log.Warn("fail to get all collection", zap.Error(err))
+		log.Panic("fail to get all collection", zap.Error(err))
 		return res
 	}
 	partitions, err := e.internalGetAllPartition(ctx, []api.PartitionFilter{})
 	if err != nil {
-		log.Warn("fail to get all partition", zap.Error(err))
+		log.Panic("fail to get all partition", zap.Error(err))
 		return res
 	}
 
+	droppedDatabaseKey := util.DroppedDatabaseKey
 	droppedCollectionKey := util.DroppedCollectionKey
 	droppedPartitionKey := util.DroppedPartitionKey
 
+	res[droppedDatabaseKey] = make(map[string]uint64)
 	res[droppedCollectionKey] = make(map[string]uint64)
 	res[droppedPartitionKey] = make(map[string]uint64)
 
@@ -663,10 +699,26 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 
 	for _, collection := range collections {
 		collectionName := collection.Schema.Name
-		dbName := getDBNameForCollection(collection.ID)
-		if dbName == "" {
+		originDBName := getDBNameForCollection(collection.ID)
+		if originDBName == "" {
+			log.Panic("fail to get db name for collection", zap.Int64("collection_id", collection.ID))
 			continue
 		}
+		// maybe the database has been drop, so get the database name from the target
+		dbName, err := e.targetMilvus.GetDatabaseName(context.Background(), collectionName, originDBName)
+		if IsDatabaseNotFoundError(err) {
+			log.Info("the collection info has been dropped in the source and target", zap.String("collection_name", collectionName))
+			continue
+		}
+		if err != nil {
+			log.Panic("fail to get database name", zap.String("collection_name", collectionName), zap.Error(err))
+			continue
+		}
+		if originDBName != dbName {
+			_, dropDBKey := util.GetDBInfoKeys(dbName)
+			res[droppedDatabaseKey][dropDBKey] = tt - 1
+		}
+
 		_, dropKey := util.GetCollectionInfoKeys(collectionName, dbName)
 		if collection.State == pb.CollectionState_CollectionCreated || collection.State == pb.CollectionState_CollectionCreating {
 			createdCollection[dropKey] = collection.CreateTime
@@ -678,12 +730,22 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 	for _, partition := range partitions {
 		collectionName := e.collectionID2Name.LoadWithDefault(partition.CollectionID, "")
 		if collectionName == "" {
-			log.Warn("fail to get collection name for partition",
+			log.Panic("fail to get collection name for partition",
 				zap.Int64("partition_id", partition.PartitionID), zap.Int64("collection_id", partition.CollectionID))
 			continue
 		}
-		dbName := getDBNameForCollection(partition.CollectionID)
-		if dbName == "" {
+		originDBName := getDBNameForCollection(partition.CollectionID)
+		if originDBName == "" {
+			log.Panic("fail to get db name for collection", zap.Int64("collection_id", partition.CollectionID))
+			continue
+		}
+		dbName, err := e.targetMilvus.GetDatabaseName(context.Background(), collectionName, originDBName)
+		if IsDatabaseNotFoundError(err) {
+			log.Info("the collection info has been dropped in the source and target", zap.String("collection_name", collectionName))
+			continue
+		}
+		if err != nil {
+			log.Panic("fail to get database name", zap.String("collection_name", collectionName), zap.Error(err))
 			continue
 		}
 		partitionName := partition.PartitionName
@@ -708,4 +770,8 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 		}
 	}
 	return res
+}
+
+func IsDroppedObject(name string) bool {
+	return name == TomeObject
 }

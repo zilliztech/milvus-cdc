@@ -126,6 +126,10 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				partitionLog.Warn("empty collection name", zap.Int64("collection_id", info.CollectionID), zap.Error(retryErr))
 				return true
 			}
+			if IsDroppedObject(collectionName) {
+				log.Info("the collection has been dropped", zap.Int64("collection_id", info.CollectionID))
+				return true
+			}
 			tmpCollectionInfo := &pb.CollectionInfo{
 				ID: info.CollectionID,
 				Schema: &schemapb.CollectionSchema{
@@ -189,7 +193,10 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				log.Info("skip to start to read collection", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
 				continue
 			}
-			log.Info("exist collection", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
+			log.Info("exist collection",
+				zap.String("name", info.Schema.Name),
+				zap.Int64("collection_id", info.ID),
+				zap.String("state", info.State.String()))
 			if err := reader.channelManager.StartReadCollection(ctx, info, seekPositions); err != nil {
 				log.Warn("fail to start to replicate the collection data", zap.Any("collection", info), zap.Error(err))
 				reader.sendError(err)
@@ -216,6 +223,10 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				log.Warn("empty collection name", zap.Int64("collection_id", info.CollectionID), zap.Error(retryErr))
 				return true
 			}
+			if IsDroppedObject(collectionName) {
+				log.Info("the collection has been dropped", zap.Int64("collection_id", info.CollectionID))
+				return true
+			}
 			tmpCollectionInfo := &pb.CollectionInfo{
 				ID: info.CollectionID,
 				Schema: &schemapb.CollectionSchema{
@@ -226,6 +237,11 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				log.Info("the collection is not in the watch list", zap.String("collection_name", collectionName), zap.String("partition_name", info.PartitionName))
 				return true
 			}
+			log.Info("exist partition",
+				zap.String("name", info.PartitionName),
+				zap.Int64("partition_id", info.PartitionID),
+				zap.String("collection_name", collectionName),
+				zap.Int64("collection_id", info.CollectionID))
 			err := reader.channelManager.AddPartition(ctx, tmpCollectionInfo, info)
 			if err != nil {
 				log.Warn("fail to add partition", zap.String("collection_name", collectionName), zap.String("partition_name", info.PartitionName), zap.Error(err))

@@ -61,9 +61,8 @@ type replicateChannelManager struct {
 	startReadRetryOptions []retry.Option
 	messageBufferSize     int
 
-	channelLock       sync.RWMutex
+	channelLock       sync.Mutex
 	channelHandlerMap map[string]*replicateChannelHandler
-	forwardLock       sync.RWMutex
 	channelForwardMap map[string]struct{}
 
 	collectionLock       sync.RWMutex
@@ -137,6 +136,10 @@ func IsCollectionNotFoundError(err error) bool {
 	return strings.Contains(err.Error(), "collection not found")
 }
 
+func IsDatabaseNotFoundError(err error) bool {
+	return err == util.NotFoundDatabase
+}
+
 func (r *replicateChannelManager) AddDroppedCollection(ids []int64) {
 	for _, id := range ids {
 		r.droppedCollections.Store(id, struct{}{})
@@ -150,7 +153,8 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 	var err error
 	retryErr := retry.Do(ctx, func() error {
 		_, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.GetName(), sourceDBInfo.Name)
-		if err != nil && !IsCollectionNotFoundError(err) {
+		if err != nil &&
+			!IsCollectionNotFoundError(err) && !IsDatabaseNotFoundError(err) {
 			return err
 		}
 		r.collectionLock.RLock()
@@ -172,6 +176,11 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 		if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
 			r.droppedCollections.Store(info.ID, struct{}{})
 			log.Info("the collection is dropped in the target instance", zap.String("collection_name", info.Schema.Name))
+			return nil
+		}
+		if IsDatabaseNotFoundError(err) {
+			log.Panic("the database has been dropped but the collection is existed in the source instance",
+				zap.String("collection_name", info.Schema.Name))
 			return nil
 		}
 		select {
@@ -234,7 +243,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 				IsReplicate:  true,
 				MsgTimestamp: msgTs,
 			},
-			ReplicateParam: api.ReplicateParam{Database: sourceDBInfo.Name},
+			ReplicateParam: api.ReplicateParam{Database: targetInfo.DatabaseName},
 		}:
 			r.droppedCollections.Store(info.ID, struct{}{})
 			for _, name := range info.PhysicalChannelNames {
@@ -253,7 +262,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 			CollectionID: info.ID,
 			SeekPosition: getSeekPosition(sourcePChannel),
 		}, &model.TargetCollectionInfo{
-			DatabaseName:         sourceDBInfo.Name,
+			DatabaseName:         targetInfo.DatabaseName,
 			CollectionID:         targetInfo.CollectionID,
 			CollectionName:       info.Schema.Name,
 			PartitionInfo:        targetInfo.Partitions,
@@ -320,17 +329,21 @@ func ForeachChannel(sourcePChannels, targetPChannels []string, f func(sourcePCha
 func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo) error {
 	var handlers []*replicateChannelHandler
 	collectionID := collectionInfo.ID
-	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, collectionID)
-
 	partitionLog := log.With(zap.Int64("partition_id", partitionInfo.PartitionID), zap.Int64("collection_id", collectionID),
 		zap.String("collection_name", collectionInfo.Schema.Name), zap.String("partition_name", partitionInfo.PartitionName))
+	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, collectionID)
+
+	if sourceDBInfo.Dropped {
+		partitionLog.Warn("the database has been dropped when add partition")
+		return nil
+	}
 
 	_ = retry.Do(ctx, func() error {
 		if _, dropped := r.droppedCollections.Load(collectionID); dropped {
 			partitionLog.Info("the collection is dropped when add partition")
 			return nil
 		}
-		r.channelLock.RLock()
+		r.channelLock.Lock()
 		for _, handler := range r.channelHandlerMap {
 			handler.recordLock.RLock()
 			if _, ok := handler.collectionRecords[collectionID]; ok {
@@ -338,7 +351,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 			}
 			handler.recordLock.RUnlock()
 		}
-		r.channelLock.RUnlock()
+		r.channelLock.Unlock()
 		if len(handlers) == 0 {
 			partitionLog.Info("waiting handler", zap.Int64("collection_id", collectionID))
 			return errors.New("no handler found")
@@ -360,17 +373,18 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 		return err
 	}
 	if targetInfo == nil || targetInfo.Dropped {
-		log.Info("the collection is dropping or dropped, skip the partition",
-			zap.String("collection_name", collectionInfo.Schema.Name), zap.String("partition_name", partitionInfo.PartitionName))
+		partitionLog.Info("the collection is dropping or dropped, skip the partition")
 		return nil
 	}
+	firstHandler.recordLock.RLock()
 	partitionRecord := targetInfo.PartitionInfo
 	_, ok := partitionRecord[partitionInfo.PartitionName]
+	firstHandler.recordLock.RUnlock()
 	if !ok {
 		if partitionInfo.State == pb.PartitionState_PartitionDropping ||
 			partitionInfo.State == pb.PartitionState_PartitionDropped {
 			r.droppedPartitions.Store(partitionInfo.PartitionID, struct{}{})
-			log.Warn("the partition is dropped in the source and target", zap.String("partition_name", partitionInfo.PartitionName))
+			partitionLog.Warn("the partition is dropped in the source and target")
 			return nil
 		}
 		select {
@@ -385,11 +399,11 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 			ReplicateParam: api.ReplicateParam{Database: sourceDBInfo.Name},
 		}:
 		case <-ctx.Done():
-			log.Warn("context is done when adding partition")
+			partitionLog.Warn("context is done when adding partition")
 			return ctx.Err()
 		}
 	}
-	log.Info("start to add partition", zap.String("collection_name", collectionInfo.Schema.Name), zap.String("partition_name", partitionInfo.PartitionName), zap.Int("num", len(handlers)))
+	partitionLog.Info("start to add partition", zap.Int("num", len(handlers)))
 	barrier := NewBarrier(len(handlers), func(msgTs uint64, b *Barrier) {
 		select {
 		case <-b.CloseChan:
@@ -461,8 +475,8 @@ func (r *replicateChannelManager) GetChannelChan() <-chan string {
 }
 
 func (r *replicateChannelManager) GetMsgChan(pChannel string) <-chan *msgstream.MsgPack {
-	r.channelLock.RLock()
-	defer r.channelLock.RUnlock()
+	r.channelLock.Lock()
+	defer r.channelLock.Unlock()
 
 	handler := r.channelHandlerMap[pChannel]
 	if handler != nil {
@@ -483,15 +497,21 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 	defer r.channelLock.Unlock()
 	var err error
 
+	channelLog := log.With(
+		zap.Int64("collection_id", sourceInfo.CollectionID),
+		zap.String("collection_name", targetInfo.CollectionName),
+		zap.String("source_channel", sourceInfo.PChannelName),
+		zap.String("target_channel", targetInfo.PChannel),
+	)
+
 	channelHandler, ok := r.channelHandlerMap[sourceInfo.PChannelName]
-	if !ok || channelHandler.IsEmpty() {
+	if !ok {
 		channelHandler, err = newReplicateChannelHandler(r.getCtx(),
 			sourceInfo, targetInfo,
 			r.targetClient, r.metaOp, r.apiEventChan,
 			&model.HandlerOpts{MessageBufferSize: r.messageBufferSize, Factory: r.factory, RetryOptions: r.retryOptions})
 		if err != nil {
-			log.Warn("fail to new replicate channel handler",
-				zap.String("channel_name", sourceInfo.PChannelName), zap.Int64("collection_id", sourceInfo.CollectionID), zap.Error(err))
+			channelLog.Warn("fail to new replicate channel handler", zap.Error(err))
 			return nil, err
 		}
 		channelHandler.msgPackCallback = r.msgPackCallback
@@ -501,18 +521,16 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 		hasReplicateForTargetChannel := false
 		for _, handler := range r.channelHandlerMap {
 			handler.recordLock.RLock()
-			if handler.targetPChannel == targetInfo.PChannel && !handler.IsEmpty() {
+			if handler.targetPChannel == targetInfo.PChannel {
 				hasReplicateForTargetChannel = true
 			}
 			handler.recordLock.RUnlock()
 		}
 		if hasReplicateForTargetChannel {
-			log.Info("channel already has replicate for target channel", zap.String("channel_name", sourceInfo.PChannelName))
+			channelLog.Info("channel already has replicate for target channel", zap.String("channel_name", sourceInfo.PChannelName))
 			r.waitChannel(sourceInfo, targetInfo, channelHandler)
 		} else {
-			r.forwardLock.Lock()
 			r.channelForwardMap[channelHandler.targetPChannel] = struct{}{}
-			r.forwardLock.Unlock()
 		}
 		r.channelHandlerMap[sourceInfo.PChannelName] = channelHandler
 		r.channelChan <- sourceInfo.PChannelName
@@ -539,7 +557,7 @@ func (r *replicateChannelManager) waitChannel(sourceInfo *model.SourceCollection
 				log.Info("wait the new replicate channel", zap.String("target_pchannel", targetInfo.PChannel))
 			case targetChannel := <-r.forwardReplicateChannel:
 				isRepeatedChannel := false
-				r.channelLock.RLock()
+				r.channelLock.Lock()
 				for _, handler := range r.channelHandlerMap {
 					handler.recordLock.RLock()
 					if handler.targetPChannel == targetChannel {
@@ -547,16 +565,15 @@ func (r *replicateChannelManager) waitChannel(sourceInfo *model.SourceCollection
 					}
 					handler.recordLock.RUnlock()
 				}
-				r.channelLock.RUnlock()
 				if isRepeatedChannel {
+					r.channelLock.Unlock()
 					continue
 				}
 				log.Info("success to get the new replicate channel", zap.String("source_pchannel", sourceInfo.PChannelName), zap.String("target_pchannel", targetInfo.PChannel))
 				channelHandler.targetPChannel = targetChannel
-				r.forwardLock.Lock()
 				r.channelForwardMap[channelHandler.targetPChannel] = struct{}{}
-				r.forwardLock.Unlock()
 				channelHandler.startReadChannel()
+				r.channelLock.Unlock()
 				return
 			}
 		}
@@ -565,12 +582,12 @@ func (r *replicateChannelManager) waitChannel(sourceInfo *model.SourceCollection
 
 func (r *replicateChannelManager) forwardChannel(targetInfo *model.TargetCollectionInfo) {
 	go func() {
-		r.forwardLock.Lock()
+		r.channelLock.Lock()
 		_, hasForward := r.channelForwardMap[targetInfo.PChannel]
 		if !hasForward {
 			r.channelForwardMap[targetInfo.PChannel] = struct{}{}
 		}
-		r.forwardLock.Unlock()
+		r.channelLock.Unlock()
 		if !hasForward {
 			tick := time.NewTicker(5 * time.Second)
 			defer tick.Stop()
@@ -591,8 +608,8 @@ func (r *replicateChannelManager) forwardMsg(targetPChannel string, msg *msgstre
 	var handler *replicateChannelHandler
 
 	_ = retry.Do(r.replicateCtx, func() error {
-		r.channelLock.RLock()
-		defer r.channelLock.RUnlock()
+		r.channelLock.Lock()
+		defer r.channelLock.Unlock()
 
 		for _, channelHandler := range r.channelHandlerMap {
 			if channelHandler.targetPChannel == targetPChannel {
@@ -654,14 +671,16 @@ type replicateChannelHandler struct {
 	stream         msgstream.MsgStream
 	targetClient   api.TargetAPI
 	metaOp         api.MetaOp
+
 	// key: source milvus collectionID value: *model.TargetCollectionInfo
 	recordLock        sync.RWMutex
 	collectionRecords map[int64]*model.TargetCollectionInfo // key is suorce collection id
 	collectionNames   map[string]int64
-	msgPackChan       chan *msgstream.MsgPack
-	apiEventChan      chan *api.ReplicateAPIEvent
-	forwardPackChan   chan *msgstream.MsgPack
-	generatePackChan  chan *msgstream.MsgPack
+
+	msgPackChan      chan *msgstream.MsgPack
+	apiEventChan     chan *api.ReplicateAPIEvent
+	forwardPackChan  chan *msgstream.MsgPack
+	generatePackChan chan *msgstream.MsgPack
 
 	msgPackCallback     func(string, *msgstream.MsgPack)
 	forwardMsgFunc      func(string, *msgstream.MsgPack)
@@ -677,10 +696,13 @@ type replicateChannelHandler struct {
 
 func (r *replicateChannelHandler) AddCollection(collectionID int64, targetInfo *model.TargetCollectionInfo) {
 	r.recordLock.Lock()
-	defer r.recordLock.Unlock()
 	r.collectionRecords[collectionID] = targetInfo
 	r.collectionNames[targetInfo.CollectionName] = collectionID
 	GetTSManager().AddRef(r.pChannelName)
+	r.recordLock.Unlock()
+	log.Info("add collection to channel handler",
+		zap.Int64("collection_id", collectionID), zap.String("collection_name", targetInfo.CollectionName))
+
 	if targetInfo.Dropped {
 		replicatePool.Submit(func() (struct{}, error) {
 			dropCollectionLog := log.With(zap.Int64("collection_id", collectionID), zap.String("collection_name", targetInfo.CollectionName))
@@ -737,6 +759,7 @@ func (r *replicateChannelHandler) RemoveCollection(collectionID int64) {
 		delete(r.collectionNames, collectionRecord.CollectionName)
 	}
 	GetTSManager().RemoveRef(r.pChannelName)
+	log.Info("remove collection from handler", zap.Int64("collection_id", collectionID))
 }
 
 func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo, barrierChan chan<- uint64) error {
@@ -762,17 +785,21 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 		return nil
 	}
 	r.recordLock.Lock()
-	defer r.recordLock.Unlock()
 	if targetInfo.PartitionBarrierChan[partitionID] != nil {
 		partitionLog.Info("the partition barrier chan is not nil")
+		r.recordLock.Unlock()
 		return nil
 	}
 	targetInfo.PartitionBarrierChan[partitionID] = util.NewOnceWriteChan(barrierChan)
+	partitionLog.Info("add partition info done")
+	r.recordLock.Unlock()
+
 	if partitionInfo.State == pb.PartitionState_PartitionDropping ||
 		partitionInfo.State == pb.PartitionState_PartitionDropped {
 		targetInfo.DroppedPartition[partitionID] = struct{}{}
 		partitionLog.Info("the partition is dropped")
 		replicatePool.Submit(func() (struct{}, error) {
+			partitionLog.Info("generate msg for dropped partition")
 			generatePosition := r.sourceSeekPosition
 			if generatePosition == nil || generatePosition.Timestamp == 0 {
 				partitionLog.Warn("drop partition, but seek timestamp is 0")
@@ -813,22 +840,21 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 			return struct{}{}, nil
 		})
 	}
-	partitionLog.Info("add partition info done")
 
-	replicatePool.Submit(func() (struct{}, error) {
-		_ = retry.Do(r.replicateCtx, func() error {
-			id := r.updateTargetPartitionInfo(collectionID, collectionName, partitionName)
-			if id == 0 {
-				return errors.Newf("not found the partition [%s]", partitionName)
-			}
-			return nil
-		}, util.GetRetryOptions(config.RetrySettings{
-			RetryTimes:  5,
-			InitBackOff: 1,
-			MaxBackOff:  5,
-		})...)
-		return struct{}{}, nil
-	})
+	//replicatePool.Submit(func() (struct{}, error) {
+	//	_ = retry.Do(r.replicateCtx, func() error {
+	//		id := r.updateTargetPartitionInfo(collectionID, collectionName, partitionName)
+	//		if id == 0 {
+	//			return errors.Newf("not found the partition [%s]", partitionName)
+	//		}
+	//		return nil
+	//	}, util.GetRetryOptions(config.RetrySettings{
+	//		RetryTimes:  5,
+	//		InitBackOff: 1,
+	//		MaxBackOff:  5,
+	//	})...)
+	//	return struct{}{}, nil
+	//})
 	return nil
 }
 
@@ -920,11 +946,10 @@ func (r *replicateChannelHandler) startReadChannel() {
 }
 
 func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) (*model.TargetCollectionInfo, error) {
-	r.recordLock.RLock()
 	if r.isDroppedCollection != nil && r.isDroppedCollection(collectionID) {
-		r.recordLock.RUnlock()
 		return nil, nil
 	}
+	r.recordLock.RLock()
 	targetInfo, ok := r.collectionRecords[collectionID]
 	r.recordLock.RUnlock()
 	if ok {
@@ -934,14 +959,12 @@ func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) (*
 	// Sleep for a short time to avoid invalid requests
 	time.Sleep(500 * time.Millisecond)
 	err := retry.Do(r.replicateCtx, func() error {
-		log.Warn("wait collection info",
-			zap.Int64("msg_collection_id", collectionID))
 		r.recordLock.RLock()
 		var xs []int64
 		for x := range r.collectionRecords {
 			xs = append(xs, x)
 		}
-		log.Info("collection records", zap.Any("records", xs))
+		log.Info("wait collection info", zap.Int64("msg_collection_id", collectionID), zap.Any("records", xs))
 		// TODO it needs to be considered when supporting the specific collection in a task
 		targetInfo, ok = r.collectionRecords[collectionID]
 		r.recordLock.RUnlock()

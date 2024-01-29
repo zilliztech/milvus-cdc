@@ -84,6 +84,11 @@ func (t *TargetClient) GetMilvus(ctx context.Context, databaseName string) (clie
 }
 
 func (t *TargetClient) GetCollectionInfo(ctx context.Context, collectionName, databaseName string) (*model.CollectionInfo, error) {
+	databaseName, err := t.GetDatabaseName(ctx, collectionName, databaseName)
+	if err != nil {
+		log.Warn("fail to get database name", zap.Error(err))
+		return nil, err
+	}
 	milvus, err := t.GetMilvus(ctx, databaseName)
 	if err != nil {
 		log.Warn("fail to get milvus client", zap.String("database", databaseName), zap.Error(err))
@@ -112,6 +117,11 @@ func (t *TargetClient) GetCollectionInfo(ctx context.Context, collectionName, da
 }
 
 func (t *TargetClient) GetPartitionInfo(ctx context.Context, collectionName, databaseName string) (*model.CollectionInfo, error) {
+	databaseName, err := t.GetDatabaseName(ctx, collectionName, databaseName)
+	if err != nil {
+		log.Warn("fail to get database name", zap.Error(err))
+		return nil, err
+	}
 	milvus, err := t.GetMilvus(ctx, databaseName)
 	if err != nil {
 		log.Warn("fail to get milvus client", zap.String("database", databaseName), zap.Error(err))
@@ -130,4 +140,40 @@ func (t *TargetClient) GetPartitionInfo(ctx context.Context, collectionName, dat
 	}
 	collectionInfo.Partitions = partitionInfo
 	return collectionInfo, nil
+}
+
+func (t *TargetClient) GetDatabaseName(ctx context.Context, collectionName, databaseName string) (string, error) {
+	if !IsDroppedObject(databaseName) {
+		return databaseName, nil
+	}
+	dbLog := log.With(zap.String("collection", collectionName), zap.String("database", databaseName))
+	milvus, err := t.GetMilvus(ctx, "")
+	if err != nil {
+		dbLog.Warn("fail to get milvus client", zap.String("database", databaseName), zap.Error(err))
+		return "", err
+	}
+	databaseNames, err := milvus.ListDatabases(ctx)
+	if err != nil {
+		dbLog.Warn("fail to list databases", zap.String("database", databaseName), zap.Error(err))
+		return "", err
+	}
+	for _, dbName := range databaseNames {
+		dbMilvus, err := t.GetMilvus(ctx, dbName.Name)
+		if err != nil {
+			dbLog.Warn("fail to get milvus client", zap.String("connect_db", dbName.Name), zap.Error(err))
+			return "", err
+		}
+		collections, err := dbMilvus.ListCollections(ctx)
+		if err != nil {
+			dbLog.Warn("fail to list collections", zap.String("connect_db", dbName.Name), zap.Error(err))
+			return "", err
+		}
+		for _, collection := range collections {
+			if collection.Name == collectionName {
+				return dbName.Name, nil
+			}
+		}
+	}
+	dbLog.Warn("not found the database", zap.Any("databases", databaseNames))
+	return "", util.NotFoundDatabase
 }

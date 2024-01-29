@@ -62,6 +62,7 @@ type CollectionInfo struct {
 }
 
 type DatabaseInfo struct {
-	ID   int64
-	Name string
+	ID      int64
+	Name    string
+	Dropped bool
 }
