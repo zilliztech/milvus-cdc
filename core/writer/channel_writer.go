@@ -69,6 +69,11 @@ func NewChannelWriter(dataHandler api.DataHandler,
 	w.initAPIEventFuncs()
 	w.initOPMessageFuncs()
 	log.Info("new channel writer", zap.Any("droppedObjs", droppedObjs))
+	if droppedObjs[util.DroppedDatabaseKey] != nil {
+		for s, u := range droppedObjs[util.DroppedDatabaseKey] {
+			w.dbInfos.Store(s, u)
+		}
+	}
 	if droppedObjs[util.DroppedCollectionKey] != nil {
 		for s, u := range droppedObjs[util.DroppedCollectionKey] {
 			w.collectionInfos.Store(s, u)

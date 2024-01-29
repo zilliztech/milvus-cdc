@@ -47,6 +47,7 @@ type ChannelManager interface {
 type TargetAPI interface {
 	GetCollectionInfo(ctx context.Context, collectionName, databaseName string) (*model.CollectionInfo, error)
 	GetPartitionInfo(ctx context.Context, collectionName, databaseName string) (*model.CollectionInfo, error)
+	GetDatabaseName(ctx context.Context, collectionName, databaseName string) (string, error)
 }
 
 type ReplicateAPIEvent struct {
@@ -138,4 +139,9 @@ func (d *DefaultTargetAPI) GetCollectionInfo(ctx context.Context, collectionName
 func (d *DefaultTargetAPI) GetPartitionInfo(ctx context.Context, collectionName string, databaseName string) (*model.CollectionInfo, error) {
 	log.Warn("GetPartitionInfo is not implemented, please check it")
 	return nil, nil
+}
+
+func (d *DefaultTargetAPI) GetDatabaseName(ctx context.Context, collectionName, databaseName string) (string, error) {
+	log.Warn("GetDatabaseName is not implemented, please check it")
+	return "", nil
 }

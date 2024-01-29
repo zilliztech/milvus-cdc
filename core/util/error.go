@@ -21,6 +21,8 @@ package util
 import (
 	"fmt"
 	"strings"
+
+	"github.com/cockroachdb/errors"
 )
 
 type unrecoverableError struct {
@@ -59,3 +61,7 @@ func (el ErrorList) Error() string {
 	}
 	return builder.String()
 }
+
+var (
+	NotFoundDatabase = errors.New("database not found")
+)

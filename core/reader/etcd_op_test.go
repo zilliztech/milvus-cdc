@@ -48,7 +48,7 @@ func TestEtcdOp(t *testing.T) {
 			InitBackOff: 1,
 			MaxBackOff:  1,
 		},
-	})
+	}, &api.DefaultTargetAPI{})
 	assert.NoError(t, err)
 	realOp := etcdOp.(*EtcdOp)
 

@@ -33,6 +33,7 @@ import (
 )
 
 var (
+	DroppedDatabaseKey   = "database"
 	DroppedCollectionKey = "collection"
 	DroppedPartitionKey  = "partition"
 )
