@@ -253,6 +253,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			log.Warn("get all partition failed", zap.Error(err))
 			reader.sendError(err)
 		}
+		log.Info("has started to read collection and partition")
 		reader.metaOp.StartWatch()
 	})
 }
