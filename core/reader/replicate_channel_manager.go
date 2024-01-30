@@ -25,7 +25,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -37,6 +36,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/util/conc"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 	"github.com/samber/lo"
+	"github.com/sasha-s/go-deadlock"
 	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -61,14 +61,14 @@ type replicateChannelManager struct {
 	startReadRetryOptions []retry.Option
 	messageBufferSize     int
 
-	channelLock       sync.Mutex
+	channelLock       deadlock.Mutex
 	channelHandlerMap map[string]*replicateChannelHandler
 	channelForwardMap map[string]struct{}
 
-	collectionLock       sync.RWMutex
+	collectionLock       deadlock.RWMutex
 	replicateCollections map[int64]chan struct{}
 
-	partitionLock       sync.Mutex
+	partitionLock       deadlock.Mutex
 	replicatePartitions map[int64]map[int64]chan struct{}
 
 	channelChan             chan string
@@ -673,7 +673,7 @@ type replicateChannelHandler struct {
 	metaOp         api.MetaOp
 
 	// key: source milvus collectionID value: *model.TargetCollectionInfo
-	recordLock        sync.RWMutex
+	recordLock        deadlock.RWMutex
 	collectionRecords map[int64]*model.TargetCollectionInfo // key is suorce collection id
 	collectionNames   map[string]int64
 
