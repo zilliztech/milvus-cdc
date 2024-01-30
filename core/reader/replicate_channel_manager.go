@@ -914,6 +914,14 @@ func (r *replicateChannelHandler) Close() {
 
 func (r *replicateChannelHandler) startReadChannel() {
 	go func() {
+		innerHandlePack := func(msgPack *msgstream.MsgPack) {
+			p := r.handlePack(false, msgPack)
+			if p == util.EmptyMsgPack {
+				return
+			}
+			r.msgPackChan <- p
+		}
+
 		for {
 			select {
 			case <-r.replicateCtx.Done():
@@ -922,27 +930,32 @@ func (r *replicateChannelHandler) startReadChannel() {
 			case msgPack := <-r.forwardPackChan:
 				r.msgPackChan <- r.handlePack(true, msgPack)
 			case msgPack := <-r.generatePackChan:
-				p := r.handlePack(false, msgPack)
-				if p == util.EmptyMsgPack {
-					continue
-				}
-				r.msgPackChan <- p
+				innerHandlePack(msgPack)
 			case msgPack, ok := <-r.stream.Chan():
 				if !ok {
 					log.Warn("replicate channel closed", zap.String("channel_name", r.pChannelName))
 					continue
-					// close(r.msgPackChan)
-					// close(r.forwardPackChan)
-					// return
 				}
-				p := r.handlePack(false, msgPack)
-				if p == util.EmptyMsgPack {
-					continue
-				}
-				r.msgPackChan <- p
+				GreedyConsumeChan(r.generatePackChan, innerHandlePack)
+				GreedyConsumeChan(r.forwardPackChan, func(pack *msgstream.MsgPack) {
+					r.msgPackChan <- r.handlePack(true, pack)
+				})
+
+				innerHandlePack(msgPack)
 			}
 		}
 	}()
+}
+
+func GreedyConsumeChan(packChan chan *msgstream.MsgPack, f func(*msgstream.MsgPack)) {
+	for i := 0; i < 10; i++ {
+		select {
+		case pack := <-packChan:
+			f(pack)
+		default:
+			break
+		}
+	}
 }
 
 func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) (*model.TargetCollectionInfo, error) {
@@ -989,7 +1002,7 @@ func (r *replicateChannelHandler) containCollection(collectionName string) bool 
 	return r.collectionNames[collectionName] != 0
 }
 
-func (r *replicateChannelHandler) getPartitionID(sourceCollectionID int64, info *model.TargetCollectionInfo, name string) (int64, error) {
+func (r *replicateChannelHandler) getPartitionID(sourceCollectionID, sourcePartitionID int64, info *model.TargetCollectionInfo, name string) (int64, error) {
 	r.recordLock.RLock()
 	id, ok := info.PartitionInfo[name]
 	r.recordLock.RUnlock()
@@ -1003,6 +1016,12 @@ func (r *replicateChannelHandler) getPartitionID(sourceCollectionID int64, info 
 		log.Warn("wait partition info", zap.Int64("collection_id", info.CollectionID), zap.String("partition_name", name))
 		id = r.updateTargetPartitionInfo(sourceCollectionID, info.CollectionName, name)
 		if id != 0 {
+			return nil
+		}
+		if r.isDroppingPartition(sourcePartitionID, info) ||
+			r.isDroppedCollection(sourceCollectionID) ||
+			r.isDroppedPartition(sourcePartitionID) {
+			id = -1
 			return nil
 		}
 		return errors.Newf("not found the partition [%s]", name)
@@ -1075,16 +1094,14 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 					log.Info("skip insert msg because collection has been dropped", zap.Int64("collection_id", sourceCollectionID))
 					continue
 				}
-				if r.isDroppedPartition != nil && r.isDroppedPartition(realMsg.PartitionID) {
-					log.Info("skip insert msg because partition has been dropped", zap.Int64("partition_id", realMsg.PartitionID))
-					continue
-				}
-				if r.isDroppingPartition(realMsg.PartitionID, info) {
-					log.Info("skip insert msg because partition is dropping", zap.Int64("partition_id", realMsg.PartitionID))
-					continue
-				}
 				realMsg.CollectionID = info.CollectionID
-				realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
+				partitionID := realMsg.PartitionID
+				realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, partitionID, info, realMsg.PartitionName)
+				if realMsg.PartitionID == -1 {
+					log.Info("skip insert msg because partition has been dropped in the source and target",
+						zap.Int64("partition_id", partitionID), zap.String("partition_name", realMsg.PartitionName))
+					continue
+				}
 				realMsg.ShardName = info.VChannel
 				dataLen = int(realMsg.GetNumRows())
 			case *msgstream.DeleteMsg:
@@ -1092,17 +1109,20 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 					log.Info("skip delete msg because collection has been dropped", zap.Int64("collection_id", sourceCollectionID))
 					continue
 				}
-				if r.isDroppedPartition != nil && r.isDroppedPartition(realMsg.PartitionID) {
-					log.Info("skip delete msg because partition has been dropped", zap.Int64("partition_id", realMsg.PartitionID))
-					continue
-				}
-				if r.isDroppingPartition(realMsg.PartitionID, info) {
-					log.Info("skip delete msg because partition is dropping", zap.Int64("partition_id", realMsg.PartitionID))
+				if r.isDroppedPartition(realMsg.PartitionID) || r.isDroppingPartition(realMsg.PartitionID, info) {
+					log.Info("skip delete msg because partition has been dropped in the source and target",
+						zap.Int64("partition_id", realMsg.PartitionID), zap.String("partition_name", realMsg.PartitionName))
 					continue
 				}
 				realMsg.CollectionID = info.CollectionID
 				if realMsg.PartitionName != "" {
-					realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
+					partitionID := realMsg.PartitionID
+					realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, realMsg.PartitionID, info, realMsg.PartitionName)
+					if realMsg.PartitionID == -1 {
+						log.Info("skip delete msg because partition has been dropped in the source and target",
+							zap.Int64("partition_id", partitionID), zap.String("partition_name", realMsg.PartitionName))
+						continue
+					}
 				}
 				realMsg.ShardName = info.VChannel
 				dataLen = int(realMsg.GetNumRows())
@@ -1116,6 +1136,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				if info.Dropped {
 					log.Info("skip drop partition msg because collection has been dropped",
 						zap.Int64("collection_id", sourceCollectionID),
+						zap.String("collection_name", info.CollectionName),
 						zap.String("partition_name", realMsg.PartitionName))
 					continue
 				}
@@ -1140,10 +1161,9 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 						log.Warn("invalid drop partition message", zap.Any("msg", msg))
 					}
 					r.recordLock.RUnlock()
-					if r.isDroppingPartition(realMsg.PartitionID, info) {
-						return nil
-					}
-					if r.isDroppedCollection(realMsg.CollectionID) {
+					if r.isDroppingPartition(realMsg.PartitionID, info) ||
+						r.isDroppedCollection(realMsg.CollectionID) ||
+						r.isDroppedPartition(realMsg.PartitionID) {
 						return nil
 					}
 					return err
@@ -1152,16 +1172,21 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 					err = retryErr
 				}
 				if r.isDroppingPartition(realMsg.PartitionID, info) ||
-					r.isDroppedCollection(realMsg.CollectionID) {
-					log.Info("skip drop partition msg because partition or collection is dropping", zap.Int64("partition_id", realMsg.PartitionID))
+					r.isDroppedCollection(realMsg.CollectionID) ||
+					r.isDroppedPartition(realMsg.PartitionID) {
+					log.Info("skip drop partition msg because partition or collection is dropping",
+						zap.Int64("partition_id", realMsg.PartitionID), zap.String("partition_name", realMsg.PartitionName))
 					continue
 				}
 				if err == nil {
-					partitionBarrierChan.Write(msg.EndTs())
 					partitionID := realMsg.PartitionID
-					if realMsg.PartitionName != "" {
-						realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, info, realMsg.PartitionName)
+					realMsg.PartitionID, err = r.getPartitionID(sourceCollectionID, partitionID, info, realMsg.PartitionName)
+					if realMsg.PartitionID == -1 {
+						log.Warn("skip drop partition msg because partition or collection is dropping",
+							zap.Int64("partition_id", partitionID), zap.String("partition_name", realMsg.PartitionName))
+						continue
 					}
+					partitionBarrierChan.Write(msg.EndTs())
 					r.RemovePartitionInfo(sourceCollectionID, realMsg.PartitionName, partitionID)
 				}
 			}
@@ -1305,7 +1330,7 @@ func newReplicateChannelHandler(ctx context.Context,
 		msgPackChan:        make(chan *msgstream.MsgPack, opts.MessageBufferSize),
 		apiEventChan:       apiEventChan,
 		forwardPackChan:    make(chan *msgstream.MsgPack, opts.MessageBufferSize),
-		generatePackChan:   make(chan *msgstream.MsgPack, 10),
+		generatePackChan:   make(chan *msgstream.MsgPack, 30),
 		retryOptions:       opts.RetryOptions,
 		lastSendTTTime:     time.Now(),
 		ttPeriod:           5 * time.Second,
