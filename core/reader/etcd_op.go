@@ -55,6 +55,9 @@ const (
 	databasePrefix   = "root-coord/database/db-info"
 	tsPrefix         = "kv/gid/timestamp" // TODO the kv root is configurable
 	TomeObject       = "_tome"            // has marked deleted object
+
+	SkipCollectionState = pb.CollectionState(-100)
+	SkipPartitionState  = pb.PartitionState(-100)
 )
 
 type EtcdOp struct {
@@ -161,7 +164,7 @@ func (e *EtcdOp) tsPrefix() string {
 
 func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilter) {
 	e.watchCollectionOnce.Do(func() {
-		watchChan := e.etcdClient.Watch(ctx, e.collectionPrefix()+"/", clientv3.WithPrefix())
+		watchChan := e.etcdClient.Watch(ctx, e.collectionPrefix()+"/", clientv3.WithPrefix(), clientv3.WithPrevKV())
 		go func() {
 			select {
 			case <-e.startWatch:
@@ -178,12 +181,34 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 					}
 					for _, event := range watchResp.Events {
 						if event.Type != clientv3.EventTypePut {
-							log.Debug("collection watch event type is not put", zap.String("event type", event.Type.String()))
+							log.Info("collection watch event type is not put", zap.String("event type", event.Type.String()))
 							continue
 						}
 						collectionKey := util.ToString(event.Kv.Key)
 						if util.IsTombstone(event.Kv.Value) {
 							log.Info("the collection is deleted", zap.String("key", collectionKey))
+
+							if event.PrevKv != nil {
+								beforeInfo := &pb.CollectionInfo{}
+								err := proto.Unmarshal(event.PrevKv.Value, beforeInfo)
+								if err != nil {
+									log.Warn("fail to unmarshal the collection info",
+										zap.String("key", util.ToString(event.PrevKv.Key)), zap.String("value", util.Base64Encode(event.PrevKv.Value)), zap.Error(err))
+									continue
+								}
+								if beforeInfo.State != pb.CollectionState_CollectionCreating {
+									continue
+								}
+								beforeInfo.State = SkipCollectionState
+								e.subscribeCollectionEvent.Range(func(key string, value api.CollectionEventConsumer) bool {
+									if value != nil && value(beforeInfo) {
+										log.Info("the collection has been consumed", zap.Int64("collection_id", beforeInfo.ID), zap.String("task_id", key))
+										return false
+									}
+									return true
+								})
+							}
+
 							continue
 						}
 						info := &pb.CollectionInfo{}
@@ -192,12 +217,16 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 							log.Warn("fail to unmarshal the collection info", zap.String("key", collectionKey), zap.String("value", util.Base64Encode(event.Kv.Value)), zap.Error(err))
 							continue
 						}
+
 						if info.State != pb.CollectionState_CollectionCreated {
-							log.Info("the collection state is not created", zap.String("key", collectionKey), zap.String("state", info.State.String()))
+							log.Info("the collection state is not created",
+								zap.String("key", collectionKey), zap.String("collection_name", info.Schema.GetName()), zap.String("state", info.State.String()))
 							continue
 						}
+
 						if filter != nil && filter(info) {
-							log.Info("the collection is filtered in the watch process", zap.String("key", collectionKey))
+							log.Info("the collection is filtered in the watch process",
+								zap.String("key", collectionKey), zap.String("collection_name", info.Schema.GetName()))
 							continue
 						}
 
@@ -206,7 +235,8 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 								return e.fillCollectionField(info)
 							}, e.retryOptions...)
 							if err != nil {
-								log.Warn("fail to fill collection field in the watch process", zap.String("key", collectionKey), zap.Error(err))
+								log.Warn("fail to fill collection field in the watch process",
+									zap.String("key", collectionKey), zap.String("collection_name", info.Schema.GetName()), zap.Error(err))
 								return struct{}{}, err
 							}
 							e.collectionID2Name.Store(info.ID, info.Schema.Name)
@@ -253,7 +283,7 @@ func (e *EtcdOp) UnsubscribeEvent(taskID string, eventType api.WatchEventType) {
 
 func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter) {
 	e.watchPartitionOnce.Do(func() {
-		watchChan := e.etcdClient.Watch(ctx, e.partitionPrefix()+"/", clientv3.WithPrefix())
+		watchChan := e.etcdClient.Watch(ctx, e.partitionPrefix()+"/", clientv3.WithPrefix(), clientv3.WithPrevKV())
 		go func() {
 			select {
 			case <-e.startWatch:
@@ -283,6 +313,28 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 						if err != nil {
 							log.Warn("fail to unmarshal the partition info",
 								zap.String("key", partitionKey), zap.String("value", util.Base64Encode(event.Kv.Value)), zap.Error(err))
+							if !strings.Contains(info.PartitionName, e.defaultPartitionName) &&
+								event.PrevKv != nil {
+								beforeInfo := &pb.PartitionInfo{}
+								err := proto.Unmarshal(event.PrevKv.Value, info)
+								if err != nil {
+									log.Warn("fail to unmarshal the partition info",
+										zap.String("key", util.ToString(event.PrevKv.Key)), zap.String("value", util.Base64Encode(event.PrevKv.Value)), zap.Error(err))
+									continue
+								}
+								if beforeInfo.State != pb.PartitionState_PartitionCreating {
+									continue
+								}
+								beforeInfo.State = SkipPartitionState
+								e.subscribePartitionEvent.Range(func(key string, value api.PartitionEventConsumer) bool {
+									if value != nil && value(beforeInfo) {
+										log.Info("the partition has been consumed", zap.String("key", partitionKey), zap.String("task_id", key))
+										return false
+									}
+									return true
+								})
+								continue
+							}
 							continue
 						}
 						if info.State != pb.PartitionState_PartitionCreated ||

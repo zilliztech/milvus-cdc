@@ -147,6 +147,13 @@ func (r *replicateChannelManager) AddDroppedCollection(ids []int64) {
 	log.Info("has added dropped collection", zap.Int64s("ids", ids))
 }
 
+func (r *replicateChannelManager) AddDroppedPartition(ids []int64) {
+	for _, id := range ids {
+		r.droppedPartitions.Delete(id)
+	}
+	log.Info("has removed dropped partitions", zap.Int64s("ids", ids))
+}
+
 func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
 	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, info.ID)
 
@@ -175,7 +182,8 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 		// the collection is not existed in the target and source collection has dropped, skip it
 		if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
 			r.droppedCollections.Store(info.ID, struct{}{})
-			log.Info("the collection is dropped in the target instance", zap.String("collection_name", info.Schema.Name))
+			log.Info("the collection is dropped in the target instance",
+				zap.Int64("collection_id", info.ID), zap.String("collection_name", info.Schema.Name))
 			return nil
 		}
 		if IsDatabaseNotFoundError(err) {
@@ -959,7 +967,7 @@ func GreedyConsumeChan(packChan chan *msgstream.MsgPack, f func(*msgstream.MsgPa
 }
 
 func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) (*model.TargetCollectionInfo, error) {
-	if r.isDroppedCollection != nil && r.isDroppedCollection(collectionID) {
+	if r.isDroppedCollection(collectionID) {
 		return nil, nil
 	}
 	r.recordLock.RLock()
@@ -984,7 +992,7 @@ func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) (*
 		if ok {
 			return nil
 		}
-		if r.isDroppedCollection != nil && r.isDroppedCollection(collectionID) {
+		if r.isDroppedCollection(collectionID) {
 			return nil
 		}
 		return errors.Newf("not found the collection [%d]", collectionID)

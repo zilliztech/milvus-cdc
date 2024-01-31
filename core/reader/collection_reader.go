@@ -90,6 +90,13 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 	reader.startOnce.Do(func() {
 		reader.metaOp.SubscribeCollectionEvent(reader.id, func(info *pb.CollectionInfo) bool {
 			collectionLog := log.With(zap.String("collection_name", info.Schema.Name), zap.Int64("collection_id", info.ID))
+			if info.State == SkipCollectionState {
+				// handle the collection state from the creating directly to dropped
+				reader.channelManager.AddDroppedCollection([]int64{info.ID})
+				collectionLog.Info("has dropped collection", zap.String("collection_name", info.Schema.Name), zap.Int64("collection_id", info.ID))
+				return true
+			}
+
 			collectionLog.Info("has watched to read collection")
 			if !reader.shouldReadFunc(info) {
 				collectionLog.Info("the collection should not be read")
@@ -113,6 +120,12 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 		})
 		reader.metaOp.SubscribePartitionEvent(reader.id, func(info *pb.PartitionInfo) bool {
 			partitionLog := log.With(zap.Int64("collection_id", info.CollectionID), zap.Int64("partition_id", info.PartitionID), zap.String("partition_name", info.PartitionName))
+			if info.State == SkipPartitionState {
+				partitionLog.Info("has dropped partition")
+				reader.channelManager.AddDroppedPartition([]int64{info.PartitionID})
+				return true
+			}
+
 			partitionLog.Info("has watched to read partition")
 			var collectionName string
 			retryErr := retry.Do(ctx, func() error {
