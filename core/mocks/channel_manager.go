@@ -62,6 +62,39 @@ func (_c *ChannelManager_AddDroppedCollection_Call) RunAndReturn(run func([]int6
 	return _c
 }
 
+// AddDroppedPartition provides a mock function with given fields: ids
+func (_m *ChannelManager) AddDroppedPartition(ids []int64) {
+	_m.Called(ids)
+}
+
+// ChannelManager_AddDroppedPartition_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddDroppedPartition'
+type ChannelManager_AddDroppedPartition_Call struct {
+	*mock.Call
+}
+
+// AddDroppedPartition is a helper method to define mock.On call
+//  - ids []int64
+func (_e *ChannelManager_Expecter) AddDroppedPartition(ids interface{}) *ChannelManager_AddDroppedPartition_Call {
+	return &ChannelManager_AddDroppedPartition_Call{Call: _e.mock.On("AddDroppedPartition", ids)}
+}
+
+func (_c *ChannelManager_AddDroppedPartition_Call) Run(run func(ids []int64)) *ChannelManager_AddDroppedPartition_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]int64))
+	})
+	return _c
+}
+
+func (_c *ChannelManager_AddDroppedPartition_Call) Return() *ChannelManager_AddDroppedPartition_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *ChannelManager_AddDroppedPartition_Call) RunAndReturn(run func([]int64)) *ChannelManager_AddDroppedPartition_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // AddPartition provides a mock function with given fields: ctx, collectionInfo, partitionInfo
 func (_m *ChannelManager) AddPartition(ctx context.Context, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo) error {
 	ret := _m.Called(ctx, collectionInfo, partitionInfo)
