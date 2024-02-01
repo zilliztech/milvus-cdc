@@ -1026,8 +1026,7 @@ func (r *replicateChannelHandler) getPartitionID(sourceCollectionID, sourceParti
 		if id != 0 {
 			return nil
 		}
-		if r.isDroppingPartition(sourcePartitionID, info) ||
-			r.isDroppedCollection(sourceCollectionID) ||
+		if r.isDroppedCollection(sourceCollectionID) ||
 			r.isDroppedPartition(sourcePartitionID) {
 			id = -1
 			return nil
@@ -1169,8 +1168,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 						log.Warn("invalid drop partition message", zap.Any("msg", msg))
 					}
 					r.recordLock.RUnlock()
-					if r.isDroppingPartition(realMsg.PartitionID, info) ||
-						r.isDroppedCollection(realMsg.CollectionID) ||
+					if r.isDroppedCollection(realMsg.CollectionID) ||
 						r.isDroppedPartition(realMsg.PartitionID) {
 						return nil
 					}
@@ -1179,8 +1177,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				if retryErr != nil && err == nil {
 					err = retryErr
 				}
-				if r.isDroppingPartition(realMsg.PartitionID, info) ||
-					r.isDroppedCollection(realMsg.CollectionID) ||
+				if r.isDroppedCollection(realMsg.CollectionID) ||
 					r.isDroppedPartition(realMsg.PartitionID) {
 					log.Info("skip drop partition msg because partition or collection is dropping",
 						zap.Int64("partition_id", realMsg.PartitionID), zap.String("partition_name", realMsg.PartitionName))
