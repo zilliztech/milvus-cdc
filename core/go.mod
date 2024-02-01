@@ -5,11 +5,12 @@ go 1.18
 require (
 	github.com/cockroachdb/errors v1.9.1
 	github.com/golang/protobuf v1.5.3
-	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.4-0.20240109020841-d367b5a59df1
-	github.com/milvus-io/milvus-sdk-go/v2 v2.3.3
+	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.5
+	github.com/milvus-io/milvus-sdk-go/v2 v2.3.5
 	github.com/milvus-io/milvus/pkg v0.0.2-0.20231023021410-6b33420b3a1b
 	github.com/prometheus/client_golang v1.14.0
 	github.com/samber/lo v1.27.0
+	github.com/sasha-s/go-deadlock v0.3.1
 	github.com/stretchr/testify v1.8.4
 	go.etcd.io/etcd/client/v3 v3.5.5
 	go.uber.org/zap v1.21.0
@@ -91,7 +92,6 @@ require (
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
-	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	github.com/shirou/gopsutil/v3 v3.22.9 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect

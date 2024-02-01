@@ -250,10 +250,6 @@ func TestDataHandler(t *testing.T) {
 			Status: &commonpb.Status{},
 			Value:  true,
 		}, nil).Once()
-		milvusService.EXPECT().HasPartition(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
-			Status: &commonpb.Status{},
-			Value:  false,
-		}, nil).Once()
 		milvusService.EXPECT().ShowPartitions(mock.Anything, mock.Anything).Return(&milvuspb.ShowPartitionsResponse{
 			Status: &commonpb.Status{},
 			PartitionNames: []string{
@@ -319,10 +315,6 @@ func TestDataHandler(t *testing.T) {
 	t.Run("drop partition", func(t *testing.T) {
 		dataHandler.ignorePartition = true
 		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
-			Status: &commonpb.Status{},
-			Value:  true,
-		}, nil).Once()
-		milvusService.EXPECT().HasPartition(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
 			Status: &commonpb.Status{},
 			Value:  true,
 		}, nil).Once()
@@ -427,10 +419,6 @@ func TestDataHandler(t *testing.T) {
 			Status: &commonpb.Status{},
 			Value:  true,
 		}, nil).Once()
-		milvusService.EXPECT().HasPartition(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
-			Status: &commonpb.Status{},
-			Value:  true,
-		}, nil).Once()
 		milvusService.EXPECT().LoadPartitions(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.LoadPartitions(ctx, &api.LoadPartitionsParam{
 			LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
@@ -443,10 +431,6 @@ func TestDataHandler(t *testing.T) {
 
 	t.Run("release partitions", func(t *testing.T) {
 		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
-			Status: &commonpb.Status{},
-			Value:  true,
-		}, nil).Once()
-		milvusService.EXPECT().HasPartition(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
 			Status: &commonpb.Status{},
 			Value:  true,
 		}, nil).Once()

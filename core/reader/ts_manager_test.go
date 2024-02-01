@@ -34,6 +34,9 @@ func TestTSRef(t *testing.T) {
 	m := GetTSManager()
 	w := sync.WaitGroup{}
 	for i := 0; i < 40; i++ {
+		for x := 0; x < 10000; x++ {
+			m.AddRef("test")
+		}
 		w.Add(1)
 		go func(start int) {
 			defer w.Done()
@@ -41,14 +44,23 @@ func TestTSRef(t *testing.T) {
 				for x := 0; x < 10000; x++ {
 					m.AddRef("test")
 				}
+				for x := 0; x < 10000; x++ {
+					m.RemoveRef("test")
+				}
 				return
 			}
 			for x := 0; x < 10000; x++ {
 				m.RemoveRef("test")
 			}
+			for x := 0; x < 10000; x++ {
+				m.AddRef("test")
+			}
 		}(i)
 	}
 	w.Wait()
+	for x := 0; x < 40*10000; x++ {
+		m.RemoveRef("test")
+	}
 	v, ok := m.channelRef.Load("test")
 	assert.True(t, ok)
 	assert.Equal(t, 0, v.Load())
@@ -61,6 +73,7 @@ func TestTS(t *testing.T) {
 			InitBackOff: 1,
 			MaxBackOff:  1,
 		}),
+		lastTS: util.NewValue[uint64](0),
 	}
 
 	m.AddRef("a")

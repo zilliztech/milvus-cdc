@@ -848,21 +848,6 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 			return struct{}{}, nil
 		})
 	}
-
-	//replicatePool.Submit(func() (struct{}, error) {
-	//	_ = retry.Do(r.replicateCtx, func() error {
-	//		id := r.updateTargetPartitionInfo(collectionID, collectionName, partitionName)
-	//		if id == 0 {
-	//			return errors.Newf("not found the partition [%s]", partitionName)
-	//		}
-	//		return nil
-	//	}, util.GetRetryOptions(config.RetrySettings{
-	//		RetryTimes:  5,
-	//		InitBackOff: 1,
-	//		MaxBackOff:  5,
-	//	})...)
-	//	return struct{}{}, nil
-	//})
 	return nil
 }
 
@@ -961,7 +946,7 @@ func GreedyConsumeChan(packChan chan *msgstream.MsgPack, f func(*msgstream.MsgPa
 		case pack := <-packChan:
 			f(pack)
 		default:
-			break
+			return
 		}
 	}
 }

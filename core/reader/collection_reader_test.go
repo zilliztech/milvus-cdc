@@ -119,6 +119,7 @@ func TestCollectionReader(t *testing.T) {
 	// existed collection and partition
 	channelManager.EXPECT().StartReadCollection(mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock err")).Once()
 	channelManager.EXPECT().AddPartition(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	channelManager.EXPECT().AddDroppedCollection(mock.Anything).Return().Once()
 
 	reader, err := NewCollectionReader("reader-1", channelManager, etcdOp, nil, func(ci *pb.CollectionInfo) bool {
 		return !strings.Contains(ci.Schema.Name, "test")
