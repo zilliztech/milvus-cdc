@@ -84,7 +84,7 @@ func TestNewChannelReader(t *testing.T) {
 			// seek error
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 			stream.EXPECT().Close().Return().Once()
-			stream.EXPECT().Seek(mock.Anything, mock.Anything).Return(errors.New("error")).Once()
+			stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(errors.New("error")).Once()
 			_, err := NewChannelReader("test", base64.StdEncoding.EncodeToString([]byte("foo")), config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
@@ -96,7 +96,7 @@ func TestNewChannelReader(t *testing.T) {
 		{
 			// success
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-			stream.EXPECT().Seek(mock.Anything, mock.Anything).Return(nil).Once()
+			stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 			_, err := NewChannelReader("test", base64.StdEncoding.EncodeToString([]byte("foo")), config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",

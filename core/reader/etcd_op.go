@@ -89,7 +89,8 @@ type EtcdOp struct {
 
 func NewEtcdOp(endpoints []string,
 	rootPath, metaPath, defaultPartitionName string,
-	etcdConfig config.EtcdConfig, target api.TargetAPI) (api.MetaOp, error) {
+	etcdConfig config.EtcdConfig, target api.TargetAPI,
+) (api.MetaOp, error) {
 	etcdOp := &EtcdOp{
 		endpoints:             endpoints,
 		rootPath:              rootPath,

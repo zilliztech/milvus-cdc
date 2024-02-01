@@ -70,6 +70,7 @@ func TestEtcdOp(t *testing.T) {
 		assert.Equal(t, "", collectionName)
 	}
 
+	etcdOp.StartWatch()
 	// watch collection
 	{
 		var success util.Value[bool]

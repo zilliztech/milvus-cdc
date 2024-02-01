@@ -8,8 +8,8 @@ require (
 	github.com/goccy/go-json v0.10.2
 	github.com/golang/protobuf v1.5.3
 	github.com/google/uuid v1.3.0
-	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.4-0.20240109020841-d367b5a59df1
-	github.com/milvus-io/milvus-sdk-go/v2 v2.3.3
+	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.5
+	github.com/milvus-io/milvus-sdk-go/v2 v2.3.5
 	github.com/milvus-io/milvus/pkg v0.0.2-0.20231023021410-6b33420b3a1b
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pingcap/log v1.1.1-0.20221015072633-39906604fb81

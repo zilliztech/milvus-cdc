@@ -62,6 +62,4 @@ func (el ErrorList) Error() string {
 	return builder.String()
 }
 
-var (
-	NotFoundDatabase = errors.New("database not found")
-)
+var NotFoundDatabase = errors.New("database not found")

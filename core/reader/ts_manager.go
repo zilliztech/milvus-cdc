@@ -51,6 +51,7 @@ type tsManager struct {
 	channelRef   util.Map[string, *util.Value[int]]
 	retryOptions []retry.Option
 	lastTS       *util.Value[uint64]
+	refLock      sync.Mutex
 }
 
 func GetTSManager() *tsManager {
@@ -64,7 +65,17 @@ func GetTSManager() *tsManager {
 }
 
 func (m *tsManager) AddRef(channelName string) {
-	v, _ := m.channelRef.LoadOrStore(channelName, util.NewValue[int](0))
+	v, ok := m.channelRef.Load(channelName)
+	if !ok {
+		m.refLock.Lock()
+		_, ok = m.channelRef.Load(channelName)
+		if !ok {
+			log.Info("add ref, channel not exist", zap.String("channelName", channelName))
+			m.channelRef.Store(channelName, util.NewValue[int](0))
+		}
+		m.refLock.Unlock()
+		v, _ = m.channelRef.Load(channelName)
+	}
 	v.CompareAndSwapWithFunc(func(old int) int {
 		return old + 1
 	})

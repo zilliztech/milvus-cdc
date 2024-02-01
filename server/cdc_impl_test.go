@@ -32,6 +32,7 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	sdkmocks "github.com/milvus-io/milvus-sdk-go/v2/mocks"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/util/typeutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -420,6 +421,7 @@ func TestCreateRequest(t *testing.T) {
 		}
 		initMetaCDCMap(metaCDC)
 		defer ClearEtcdData("source-cdc-test")
+		PutTS("source-cdc-test")
 
 		factory := mocks.NewMetaStoreFactory(t)
 		store := mocks.NewMetaStore[*meta.TaskInfo](t)
@@ -548,6 +550,16 @@ func ClearEtcdData(rootPath string) {
 		DialTimeout: 5 * time.Second,
 	})
 	_, _ = etcdCli.Delete(context.Background(), rootPath, clientv3.WithPrefix())
+	_ = etcdCli.Close()
+}
+
+func PutTS(rootPath string) {
+	etcdCli, _ := clientv3.New(clientv3.Config{
+		Endpoints:   []string{"localhost:2379"},
+		DialTimeout: 5 * time.Second,
+	})
+	data := typeutil.Uint64ToBytesBigEndian(uint64(time.Now().UnixNano()))
+	_, _ = etcdCli.Put(context.Background(), rootPath+"/kv/gid/timestamp", string(data))
 	_ = etcdCli.Close()
 }
 
@@ -788,6 +800,7 @@ func TestResume(t *testing.T) {
 		}
 		initMetaCDCMap(metaCDC)
 		defer ClearEtcdData("source-cdc-test")
+		PutTS("source-cdc-test")
 
 		factory := mocks.NewMetaStoreFactory(t)
 		store := mocks.NewMetaStore[*meta.TaskInfo](t)
@@ -848,6 +861,7 @@ func TestResume(t *testing.T) {
 		}
 		initMetaCDCMap(metaCDC)
 		defer ClearEtcdData("source-cdc-test")
+		PutTS("source-cdc-test")
 
 		factory := mocks.NewMetaStoreFactory(t)
 		store := mocks.NewMetaStore[*meta.TaskInfo](t)
