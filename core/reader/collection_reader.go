@@ -93,7 +93,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			if info.State == SkipCollectionState {
 				// handle the collection state from the creating directly to dropped
 				reader.channelManager.AddDroppedCollection([]int64{info.ID})
-				collectionLog.Info("has dropped collection", zap.String("collection_name", info.Schema.Name), zap.Int64("collection_id", info.ID))
+				collectionLog.Info("has dropped collection")
 				return true
 			}
 
