@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -691,6 +692,14 @@ func replicateMetric(info *meta.TaskInfo, channelName string, msgPack *msgstream
 	var packSize int
 	for _, msg := range msgPack.Msgs {
 		packSize += msg.Size()
+		switch realMsg := msg.(type) {
+		case *msgstream.InsertMsg:
+			metrics.ReplicateDataCntVec.WithLabelValues(info.TaskID,
+				strconv.FormatInt(realMsg.GetCollectionID(), 10), realMsg.GetCollectionName(), "insert").Add(float64(realMsg.GetNumRows()))
+		case *msgstream.DeleteMsg:
+			metrics.ReplicateDataCntVec.WithLabelValues(info.TaskID,
+				strconv.FormatInt(realMsg.GetCollectionID(), 10), realMsg.GetCollectionName(), "delete").Add(float64(realMsg.GetNumRows()))
+		}
 	}
 	metrics.ReplicateDataSizeVec.WithLabelValues(info.TaskID, channelName, op).Add(float64(packSize))
 }
@@ -769,13 +778,12 @@ func (e *MetaCDC) pauseTaskWithReason(taskID, reason string, currentStates []met
 		reason)
 	if err != nil {
 		log.Warn("fail to update task reason", zap.String("task_id", taskID), zap.String("reason", reason))
-		return err
 	}
 	e.cdcTasks.Lock()
 	cdcTask := e.cdcTasks.data[taskID]
 	if cdcTask == nil {
 		e.cdcTasks.Unlock()
-		return nil
+		return err
 	}
 	cdcTask.State = meta.TaskStatePaused
 	cdcTask.Reason = reason
@@ -788,7 +796,7 @@ func (e *MetaCDC) pauseTaskWithReason(taskID, reason string, currentStates []met
 	}
 	delete(e.replicateEntityMap.data, milvusAddress)
 	e.replicateEntityMap.Unlock()
-	return nil
+	return err
 }
 
 func (e *MetaCDC) Delete(req *request.DeleteRequest) (*request.DeleteResponse, error) {

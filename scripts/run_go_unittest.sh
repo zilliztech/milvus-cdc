@@ -11,6 +11,7 @@ DIR_ARR=("core" "server")
 for i in "${DIR_ARR[@]}"
 do
     pushd "${ROOT_DIR}/${i}"
+    go mod tidy
     go test -race -coverprofile=coverage.out -covermode=atomic "./..." -v
     if [[ -f coverage.out ]]; then
         cat coverage.out >> "$COVER_OUT"
