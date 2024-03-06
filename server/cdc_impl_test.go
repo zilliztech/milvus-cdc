@@ -228,7 +228,9 @@ func TestReload(t *testing.T) {
 
 		metaCDC.replicateEntityMap.Lock()
 		metaCDC.replicateEntityMap.data = map[string]*ReplicateEntity{
-			"127.0.0.1:19530": {},
+			"127.0.0.1:19530": {
+				quitFunc: func() {},
+			},
 		}
 		metaCDC.replicateEntityMap.Unlock()
 

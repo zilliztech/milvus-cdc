@@ -118,6 +118,14 @@ var (
 			Help:      "the size of the message",
 		}, []string{taskIDLabelName, vchannelLabelName, opTypeName})
 
+	ReplicateDataCntVec = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: milvusNamespace,
+			Subsystem: systemName,
+			Name:      "replicate_data_cnt",
+			Help:      "the data count",
+		}, []string{taskIDLabelName, collectionIDLabelName, collectionNameLabelName, opTypeName})
+
 	APIExecuteCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: milvusNamespace,
 		Subsystem: systemName,
@@ -134,6 +142,7 @@ func init() {
 	registry.MustRegister(TaskRequestCountVec)
 	registry.MustRegister(ReplicateTimeVec)
 	registry.MustRegister(ReplicateDataSizeVec)
+	registry.MustRegister(ReplicateDataCntVec)
 	registry.MustRegister(APIExecuteCountVec)
 	registry.MustRegister(reader.TSMetricVec)
 }
