@@ -695,10 +695,10 @@ func replicateMetric(info *meta.TaskInfo, channelName string, msgPack *msgstream
 		switch realMsg := msg.(type) {
 		case *msgstream.InsertMsg:
 			metrics.ReplicateDataCntVec.WithLabelValues(info.TaskID,
-				strconv.FormatInt(realMsg.GetCollectionID(), 10), realMsg.GetCollectionName(), "insert").Add(float64(realMsg.GetNumRows()))
+				strconv.FormatInt(realMsg.GetCollectionID(), 10), realMsg.GetCollectionName(), op, "insert").Add(float64(realMsg.GetNumRows()))
 		case *msgstream.DeleteMsg:
 			metrics.ReplicateDataCntVec.WithLabelValues(info.TaskID,
-				strconv.FormatInt(realMsg.GetCollectionID(), 10), realMsg.GetCollectionName(), "delete").Add(float64(realMsg.GetNumRows()))
+				strconv.FormatInt(realMsg.GetCollectionID(), 10), realMsg.GetCollectionName(), op, "delete").Add(float64(realMsg.GetNumRows()))
 		}
 	}
 	metrics.ReplicateDataSizeVec.WithLabelValues(info.TaskID, channelName, op).Add(float64(packSize))

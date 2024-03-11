@@ -124,7 +124,7 @@ var (
 			Subsystem: systemName,
 			Name:      "replicate_data_cnt",
 			Help:      "the data count",
-		}, []string{taskIDLabelName, collectionIDLabelName, collectionNameLabelName, opTypeName})
+		}, []string{taskIDLabelName, collectionIDLabelName, collectionNameLabelName, opTypeName, apiTypeLabelName})
 
 	APIExecuteCountVec = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: milvusNamespace,
