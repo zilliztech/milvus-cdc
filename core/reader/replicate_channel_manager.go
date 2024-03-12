@@ -133,7 +133,7 @@ func (r *replicateChannelManager) getCtx() context.Context {
 }
 
 func IsCollectionNotFoundError(err error) bool {
-	return strings.Contains(err.Error(), "collection not found")
+	return strings.Contains(err.Error(), "collection not found") || strings.Contains(err.Error(), "can't find collection")
 }
 
 func IsDatabaseNotFoundError(err error) bool {
@@ -1046,6 +1046,17 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	}
 	beginTS := pack.BeginTs
 
+	minTS, resetTS := GetTSManager().GetMinTS(r.pChannelName)
+	if minTS == 0 {
+		r.sendErrEvent(errors.Newf("fail to get channel ts, channel: %s", r.pChannelName))
+		log.Warn("fail to get channel ts", zap.String("channel", r.pChannelName))
+		return nil
+	}
+	endTS := minTS
+	if beginTS > endTS {
+		beginTS = endTS
+	}
+
 	needTsMsg := false
 	pChannel := r.targetPChannel
 	for _, msg := range pack.Msgs {
@@ -1096,6 +1107,9 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				}
 				realMsg.ShardName = info.VChannel
 				dataLen = int(realMsg.GetNumRows())
+				if resetTS {
+					realMsg.EndTimestamp = endTS
+				}
 			case *msgstream.DeleteMsg:
 				if info.Dropped {
 					log.Info("skip delete msg because collection has been dropped", zap.Int64("collection_id", sourceCollectionID))
@@ -1118,12 +1132,18 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				}
 				realMsg.ShardName = info.VChannel
 				dataLen = int(realMsg.GetNumRows())
+				if resetTS {
+					realMsg.EndTimestamp = endTS
+				}
 			case *msgstream.DropCollectionMsg:
 				collectionID := realMsg.CollectionID
 				realMsg.CollectionID = info.CollectionID
 				info.BarrierChan.Write(msg.EndTs())
 				needTsMsg = true
 				r.RemoveCollection(collectionID)
+				if resetTS {
+					realMsg.EndTimestamp = endTS
+				}
 			case *msgstream.DropPartitionMsg:
 				if info.Dropped {
 					log.Info("skip drop partition msg because collection has been dropped",
@@ -1179,10 +1199,13 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 					partitionBarrierChan.Write(msg.EndTs())
 					r.RemovePartitionInfo(sourceCollectionID, realMsg.PartitionName, partitionID)
 				}
+				if resetTS {
+					realMsg.EndTimestamp = endTS
+				}
 			}
 			if err != nil {
 				r.sendErrEvent(err)
-				log.Warn("fail to get partition info", zap.Any("msg", msg.Type()), zap.Error(err))
+				log.Warn("fail to process the msg info", zap.Any("msg", msg.Type()), zap.Error(err))
 				return nil
 			}
 			originPosition := msg.Position()
@@ -1220,17 +1243,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 
 	if !needTsMsg && len(newPack.Msgs) == 0 && time.Since(r.lastSendTTTime) < r.ttPeriod {
 		return util.EmptyMsgPack
-	}
-
-	minTS := GetTSManager().GetMinTS(r.pChannelName)
-	if minTS == 0 {
-		r.sendErrEvent(errors.Newf("fail to get channel ts, channel: %s", r.pChannelName))
-		log.Warn("fail to get channel ts", zap.String("channel", r.pChannelName))
-		return nil
-	}
-	endTS := minTS
-	if beginTS > endTS {
-		beginTS = endTS
 	}
 
 	for _, position := range newPack.StartPositions {

@@ -85,7 +85,7 @@ func TestTS(t *testing.T) {
 		time.Sleep(500 * time.Millisecond)
 		m.CollectTS("a", 2)
 	}()
-	minTS := m.GetMinTS("a")
+	minTS, _ := m.GetMinTS("a")
 	assert.EqualValues(t, 1, minTS)
 	m.EmptyTS()
 }

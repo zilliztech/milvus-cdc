@@ -106,7 +106,7 @@ func (m *tsManager) getUnsafeTSInfo() (map[string]uint64, map[string]int) {
 	return a, c
 }
 
-func (m *tsManager) GetMinTS(channelName string) uint64 {
+func (m *tsManager) GetMinTS(channelName string) (uint64, bool) {
 	minTS := m.channelTS.LoadWithDefault(channelName, math.MaxUint64)
 
 	err := retry.Do(context.Background(), func() error {
@@ -128,14 +128,16 @@ func (m *tsManager) GetMinTS(channelName string) uint64 {
 		return nil
 	}, m.retryOptions...)
 	if err != nil {
-		return 0
+		return 0, false
 	}
 
+	resetTS := false
 	if m.lastTS.Load() > minTS {
 		a, b := m.getUnsafeTSInfo()
 		log.Info("last ts is larger than min ts", zap.Uint64("lastTS", m.lastTS.Load()), zap.Uint64("minTS", minTS),
 			zap.String("channelName", channelName), zap.Any("channelTS", a), zap.Any("channelRef", b))
 		minTS = m.lastTS.Load()
+		resetTS = true
 	}
 	m.lastTS.CompareAndSwapWithFunc(func(old uint64) uint64 {
 		if old <= minTS {
@@ -145,7 +147,7 @@ func (m *tsManager) GetMinTS(channelName string) uint64 {
 	})
 	msgTime, _ := tsoutil.ParseHybridTs(minTS)
 	TSMetricVec.WithLabelValues(channelName).Set(float64(msgTime))
-	return minTS
+	return minTS, resetTS
 }
 
 // EmptyTS Only for test
