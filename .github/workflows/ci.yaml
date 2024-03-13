@@ -151,7 +151,7 @@ jobs:
           timeout-minutes: 5
           working-directory: scripts
           run: |
-            kubectl top pod || true
+            kubectl get pods || true
             bash export_log_k8s.sh default cdc-downstream k8s_logs        
             
         - name: Upload logs
