@@ -7,7 +7,9 @@ CDC is "Change Data Capture", and Milvus-CDC is a change data capture tool for M
 
 ## Quick Start
 
-**Please use the source code to compile and use it now**, because milvus-cdc is undergoing rapid iteration, the image currently provided is not stable, and the implementation method has also changed a lot.
+You can download the executable files in the [release page](https://github.com/zilliztech/milvus-cdc/releases) or compile the source code to get the cdc tool.
+
+- how to compile source code?
 
 ```bash
 git clone https://github.com/zilliztech/milvus-cdc.git
@@ -17,7 +19,7 @@ make build
 
 After successfully building, the `cdc` bin file will be generated in the `server` directory.
 
-**DON'T execute it directly.** If you do it, I think you must get a error because you need to configure it before using it. How to configure and use cdc, refer to: [Milvus-CDC Usage](doc/cdc-usage.md)
+When you get the cdc bin file, **DON'T execute it directly.** If you do it, I think you must get an error because you need to configure it before using it. How to configure and use cdc, refer to: [milvus cdc usage](doc/cdc-usage.md)
 
 ## Basic Components
 
