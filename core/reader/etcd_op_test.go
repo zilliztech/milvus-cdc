@@ -42,7 +42,7 @@ import (
 const TestCasePrefix = "test_case/cdc"
 
 func TestEtcdOp(t *testing.T) {
-	etcdOp, err := NewEtcdOp(nil, "", "", "", config.EtcdConfig{
+	etcdOp, err := NewEtcdOpWithAddress(nil, "", "", "", config.EtcdRetryConfig{
 		Retry: config.RetrySettings{
 			RetryTimes:  1,
 			InitBackOff: 1,

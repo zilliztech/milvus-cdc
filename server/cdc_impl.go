@@ -106,7 +106,8 @@ func NewMetaCDC(serverConfig *CDCServerConfig) *MetaCDC {
 			log.Panic("fail to new mysql meta store", zap.Error(err))
 		}
 	case "etcd":
-		factory, err = store.NewEtcdMetaStore(context.Background(), serverConfig.MetaStoreConfig.EtcdEndpoints, rootPath)
+		etcdServerConfig := GetEtcdServerConfigFromMetaConfig(serverConfig.MetaStoreConfig)
+		factory, err = store.NewEtcdMetaStore(context.Background(), etcdServerConfig, rootPath)
 		if err != nil {
 			log.Panic("fail to new etcd meta store", zap.Error(err))
 		}
@@ -114,7 +115,7 @@ func NewMetaCDC(serverConfig *CDCServerConfig) *MetaCDC {
 		log.Panic("not support the meta store type, valid type: [mysql, etcd]", zap.String("type", serverConfig.MetaStoreConfig.StoreType))
 	}
 
-	_, err = util.GetEtcdClient(serverConfig.SourceConfig.EtcdAddress)
+	_, err = util.GetEtcdClient(GetEtcdServerConfigFromSourceConfig(serverConfig.SourceConfig))
 	if err != nil {
 		log.Panic("fail to get etcd client for connect the source etcd data", zap.Error(err))
 	}
@@ -497,7 +498,8 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 		return nil, servererror.NewClientError("fail to connect target milvus server")
 	}
 	sourceConfig := e.config.SourceConfig
-	metaOp, err := cdcreader.NewEtcdOp(sourceConfig.EtcdAddress, sourceConfig.EtcdRootPath, sourceConfig.EtcdMetaSubPath, sourceConfig.DefaultPartitionName, config.EtcdConfig{
+	etcdServerConfig := GetEtcdServerConfigFromSourceConfig(sourceConfig)
+	metaOp, err := cdcreader.NewEtcdOp(etcdServerConfig, sourceConfig.DefaultPartitionName, config.EtcdRetryConfig{
 		Retry: e.config.Retry,
 	}, milvusClient)
 	if err != nil {

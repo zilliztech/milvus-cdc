@@ -41,7 +41,7 @@ import (
 
 // Before running this case, should start the etcd server
 func TestCollectionReader(t *testing.T) {
-	etcdOp, err := NewEtcdOp(nil, "", "", "", config.EtcdConfig{
+	etcdOp, err := NewEtcdOpWithAddress(nil, "", "", "", config.EtcdRetryConfig{
 		Retry: config.RetrySettings{
 			RetryTimes:  1,
 			InitBackOff: 1,
