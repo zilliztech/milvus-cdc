@@ -27,6 +27,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 
+	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/api"
@@ -48,21 +49,28 @@ type EtcdMetaStore struct {
 
 var _ api.MetaStoreFactory = &EtcdMetaStore{}
 
-func NewEtcdMetaStore(ctx context.Context, endpoints []string, rootPath string) (*EtcdMetaStore, error) {
-	log := log.With(zap.Strings("endpoints", endpoints)).Logger
-	etcdClient, err := clientv3.New(clientv3.Config{
-		Endpoints:   endpoints,
-		DialTimeout: 5 * time.Second,
-		Logger:      log,
-	})
+func NewEtcdMetaStoreWithAddress(ctx context.Context, endpoints []string, rootPath string) (*EtcdMetaStore, error) {
+	return NewEtcdMetaStore(ctx, config.EtcdServerConfig{
+		Address: endpoints,
+	}, rootPath)
+}
+
+func NewEtcdMetaStore(ctx context.Context, etcdServerConfig config.EtcdServerConfig, rootPath string) (*EtcdMetaStore, error) {
+	log := log.With(zap.Strings("endpoints", etcdServerConfig.Address)).Logger
+	etcdConfig, err := util.GetEtcdConfig(etcdServerConfig)
 	if err != nil {
-		log.Warn("fail to get etcd client")
+		log.Warn("fail to get etcd config", zap.Error(err))
+		return nil, err
+	}
+	etcdClient, err := clientv3.New(etcdConfig)
+	if err != nil {
+		log.Warn("fail to get etcd client", zap.Error(err))
 		return nil, err
 	}
 	txnMap := make(map[any][]clientv3.Op)
 	taskInfoStore, err := NewTaskInfoEtcdStore(ctx, etcdClient, rootPath, txnMap)
 	if err != nil {
-		log.Warn("fail to get task info store")
+		log.Warn("fail to get task info store", zap.Error(err))
 		return nil, err
 	}
 	taskCollectionPositionStore, err := NewTaskCollectionPositionEtcdStore(ctx, etcdClient, rootPath, txnMap)

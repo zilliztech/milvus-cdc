@@ -2,15 +2,33 @@ address: 0.0.0.0:8444
 maxTaskNum: 100
 metaStoreConfig:
   storeType: etcd
-  etcdEndpoints:
-    - localhost:2379
+  etcd:
+    address:
+      - http://127.0.0.1:2379
+    enableAuth: false
+    username: root
+    password: root123456
+    enableTLS: false
+    tlsCertPath: deployment/cert/client.pem # path to your cert file
+    tlsKeyPath: deployment/cert/client.key # path to your key file
+    tlsCACertPath: deployment/cert/ca.pem # path to your CACert file
+    tlsMinVersion: 1.3
   mysqlSourceUrl: root:root@tcp(127.0.0.1:3306)/milvuscdc?charset=utf8
-  rootPath: cdc
+  rootPath: cdc-by-dev
 sourceConfig:
-  etcdAddress:
-    - localhost:2379
-  etcdRootPath: by-dev
-  etcdMetaSubPath: meta
+  etcd:
+    address:
+      - http://127.0.0.1:2379
+    rootPath: by-dev
+    metaSubPath: meta
+    enableAuth: false
+    username: root
+    password: root123456
+    enableTLS: false
+    tlsCertPath: deployment/cert/client.pem # path to your cert file
+    tlsKeyPath: deployment/cert/client.key # path to your key file
+    tlsCACertPath: deployment/cert/ca.pem # path to your CACert file
+    tlsMinVersion: 1.3
   readChanLen: 10
   defaultPartitionName: _default
   pulsar:

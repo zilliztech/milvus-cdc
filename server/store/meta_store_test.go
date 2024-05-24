@@ -83,19 +83,19 @@ func TestMysql(t *testing.T) {
 func TestEtcd(t *testing.T) {
 	// nil endpoints
 	{
-		_, err := NewEtcdMetaStore(context.Background(), nil, "/cdc")
+		_, err := NewEtcdMetaStoreWithAddress(context.Background(), nil, "/cdc")
 		assert.Error(t, err)
 	}
 	// error endpoints
 	{
 		ctx, cancelFunc := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		defer cancelFunc()
-		_, err := NewEtcdMetaStore(ctx, []string{"localhost:23790"}, "/cdc")
+		_, err := NewEtcdMetaStoreWithAddress(ctx, []string{"localhost:23790"}, "/cdc")
 		assert.Error(t, err)
 	}
 
 	ctx := context.Background()
-	etcdStore, err := NewEtcdMetaStore(ctx, []string{"localhost:2379"}, "/cdc-meta-test")
+	etcdStore, err := NewEtcdMetaStoreWithAddress(ctx, []string{"localhost:2379"}, "/cdc-meta-test")
 	defer etcdStore.etcdClient.Delete(ctx, "/cdc-meta-test", clientv3.WithPrefix())
 	assert.NoError(t, err)
 

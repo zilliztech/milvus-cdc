@@ -18,51 +18,20 @@
 
 package config
 
-import "sync"
+type EtcdServerConfig struct {
+	Address     []string
+	RootPath    string
+	MetaSubPath string
 
-type Option[T any] interface {
-	Apply(object T)
-}
+	// Auth config
+	EnableAuth bool
+	Username   string
+	Password   string
 
-type OptionFunc[T any] func(object T)
-
-func (o OptionFunc[T]) Apply(object T) {
-	o(object)
-}
-
-type RetrySettings struct {
-	RetryTimes  int
-	InitBackOff int
-	MaxBackOff  int
-}
-
-type EtcdRetryConfig struct {
-	Retry RetrySettings
-}
-
-var (
-	configInstance   *CommonConfig
-	commonConfigOnce sync.Once
-)
-
-type ConfigOption func(config *CommonConfig)
-
-func InitCommonConfig(options ...ConfigOption) {
-	commonConfigOnce.Do(func() {
-		configInstance = &CommonConfig{}
-		for _, option := range options {
-			option(configInstance)
-		}
-	})
-}
-
-func GetCommonConfig() *CommonConfig {
-	if configInstance == nil {
-		InitCommonConfig()
-	}
-	return configInstance
-}
-
-type CommonConfig struct {
-	Retry RetrySettings
+	// TLS config
+	EnableTLS     bool
+	TLSCertPath   string `yaml:"tlsCertPath"`
+	TLSKeyPath    string `yaml:"tlsKeyPath"`
+	TLSCACertPath string `yaml:"tlsCACertPath"`
+	TLSMinVersion string `yaml:"tlsMinVersion"`
 }

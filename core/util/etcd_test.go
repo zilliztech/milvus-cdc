@@ -29,19 +29,19 @@ import (
 
 func TestEtcdClient(t *testing.T) {
 	t.Run("empty endpoints", func(t *testing.T) {
-		_, err := GetEtcdClient(nil)
+		_, err := GetEtcdClientWithAddress(nil)
 		assert.Error(t, err)
 	})
 
 	t.Run("normal endpoints", func(t *testing.T) {
-		_, err := GetEtcdClient([]string{"127.0.0.1:2379"})
+		_, err := GetEtcdClientWithAddress([]string{"127.0.0.1:2379"})
 		assert.NoError(t, err)
 	})
 
 	t.Run("op", func(t *testing.T) {
 		prefix := "test-cdc/client"
 
-		c, err := GetEtcdClient([]string{"127.0.0.1:2379"})
+		c, err := GetEtcdClientWithAddress([]string{"127.0.0.1:2379"})
 		assert.NoError(t, err)
 		defer c.Delete(context.Background(), prefix, clientv3.WithPrefix())
 
@@ -96,7 +96,7 @@ func TestEtcdClient(t *testing.T) {
 		MockEtcdClient(func(cfg clientv3.Config) (KVApi, error) {
 			return mockKV, nil
 		}, func() {
-			_, err := GetEtcdClient([]string{"127.0.0.1:2379"})
+			_, err := GetEtcdClientWithAddress([]string{"127.0.0.1:2379"})
 			assert.Error(t, err)
 		})
 	})

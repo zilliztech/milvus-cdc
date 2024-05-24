@@ -87,14 +87,38 @@ type EtcdOp struct {
 	targetMilvus api.TargetAPI
 }
 
-func NewEtcdOp(endpoints []string,
+func NewEtcdOpWithAddress(endpoints []string,
 	rootPath, metaPath, defaultPartitionName string,
-	etcdConfig config.EtcdConfig, target api.TargetAPI,
+	etcdConfig config.EtcdRetryConfig, target api.TargetAPI,
 ) (api.MetaOp, error) {
+	return NewEtcdOp(config.EtcdServerConfig{
+		Address:     endpoints,
+		RootPath:    rootPath,
+		MetaSubPath: metaPath,
+	}, defaultPartitionName, etcdConfig, target)
+}
+
+func NewEtcdOp(etcdServerConfig config.EtcdServerConfig, defaultPartitionName string,
+	etcdConfig config.EtcdRetryConfig, target api.TargetAPI,
+) (api.MetaOp, error) {
+	// set default value
+	if len(etcdServerConfig.Address) == 0 {
+		etcdServerConfig.Address = []string{"127.0.0.1:2379"}
+	}
+	if etcdServerConfig.RootPath == "" {
+		etcdServerConfig.RootPath = "by-dev"
+	}
+	if etcdServerConfig.MetaSubPath == "" {
+		etcdServerConfig.MetaSubPath = "meta"
+	}
+	if defaultPartitionName == "" {
+		defaultPartitionName = "_default"
+	}
+
 	etcdOp := &EtcdOp{
-		endpoints:             endpoints,
-		rootPath:              rootPath,
-		metaSubPath:           metaPath,
+		endpoints:             etcdServerConfig.Address,
+		rootPath:              etcdServerConfig.RootPath,
+		metaSubPath:           etcdServerConfig.MetaSubPath,
 		defaultPartitionName:  defaultPartitionName,
 		retryOptions:          util.GetRetryOptions(etcdConfig.Retry),
 		handlerWatchEventPool: conc.NewPool[struct{}](16, conc.WithExpiryDuration(time.Minute)),
@@ -102,26 +126,14 @@ func NewEtcdOp(endpoints []string,
 		targetMilvus:          target,
 	}
 
-	// set default value
-	if len(endpoints) == 0 {
-		etcdOp.endpoints = []string{"127.0.0.1:2379"}
-	}
-	if rootPath == "" {
-		etcdOp.rootPath = "by-dev"
-	}
-	if metaPath == "" {
-		etcdOp.metaSubPath = "meta"
-	}
-	if defaultPartitionName == "" {
-		etcdOp.defaultPartitionName = "_default"
-	}
-
 	var err error
-	log := log.With(zap.Strings("endpoints", endpoints))
-	etcdOp.etcdClient, err = clientv3.New(clientv3.Config{
-		Endpoints:   etcdOp.endpoints,
-		DialTimeout: 5 * time.Second,
-	})
+	log := log.With(zap.Strings("endpoints", etcdOp.endpoints))
+	etcdClientConfig, err := util.GetEtcdConfig(etcdServerConfig)
+	if err != nil {
+		log.Warn("fail to get etcd config", zap.Error(err))
+		return nil, err
+	}
+	etcdOp.etcdClient, err = clientv3.New(etcdClientConfig)
 	if err != nil {
 		log.Warn("create etcd client failed", zap.Error(err))
 		return nil, err

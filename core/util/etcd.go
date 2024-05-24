@@ -20,12 +20,19 @@ package util
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
+	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 )
 
@@ -57,23 +64,107 @@ func MockEtcdClient(new func(cfg clientv3.Config) (KVApi, error), f func()) {
 	f()
 }
 
-func GetEtcdClient(endpoints []string) (KVApi, error) {
-	etcdCli, err := newEtcdClient(clientv3.Config{
-		Endpoints:   endpoints,
-		DialTimeout: 5 * time.Second,
-		Logger:      log.L(),
+func GetEtcdClientWithAddress(endpoints []string) (KVApi, error) {
+	return GetEtcdClient(config.EtcdServerConfig{
+		Address: endpoints,
 	})
-	errLog := log.With(zap.Strings("endpoints", endpoints), zap.Error(err))
+}
+
+func GetEtcdClient(etcdServerConfig config.EtcdServerConfig) (KVApi, error) {
+	errLog := log.With(zap.Strings("endpoints", etcdServerConfig.Address))
+	etcdConfig, err := GetEtcdConfig(etcdServerConfig)
 	if err != nil {
-		errLog.Warn("fail to etcd client")
+		errLog.Warn("fail to get etcd config", zap.Error(err))
+		return nil, err
+	}
+	etcdCli, err := newEtcdClient(etcdConfig)
+	if err != nil {
+		errLog.Warn("fail to etcd client", zap.Error(err))
 		return nil, err
 	}
 	err = EtcdStatus(etcdCli)
 	if err != nil {
-		errLog.Warn("unavailable etcd server, please check it")
+		errLog.Warn("unavailable etcd server, please check it", zap.Error(err))
 		return nil, err
 	}
 	return etcdCli, err
+}
+
+func GetEtcdConfig(etcdServerConfig config.EtcdServerConfig) (clientv3.Config, error) {
+	dialTimeout := 5 * time.Second
+	if !etcdServerConfig.EnableTLS && !etcdServerConfig.EnableAuth {
+		return clientv3.Config{
+			Endpoints:   etcdServerConfig.Address,
+			DialTimeout: dialTimeout,
+			Logger:      log.L(),
+		}, nil
+	}
+	if !etcdServerConfig.EnableTLS && etcdServerConfig.EnableAuth {
+		return clientv3.Config{
+			Endpoints:   etcdServerConfig.Address,
+			DialTimeout: dialTimeout,
+			Username:    etcdServerConfig.Username,
+			Password:    etcdServerConfig.Password,
+			Logger:      log.L(),
+		}, nil
+	}
+	c := &clientv3.Config{
+		Logger: log.L(),
+	}
+	if etcdServerConfig.EnableAuth {
+		c.Username = etcdServerConfig.Username
+		c.Password = etcdServerConfig.Password
+	}
+
+	c, err := GetEtcdSSLCfg(etcdServerConfig.Address,
+		etcdServerConfig.TLSCertPath,
+		etcdServerConfig.TLSKeyPath,
+		etcdServerConfig.TLSCACertPath,
+		etcdServerConfig.TLSMinVersion, c)
+	return *c, err
+}
+
+func GetEtcdSSLCfg(endpoints []string, certFile string, keyFile string, caCertFile string, minVersion string, cfg *clientv3.Config) (*clientv3.Config, error) {
+	cfg.Endpoints = endpoints
+	cfg.DialTimeout = 5 * time.Second
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, errors.Wrap(err, "load etcd cert key pair error")
+	}
+	caCert, err := os.ReadFile(filepath.Clean(caCertFile))
+	if err != nil {
+		return nil, errors.Wrapf(err, "load etcd CACert file error, filename = %s", caCertFile)
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+	cfg.TLS = &tls.Config{
+		MinVersion: tls.VersionTLS13,
+		Certificates: []tls.Certificate{
+			cert,
+		},
+		RootCAs: caCertPool,
+	}
+	switch minVersion {
+	case "1.0":
+		cfg.TLS.MinVersion = tls.VersionTLS10
+	case "1.1":
+		cfg.TLS.MinVersion = tls.VersionTLS11
+	case "1.2":
+		cfg.TLS.MinVersion = tls.VersionTLS12
+	case "1.3":
+		cfg.TLS.MinVersion = tls.VersionTLS13
+	default:
+		cfg.TLS.MinVersion = 0
+	}
+
+	if cfg.TLS.MinVersion == 0 {
+		return nil, errors.Errorf("unknown TLS version,%s", minVersion)
+	}
+
+	cfg.DialOptions = append(cfg.DialOptions, grpc.WithBlock())
+
+	return cfg, nil
 }
 
 func EtcdPut(etcdCli KVApi, key, val string, opts ...clientv3.OpOption) error {

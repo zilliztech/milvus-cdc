@@ -28,15 +28,19 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"sigs.k8s.io/yaml"
 
+	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/pb"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 var GlobalConfig StartCollectionConfig
 
 type StartCollectionConfig struct {
-	EtcdAddress  string
-	RootPath     string
-	CollectionID string
+	// deprecated
+	EtcdAddress      string
+	EtcdServerConfig config.EtcdServerConfig
+	RootPath         string
+	CollectionID     string
 }
 
 func main() {
@@ -52,9 +56,18 @@ func main() {
 	}
 	GlobalConfig = positionConfig
 
-	etcdClient, _ := clientv3.New(clientv3.Config{
-		Endpoints: []string{GlobalConfig.EtcdAddress},
-	})
+	var etcdConfig clientv3.Config
+	if len(GlobalConfig.EtcdAddress) > 0 {
+		etcdConfig = clientv3.Config{
+			Endpoints: []string{GlobalConfig.EtcdAddress},
+		}
+	} else {
+		etcdConfig, err = util.GetEtcdConfig(GlobalConfig.EtcdServerConfig)
+		if err != nil {
+			panic(err)
+		}
+	}
+	etcdClient, _ := clientv3.New(etcdConfig)
 	getResp, err := etcdClient.Get(context.Background(),
 		fmt.Sprintf("%s/meta/root-coord/database/collection-info/1/%s", GlobalConfig.RootPath, GlobalConfig.CollectionID))
 	if err != nil {

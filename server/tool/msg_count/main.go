@@ -55,7 +55,9 @@ import (
 var GlobalConfig PositionConfig
 
 type PositionConfig struct {
+	// deprecated
 	EtcdAddress        []string
+	EtcdServerConfig   config.EtcdServerConfig
 	TaskPositionPrefix string
 	TaskPositionKey    string
 	PkFieldName        string
@@ -108,7 +110,19 @@ func main() {
 		return
 	}
 
-	client, err := clientv3.New(clientv3.Config{Endpoints: positionConfig.EtcdAddress})
+	var etcdConfig clientv3.Config
+	if len(GlobalConfig.EtcdAddress) > 0 {
+		etcdConfig = clientv3.Config{
+			Endpoints: GlobalConfig.EtcdAddress,
+		}
+	} else {
+		etcdConfig, err = util.GetEtcdConfig(GlobalConfig.EtcdServerConfig)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	client, err := clientv3.New(etcdConfig)
 	if err != nil {
 		panic(err)
 	}

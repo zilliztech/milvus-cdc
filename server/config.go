@@ -36,18 +36,44 @@ type CDCServerConfig struct {
 }
 
 type CDCMetaStoreConfig struct {
-	StoreType      string
+	StoreType string
+	// deprecated
 	EtcdEndpoints  []string
+	Etcd           config.EtcdServerConfig
 	MysqlSourceURL string
 	RootPath       string
 }
 
 type MilvusSourceConfig struct {
-	EtcdAddress          []string
-	EtcdRootPath         string
+	// deprecated
+	EtcdAddress []string
+	// deprecated
+	EtcdRootPath string
+	// deprecated
 	EtcdMetaSubPath      string
+	Etcd                 config.EtcdServerConfig
 	ReadChanLen          int
 	DefaultPartitionName string
 	Pulsar               config.PulsarConfig
 	Kafka                config.KafkaConfig
+}
+
+func GetEtcdServerConfigFromSourceConfig(sourceConfig MilvusSourceConfig) config.EtcdServerConfig {
+	if len(sourceConfig.EtcdAddress) > 0 {
+		return config.EtcdServerConfig{
+			Address:     sourceConfig.EtcdAddress,
+			RootPath:    sourceConfig.EtcdRootPath,
+			MetaSubPath: sourceConfig.EtcdMetaSubPath,
+		}
+	}
+	return sourceConfig.Etcd
+}
+
+func GetEtcdServerConfigFromMetaConfig(metaConfig CDCMetaStoreConfig) config.EtcdServerConfig {
+	if len(metaConfig.EtcdEndpoints) > 0 {
+		return config.EtcdServerConfig{
+			Address: metaConfig.EtcdEndpoints,
+		}
+	}
+	return metaConfig.Etcd
 }
