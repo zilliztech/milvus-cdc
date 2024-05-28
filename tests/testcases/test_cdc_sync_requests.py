@@ -8,8 +8,10 @@ from utils.util_log import test_log as log
 from api.milvus_cdc import MilvusCdcClient
 from pymilvus import (
     connections, list_collections,
-    Collection, Partition, db
+    Collection, Partition, db,
+    utility,
 )
+from pymilvus.client.types import LoadState
 from base.checker import default_schema, list_partitions
 from base.checker import (
     InsertEntitiesPartitionChecker,
@@ -34,7 +36,7 @@ class TestCDCSyncRequest(TestBase):
         col_list = []
         for i in range(10):
             time.sleep(0.1)
-            collection_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+            collection_name = prefix + "create_col_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
             col_list.append(collection_name)
         # create collections in upstream
         for col_name in col_list:
@@ -71,7 +73,7 @@ class TestCDCSyncRequest(TestBase):
         col_list = []
         for i in range(10):
             time.sleep(0.1)
-            collection_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+            collection_name = prefix + "drop_col_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
             col_list.append(collection_name)
         # create collections in upstream
         for col_name in col_list:
@@ -130,7 +132,7 @@ class TestCDCSyncRequest(TestBase):
         expected: entities in downstream is inserted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = prefix + "insert_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -174,7 +176,7 @@ class TestCDCSyncRequest(TestBase):
         expected: entities in downstream is upserted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = prefix + "upsert_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -234,7 +236,7 @@ class TestCDCSyncRequest(TestBase):
         expected: entities in downstream is inserted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = prefix + "delete_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -287,7 +289,7 @@ class TestCDCSyncRequest(TestBase):
         expected: entities in downstream is deleted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = prefix + "create_par_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # create partition in upstream
@@ -319,7 +321,7 @@ class TestCDCSyncRequest(TestBase):
         expected: entities in downstream is deleted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = prefix + "drop_par_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # create partition in upstream
@@ -375,7 +377,7 @@ class TestCDCSyncRequest(TestBase):
         expected: entities in downstream is deleted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = prefix + "create_idx_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -416,7 +418,7 @@ class TestCDCSyncRequest(TestBase):
         """
 
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = prefix + "drop_idx_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -477,7 +479,7 @@ class TestCDCSyncRequest(TestBase):
         expected: entities in downstream is deleted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = prefix + "load_release_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -522,12 +524,11 @@ class TestCDCSyncRequest(TestBase):
         # release replicas in upstream
         connections.disconnect("default")
         connections.connect(host=upstream_host, port=upstream_port)
+        c = Collection(name=collection_name, schema=default_schema)
         c.release()
-        try:
-            res = c.get_replicas()
-        except Exception as e:
-            replicas = 0
-            log.info(f"replicas released in upstream successfully")
+        c_state = utility.load_state(collection_name)
+        assert c_state == LoadState.NotLoad, f"upstream collection state is {c_state}"
+        log.info(f"replicas released in upstream successfully")
         # check replicas in downstream
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
@@ -537,19 +538,15 @@ class TestCDCSyncRequest(TestBase):
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
-            try:
-                res = c_downstream.get_replicas()
-            except Exception as e:
-                replicas = 0
+            c_state = utility.load_state(collection_name)
+            if c_state == LoadState.NotLoad:
                 log.info(f"replicas released in downstream successfully")
-            if replicas == 0:
-                log.info(f"replicas num in downstream: {replicas}")
                 log.info(f"replicas synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
             time.sleep(0.5)
             if time.time() - t0 > timeout:
                 log.info(f"replicas synced in downstream failed with timeout: {time.time() - t0:.2f}s")
-        assert replicas == 0
+        assert c_state == LoadState.NotLoad, f"downstream collection state is {c_state}"
 
     def test_cdc_sync_flush_collection_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
@@ -558,7 +555,7 @@ class TestCDCSyncRequest(TestBase):
         expected: entities in downstream is deleted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = prefix + "flush_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -618,7 +615,7 @@ class TestCDCSyncRequest(TestBase):
         """
         # create database in upstream
         connections.connect(host=upstream_host, port=upstream_port)
-        db_name = "db" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        db_name = "db_create_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
         db.create_database(db_name)
         log.info(f"database in upstream {db.list_database()}")
         assert db_name in db.list_database()
@@ -646,7 +643,7 @@ class TestCDCSyncRequest(TestBase):
         """
         # create database in upstream
         connections.connect(host=upstream_host, port=upstream_port)
-        db_name = "db" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        db_name = "db_drop_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
         db.create_database(db_name)
         log.info(f"database in upstream {db.list_database()}")
         assert db_name in db.list_database()
