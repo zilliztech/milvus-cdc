@@ -9,6 +9,13 @@ image:
     pullPolicy: IfNotPresent
 standalone:
   messageQueue: kafka
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
 etcd:
   replicaCount: 3
   image:

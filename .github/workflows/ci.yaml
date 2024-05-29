@@ -116,7 +116,7 @@ jobs:
         working-directory: milvus/tests/python_client
         run: |
           pip install -r requirements.txt --trusted-host https://test.pypi.org
-          cd chaos && pytest testcases/test_concurrent_operation.py --host 127.0.0.1 --log-cli-level=INFO --capture=no --request_duration 15m
+          cd chaos && pytest testcases/test_concurrent_operation.py --host 127.0.0.1 --log-cli-level=INFO --capture=no --request_duration 10m
 
       - name: List CDC task
         timeout-minutes: 15
