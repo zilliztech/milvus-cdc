@@ -47,7 +47,7 @@ class TestCDCSyncRequest(TestBase):
         # check collections in downstream
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
@@ -58,7 +58,7 @@ class TestCDCSyncRequest(TestBase):
             if set(col_list).issubset(set(list_collections())):
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert set(col_list).issubset(set(list_collections()))
@@ -84,7 +84,7 @@ class TestCDCSyncRequest(TestBase):
         # check collections in downstream
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
@@ -95,7 +95,7 @@ class TestCDCSyncRequest(TestBase):
             if set(col_list).issubset(set(list_collections())):
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert set(col_list).issubset(set(list_collections()))
@@ -109,7 +109,7 @@ class TestCDCSyncRequest(TestBase):
         # check collections in downstream
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
@@ -120,7 +120,7 @@ class TestCDCSyncRequest(TestBase):
             if set(col_list).isdisjoint(set(list_collections())):
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert set(col_list).isdisjoint(set(list_collections()))
@@ -153,7 +153,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
@@ -164,7 +164,7 @@ class TestCDCSyncRequest(TestBase):
             if c_downstream.num_entities == nb*epoch:
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert c_downstream.num_entities == nb*epoch
@@ -206,14 +206,14 @@ class TestCDCSyncRequest(TestBase):
         c.upsert(data)
         # check data has been upserted in upstream
         time.sleep(5)
-        res = c.query('varchar == "hello"')
+        res = c.query('varchar == "hello"', timeout=3)
         assert len(res) == nb
         # check collections in downstream
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        res = c_downstream.query('varchar == "hello"')
-        timeout = 120
+        res = c_downstream.query('varchar == "hello"', timeout=3)
+        timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # get the number of entities in downstream
@@ -223,8 +223,8 @@ class TestCDCSyncRequest(TestBase):
             if len(res) == nb:
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
-            res = c_downstream.query('varchar == "hello"')
+            time.sleep(1)
+            res = c_downstream.query('varchar == "hello"', timeout=3)
             if time.time() - t0 > timeout:
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert len(res) == nb
@@ -260,24 +260,24 @@ class TestCDCSyncRequest(TestBase):
         c.delete(f"int64 in {[i for i in range(100)]}")
         time.sleep(5)
         # query data in upstream
-        res = c.query(f"int64 in {[i for i in range(100)]}")
+        res = c.query(f"int64 in {[i for i in range(100)]}", timeout=3)
         assert len(res) == 0
         # check collections in downstream
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # get the number of entities in downstream
-            res = c_downstream.query(f"int64 in {[i for i in range(100)]}")
+            res = c_downstream.query(f"int64 in {[i for i in range(100)]}", timeout=3)
             if len(res) != 100:
                 log.info(f"sync progress:{(100-len(res)) / 100 * 100:.2f}%")
             # collections in subset of downstream
             if len(res) == 0:
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert len(res) == 0
@@ -301,7 +301,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
@@ -309,7 +309,7 @@ class TestCDCSyncRequest(TestBase):
             if set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c_downstream))):
                 log.info(f"partition synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"partition synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c_downstream)))
@@ -333,7 +333,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
@@ -341,7 +341,7 @@ class TestCDCSyncRequest(TestBase):
             if set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c_downstream))):
                 log.info(f"partition synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"partition synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c_downstream)))
@@ -356,14 +356,14 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
             if set([f"partition_{i}" for i in range(10)]).isdisjoint(set(list_partitions(c_downstream))):
                 log.info(f"partition synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             c_downstream = Collection(name=collection_name)
             if time.time() - t0 > timeout:
                 log.info(f"partition synced in downstream failed with timeout: {time.time() - t0:.2f}s")
@@ -399,14 +399,14 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
             if len(c_downstream.indexes) == 1:
                 log.info(f"index synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"index synced in downstream failed with timeout: {time.time() - t0:.2f}s")
 
@@ -440,14 +440,14 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
             if len(c_downstream.indexes) == 1:
                 log.info(f"index synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"index synced in downstream failed with timeout: {time.time() - t0:.2f}s")
 
@@ -460,14 +460,14 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
             if len(c_downstream.indexes) == 0:
                 log.info(f"index synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"index synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert len(c_downstream.indexes) == 0
@@ -504,7 +504,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 120
+        timeout = 30
         replicas = None
         t0 = time.time()
         while True and time.time() - t0 < timeout:
@@ -517,7 +517,7 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"replicas num in downstream: {len(res.groups)}")
                 log.info(f"replicas synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"replicas synced in downstream failed with timeout: {time.time() - t0:.2f}s")
 
@@ -533,7 +533,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 120
+        timeout = 30
         replicas = None
         t0 = time.time()
         while True and time.time() - t0 < timeout:
@@ -543,7 +543,7 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"replicas released in downstream successfully")
                 log.info(f"replicas synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"replicas synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert c_state == LoadState.NotLoad, f"downstream collection state is {c_state}"
@@ -591,7 +591,7 @@ class TestCDCSyncRequest(TestBase):
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
         log.info(f"number of entities in downstream: {c_downstream.num_entities}")
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # get the number of entities in downstream
@@ -601,7 +601,7 @@ class TestCDCSyncRequest(TestBase):
             if c_downstream.num_entities == nb:
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         c_downstream.flush()
@@ -622,13 +622,13 @@ class TestCDCSyncRequest(TestBase):
         # check database in downstream
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if db_name in db.list_database():
                 log.info(f"database synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"database synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         log.info(f"database in downstream {db.list_database()}")
@@ -650,13 +650,13 @@ class TestCDCSyncRequest(TestBase):
         # check database in downstream
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if db_name in db.list_database():
                 log.info(f"database synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"database synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         log.info(f"database in downstream {db.list_database()}")
@@ -670,13 +670,13 @@ class TestCDCSyncRequest(TestBase):
         # check database in downstream
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
-        timeout = 120
+        timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if db_name not in db.list_database():
                 log.info(f"database synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(0.5)
+            time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"database synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         log.info(f"database in downstream {db.list_database()}")

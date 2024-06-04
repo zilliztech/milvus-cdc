@@ -75,6 +75,7 @@ type EtcdOp struct {
 
 	watchCollectionOnce sync.Once
 	watchPartitionOnce  sync.Once
+	watchStartOnce      sync.Once
 	retryOptions        []retry.Option
 
 	// task id -> api.CollectionFilter
@@ -152,7 +153,9 @@ func NewEtcdOp(etcdServerConfig config.EtcdServerConfig, defaultPartitionName st
 }
 
 func (e *EtcdOp) StartWatch() {
-	close(e.startWatch)
+	e.watchStartOnce.Do(func() {
+		close(e.startWatch)
+	})
 }
 
 func (e *EtcdOp) collectionPrefix() string {
@@ -206,20 +209,30 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 								err := proto.Unmarshal(event.PrevKv.Value, beforeInfo)
 								if err != nil {
 									log.Warn("fail to unmarshal the collection info",
-										zap.String("key", util.ToString(event.PrevKv.Key)), zap.String("value", util.Base64Encode(event.PrevKv.Value)), zap.Error(err))
+										zap.String("key", util.ToString(event.PrevKv.Key)),
+										zap.String("value", util.Base64Encode(event.PrevKv.Value)), zap.Error(err))
 									continue
 								}
 								if beforeInfo.State != pb.CollectionState_CollectionCreating {
 									continue
 								}
+								collectionName := beforeInfo.Schema.GetName()
 								beforeInfo.State = SkipCollectionState
-								e.subscribeCollectionEvent.Range(func(key string, value api.CollectionEventConsumer) bool {
+								hasConsume := e.subscribeCollectionEvent.Range(func(key string, value api.CollectionEventConsumer) bool {
 									if value != nil && value(beforeInfo) {
-										log.Info("the collection has been consumed", zap.Int64("collection_id", beforeInfo.ID), zap.String("task_id", key))
+										log.Info("the collection has been consumed",
+											zap.String("collection_name", collectionName),
+											zap.Int64("collection_id", beforeInfo.ID),
+											zap.String("task_id", key))
 										return false
 									}
 									return true
 								})
+								if !hasConsume {
+									log.Info("the collection is not consumed",
+										zap.String("collection_name", collectionName),
+										zap.Int64("collection_id", beforeInfo.ID))
+								}
 							}
 
 							continue
@@ -231,15 +244,18 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 							continue
 						}
 
+						collectionName := info.Schema.GetName()
+
 						if info.State != pb.CollectionState_CollectionCreated {
 							log.Info("the collection state is not created",
-								zap.String("key", collectionKey), zap.String("collection_name", info.Schema.GetName()), zap.String("state", info.State.String()))
+								zap.String("key", collectionKey), zap.String("collection_name", collectionName),
+								zap.String("state", info.State.String()))
 							continue
 						}
 
 						if filter != nil && filter(info) {
 							log.Info("the collection is filtered in the watch process",
-								zap.String("key", collectionKey), zap.String("collection_name", info.Schema.GetName()))
+								zap.String("key", collectionKey), zap.String("collection_name", collectionName))
 							continue
 						}
 
@@ -249,20 +265,25 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 							}, e.retryOptions...)
 							if err != nil {
 								log.Warn("fail to fill collection field in the watch process",
-									zap.String("key", collectionKey), zap.String("collection_name", info.Schema.GetName()), zap.Error(err))
+									zap.String("key", collectionKey), zap.String("collection_name", collectionName), zap.Error(err))
 								return struct{}{}, err
 							}
 							e.collectionID2Name.Store(info.ID, info.Schema.Name)
 							if databaseID := e.getDatabaseIDFromCollectionKey(collectionKey); databaseID != 0 {
 								e.collectionID2DBID.Store(info.ID, databaseID)
 							}
-							e.subscribeCollectionEvent.Range(func(key string, value api.CollectionEventConsumer) bool {
+							hasConsume := e.subscribeCollectionEvent.Range(func(key string, value api.CollectionEventConsumer) bool {
 								if value != nil && value(info) {
 									log.Info("the collection has been consumed", zap.Int64("collection_id", info.ID), zap.String("task_id", key))
 									return false
 								}
 								return true
 							})
+							if !hasConsume {
+								log.Info("the collection is not consumed",
+									zap.Int64("collection_id", info.ID),
+									zap.String("collection_name", collectionName))
+							}
 							return struct{}{}, nil
 						})
 					}
@@ -332,43 +353,69 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 								err := proto.Unmarshal(event.PrevKv.Value, info)
 								if err != nil {
 									log.Warn("fail to unmarshal the partition info",
-										zap.String("key", util.ToString(event.PrevKv.Key)), zap.String("value", util.Base64Encode(event.PrevKv.Value)), zap.Error(err))
+										zap.String("key", util.ToString(event.PrevKv.Key)),
+										zap.String("value", util.Base64Encode(event.PrevKv.Value)), zap.Error(err))
 									continue
 								}
 								if beforeInfo.State != pb.PartitionState_PartitionCreating {
 									continue
 								}
+
 								beforeInfo.State = SkipPartitionState
-								e.subscribePartitionEvent.Range(func(key string, value api.PartitionEventConsumer) bool {
+								hasConsume := e.subscribePartitionEvent.Range(func(key string, value api.PartitionEventConsumer) bool {
 									if value != nil && value(beforeInfo) {
-										log.Info("the partition has been consumed", zap.String("key", partitionKey), zap.String("task_id", key))
+										log.Info("the partition has been consumed",
+											zap.Int64("collection_id", beforeInfo.CollectionID),
+											zap.String("partition_name", beforeInfo.PartitionName),
+											zap.String("key", partitionKey),
+											zap.String("task_id", key))
 										return false
 									}
 									return true
 								})
+								if !hasConsume {
+									log.Info("the partition is not consumed",
+										zap.Int64("collection_id", beforeInfo.CollectionID),
+										zap.String("partition_name", beforeInfo.PartitionName),
+										zap.String("key", partitionKey))
+								}
 								continue
 							}
 							continue
 						}
 						if info.State != pb.PartitionState_PartitionCreated ||
 							strings.Contains(info.PartitionName, e.defaultPartitionName) {
-							log.Info("partition state is not created or partition name is default", zap.String("partition name", info.PartitionName), zap.Any("state", info.State))
+							log.Info("partition state is not created or partition name is default",
+								zap.Int64("collection_id", info.CollectionID),
+								zap.String("partition name", info.PartitionName), zap.Any("state", info.State))
 							continue
 						}
 						if filter != nil && filter(info) {
-							log.Info("partition filter", zap.String("partition name", info.PartitionName))
+							log.Info("partition filter",
+								zap.Int64("collection_id", info.CollectionID),
+								zap.String("partition name", info.PartitionName))
 							continue
 						}
 
 						log.Debug("get a new partition in the watch process", zap.String("key", partitionKey))
 						_ = e.handlerWatchEventPool.Submit(func() (struct{}, error) {
-							e.subscribePartitionEvent.Range(func(key string, value api.PartitionEventConsumer) bool {
+							hasConsume := e.subscribePartitionEvent.Range(func(key string, value api.PartitionEventConsumer) bool {
 								if value != nil && value(info) {
-									log.Info("the partition has been consumed", zap.String("key", partitionKey), zap.String("task_id", key))
+									log.Info("the partition has been consumed",
+										zap.Int64("collection_id", info.CollectionID),
+										zap.String("partition_name", info.PartitionName),
+										zap.String("key", partitionKey),
+										zap.String("task_id", key))
 									return false
 								}
 								return true
 							})
+							if !hasConsume {
+								log.Info("the partition is not consumed",
+									zap.Int64("collection_id", info.CollectionID),
+									zap.String("partition_name", info.PartitionName),
+									zap.String("key", partitionKey))
+							}
 							return struct{}{}, nil
 						})
 					}

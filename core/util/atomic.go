@@ -96,10 +96,16 @@ func (m *Map[K, V]) Delete(key K) {
 	m.m.Delete(key)
 }
 
-func (m *Map[K, V]) Range(f func(key K, value V) bool) {
+func (m *Map[K, V]) Range(f func(key K, value V) bool) bool {
+	isRangeAll := true
 	m.m.Range(func(key, value any) bool {
-		return f(key.(K), value.(V))
+		fBool := f(key.(K), value.(V))
+		if !fBool {
+			isRangeAll = false
+		}
+		return fBool
 	})
+	return isRangeAll
 }
 
 func (m *Map[K, V]) GetUnsafeMap() map[K]V {

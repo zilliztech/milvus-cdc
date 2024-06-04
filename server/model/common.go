@@ -43,3 +43,10 @@ type BufferConfig struct {
 	Period int `json:"period" mapstructure:"period"`
 	Size   int `json:"size" mapstructure:"size"`
 }
+
+const (
+	// TmpCollectionID which means it's the user custom collection position
+	TmpCollectionID int64 = -1
+	// TmpCollectionName TODO if replicate the rbac info, the collection id will be set it
+	TmpCollectionName = "-1"
+)

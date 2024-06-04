@@ -52,11 +52,6 @@ import (
 	"github.com/zilliztech/milvus-cdc/server/store"
 )
 
-const (
-	TmpCollectionID   = -1
-	TmpCollectionName = "-1"
-)
-
 type ReplicateEntity struct {
 	channelManager api.ChannelManager
 	targetClient   api.TargetAPI
@@ -264,10 +259,15 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 			}
 			positions[s] = p
 		}
+		// TODO it will break when support multiple collections in a task
+		collectionName := req.CollectionInfos[0].Name
 		metaPosition := &meta.TaskCollectionPosition{
-			TaskID:          info.TaskID,
-			CollectionID:    TmpCollectionID,
-			CollectionName:  TmpCollectionName,
+			TaskID: info.TaskID,
+			// TODO how to get the collection id
+			// CollectionID:    TmpCollectionID,
+			// CollectionName:  TmpCollectionName,
+			CollectionID:    model.TmpCollectionID,
+			CollectionName:  collectionName,
 			Positions:       positions,
 			TargetPositions: positions,
 		}
@@ -342,41 +342,44 @@ func (e *MetaCDC) checkCollectionInfos(infos []model.CollectionInfo) error {
 		return servererror.NewClientError("empty collection info")
 	}
 
-	if len(infos) != 1 || infos[0].Name != cdcreader.AllCollection {
-		return servererror.NewClientError("the collection info should be only one, and the collection name should be `*`. Specifying collection name will be supported in the future.")
-	}
-	return nil
+	// if len(infos) != 1 || infos[0].Name != cdcreader.AllCollection {
+	// 	return servererror.NewClientError("the collection info should be only one, and the collection name should be `*`. Specifying collection name will be supported in the future.")
+	// }
+	// return nil
 
-	// TODO
-	// var (
-	// 	longNames []string
-	// 	emptyName bool
-	// )
-	// for _, info := range infos {
-	// 	if info.Name == "" {
-	// 		emptyName = true
-	// 	}
-	// 	if info.Name == cdcreader.AllCollection && len(infos) > 1 {
-	// 		return servererror.NewClientError(fmt.Sprintf("make sure the only one collection if you want to use the '*' collection param, current param: %v",
-	// 			lo.Map(infos, func(t model.CollectionInfo, _ int) string {
-	// 				return t.Name
-	// 			})))
-	// 	}
-	// 	if len(info.Name) > e.config.MaxNameLength {
-	// 		longNames = append(longNames, info.Name)
-	// 	}
-	// }
-	// if !emptyName && len(longNames) == 0 {
-	// 	return nil
-	// }
-	// var errMsg string
-	// if emptyName {
-	// 	errMsg += "there is a collection name that is empty. "
-	// }
-	// if len(longNames) > 0 {
-	// 	errMsg += fmt.Sprintf("there are some collection names whose length exceeds 256 characters, %v", longNames)
-	// }
-	// return servererror.NewClientError(errMsg)
+	if len(infos) != 1 {
+		return servererror.NewClientError("the collection info should be only one.")
+	}
+
+	var (
+		longNames []string
+		emptyName bool
+	)
+	for _, info := range infos {
+		if info.Name == "" {
+			emptyName = true
+		}
+		if info.Name == cdcreader.AllCollection && len(infos) > 1 {
+			return servererror.NewClientError(fmt.Sprintf("make sure the only one collection if you want to use the '*' collection param, current param: %v",
+				lo.Map(infos, func(t model.CollectionInfo, _ int) string {
+					return t.Name
+				})))
+		}
+		if len(info.Name) > e.config.MaxNameLength {
+			longNames = append(longNames, info.Name)
+		}
+	}
+	if !emptyName && len(longNames) == 0 {
+		return nil
+	}
+	var errMsg string
+	if emptyName {
+		errMsg += "there is a collection name that is empty. "
+	}
+	if len(longNames) > 0 {
+		errMsg += fmt.Sprintf("there are some collection names whose length exceeds %d characters, %v", e.config.MaxNameLength, longNames)
+	}
+	return servererror.NewClientError(errMsg)
 }
 
 func (e *MetaCDC) getUUID() string {
@@ -406,14 +409,31 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 		taskLog.Warn("fail to get the task collection position", zap.Error(err))
 		return servererror.NewServerError(errors.WithMessage(err, "fail to get the task collection position"))
 	}
-	if len(taskPositions) > 1 {
-		taskLog.Warn("the task collection position is invalid", zap.Any("task_id", info.TaskID))
-		return servererror.NewServerError(errors.New("the task collection position is invalid"))
-	}
+	// TODO it will break when support multiple collections in a task
+	// if the last position and request position are existed, it should use the last position
+	var taskPosition *meta.TaskCollectionPosition
 	channelSeekPosition := make(map[string]*msgpb.MsgPosition)
+	if len(taskPositions) > 1 {
+		if len(taskPositions) == 2 {
+			if taskPositions[0].CollectionID == model.TmpCollectionID &&
+				taskPositions[1].CollectionID != model.TmpCollectionID {
+				taskPosition = taskPositions[1]
+			} else if taskPositions[0].CollectionID != model.TmpCollectionID &&
+				taskPositions[1].CollectionID == model.TmpCollectionID {
+				taskPosition = taskPositions[0]
+			}
+		}
+		if taskPosition == nil {
+			taskLog.Warn("the task collection position is invalid", zap.Any("task_id", info.TaskID))
+			return servererror.NewServerError(errors.New("the task collection position is invalid"))
+		}
+	}
 	if len(taskPositions) == 1 {
-		taskLog.Info("task seek position", zap.Any("position", taskPositions[0].Positions))
-		for _, p := range taskPositions[0].Positions {
+		taskPosition = taskPositions[0]
+	}
+	if taskPosition != nil {
+		taskLog.Info("task seek position", zap.Any("position", taskPosition.Positions))
+		for _, p := range taskPosition.Positions {
 			dataPair := p.DataPair
 			channelSeekPosition[dataPair.GetKey()] = &msgpb.MsgPosition{
 				ChannelName: dataPair.GetKey(),
@@ -619,6 +639,8 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, info *meta.
 	go func() {
 		taskLog := log.With(zap.String("task_id", info.TaskID))
 		writeCallback := NewWriteCallback(e.metaStoreFactory, e.rootPath, info.TaskID)
+		collectionName := info.CollectionNames()[0]
+		isAnyCollection := collectionName == cdcreader.AllCollection
 
 		msgChan := entity.channelManager.GetMsgChan(channelName)
 		if msgChan == nil {
@@ -673,7 +695,13 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, info *meta.
 					},
 				}
 				if position != nil {
-					err = writeCallback.UpdateTaskCollectionPosition(TmpCollectionID, TmpCollectionName, channelName,
+					msgCollectionName := collectionName
+					msgCollectionID := model.TmpCollectionID
+					if !isAnyCollection {
+						msgCollectionName = util.GetCollectionNameFromMsgPack(msgPack)
+						msgCollectionID = util.GetCollectionIDFromMsgPack(msgPack)
+					}
+					err = writeCallback.UpdateTaskCollectionPosition(msgCollectionID, msgCollectionName, channelName,
 						metaPosition, metaOpPosition, metaTargetPosition)
 					if err != nil {
 						log.Warn("fail to update the collection position", zap.Any("pack", msgPack), zap.Error(err))
@@ -708,6 +736,9 @@ func replicateMetric(info *meta.TaskInfo, channelName string, msgPack *msgstream
 
 func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *ReplicateEntity, channelName, channelPosition string) (api.Reader, error) {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
+	collectionName := info.CollectionNames()[0]
+	isAnyCollection := collectionName == cdcreader.AllCollection
+	// isTmpCollection := collectionName == model.TmpCollectionName
 
 	channelReader, err := cdcreader.NewChannelReader(channelName, channelPosition, config.MQConfig{
 		Pulsar: e.config.SourceConfig.Pulsar,
@@ -722,6 +753,13 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 		metrics.ReplicateTimeVec.
 			WithLabelValues(info.TaskID, channelName, metrics.OPTypeRead).
 			Set(float64(msgTime))
+
+		msgCollectionName := util.GetCollectionNameFromMsgPack(pack)
+		// TODO it should be changed if replicate the user and role info or multi collection
+		if !isAnyCollection && msgCollectionName != collectionName {
+			// skip the message if the collection name is not equal to the task collection name
+			return true
+		}
 
 		positionBytes, err := replicateEntity.writerObj.HandleOpMessagePack(funcCtx, pack)
 		if err != nil {
@@ -744,7 +782,7 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 			},
 		}
 		writeCallback := NewWriteCallback(e.metaStoreFactory, e.rootPath, info.TaskID)
-		err = writeCallback.UpdateTaskCollectionPosition(TmpCollectionID, TmpCollectionName, channelName,
+		err = writeCallback.UpdateTaskCollectionPosition(0, collectionName, channelName,
 			metaPosition, metaPosition, nil)
 		if err != nil {
 			log.Warn("fail to update the collection position", zap.Any("pack", pack), zap.Error(err))

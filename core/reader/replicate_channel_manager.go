@@ -676,9 +676,10 @@ type replicateChannelHandler struct {
 	replicateCtx   context.Context
 	pChannelName   string
 	targetPChannel string
-	stream         msgstream.MsgStream
-	targetClient   api.TargetAPI
-	metaOp         api.MetaOp
+	// TODO make it single stream when there are many tasks
+	stream       msgstream.MsgStream
+	targetClient api.TargetAPI
+	metaOp       api.MetaOp
 
 	// key: source milvus collectionID value: *model.TargetCollectionInfo
 	recordLock        deadlock.RWMutex

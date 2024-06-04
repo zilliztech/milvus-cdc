@@ -52,6 +52,7 @@ type tsManager struct {
 	retryOptions []retry.Option
 	lastTS       *util.Value[uint64]
 	refLock      sync.Mutex
+	rateLog      *log.RateLog
 }
 
 func GetTSManager() *tsManager {
@@ -59,6 +60,7 @@ func GetTSManager() *tsManager {
 		tsInstance = &tsManager{
 			retryOptions: util.GetRetryOptions(config.GetCommonConfig().Retry),
 			lastTS:       util.NewValue[uint64](0),
+			rateLog:      log.NewRateLog(1, log.L()),
 		}
 	})
 	return tsInstance
@@ -134,7 +136,7 @@ func (m *tsManager) GetMinTS(channelName string) (uint64, bool) {
 	resetTS := false
 	if m.lastTS.Load() > minTS {
 		a, b := m.getUnsafeTSInfo()
-		log.Info("last ts is larger than min ts", zap.Uint64("lastTS", m.lastTS.Load()), zap.Uint64("minTS", minTS),
+		m.rateLog.Info("last ts is larger than min ts", zap.Uint64("lastTS", m.lastTS.Load()), zap.Uint64("minTS", minTS),
 			zap.String("channelName", channelName), zap.Any("channelTS", a), zap.Any("channelRef", b))
 		minTS = m.lastTS.Load()
 		resetTS = true
