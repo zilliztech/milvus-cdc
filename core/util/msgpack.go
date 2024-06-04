@@ -50,3 +50,21 @@ func (o *OnceWriteChan[T]) Write(data T) {
 func IsTombstone(data []byte) bool {
 	return bytes.Equal(data, SuffixSnapshotTombstone)
 }
+
+func GetCollectionNameFromMsgPack(msgPack *msgstream.MsgPack) string {
+	if len(msgPack.Msgs) == 0 {
+		return ""
+	}
+	firstMsg := msgPack.Msgs[0]
+	collectionName, _ := GetCollectionNameFromRequest(firstMsg)
+	return collectionName
+}
+
+func GetCollectionIDFromMsgPack(msgPack *msgstream.MsgPack) int64 {
+	if len(msgPack.Msgs) == 0 {
+		return 0
+	}
+	firstMsg := msgPack.Msgs[0]
+	collectionID, _ := GetCollectionIDFromRequest(firstMsg)
+	return collectionID
+}

@@ -47,6 +47,7 @@ type ChannelReader struct {
 	subscriptionPosition mqwrapper.SubscriptionInitialPosition
 	seekPosition         string
 
+	// TODO make it single stream when there are many tasks
 	msgStream   msgstream.MsgStream
 	dataHandler func(context.Context, *msgstream.MsgPack) bool // the return value is false means quit
 	isQuit      util.Value[bool]

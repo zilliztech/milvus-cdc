@@ -22,39 +22,43 @@ import (
 	"testing"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestOnceChan(t *testing.T) {
-	c := make(chan int, 1)
-	onceChan := NewOnceWriteChan(c)
-	onceChan.Write(1)
-	onceChan.Write(2)
-	data := <-c
-	assert.Equal(t, 1, data)
-	select {
-	case <-c:
-		assert.Fail(t, "channel should be empty")
-	default:
+func TestGetCollectionNameFromRequest(t *testing.T) {
+	type args struct {
+		req any
 	}
-}
-
-func TestGetCollectionNameFromMsgPack(t *testing.T) {
-	t.Run("empty pack", func(t *testing.T) {
-		assert.Equal(t, "", GetCollectionNameFromMsgPack(EmptyMsgPack))
-	})
-
-	t.Run("success", func(t *testing.T) {
-		msgPack := &msgstream.MsgPack{
-			Msgs: []msgstream.TsMsg{
-				&msgstream.CreateCollectionMsg{
-					CreateCollectionRequest: msgpb.CreateCollectionRequest{
-						CollectionName: "test",
-					},
+	tests := []struct {
+		name  string
+		args  args
+		want  string
+		want1 bool
+	}{
+		{
+			name: "success",
+			args: args{
+				req: &msgpb.InsertRequest{
+					CollectionName: "hello",
 				},
 			},
-		}
-		assert.Equal(t, "test", GetCollectionNameFromMsgPack(msgPack))
-	})
+			want:  "hello",
+			want1: true,
+		},
+		{
+			name: "success",
+			args: args{
+				req: "aaa",
+			},
+			want:  "",
+			want1: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1 := GetCollectionNameFromRequest(tt.args.req)
+			assert.Equalf(t, tt.want, got, "GetCollectionNameFromRequest(%v)", tt.args.req)
+			assert.Equalf(t, tt.want1, got1, "GetCollectionNameFromRequest(%v)", tt.args.req)
+		})
+	}
 }

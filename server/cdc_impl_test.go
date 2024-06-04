@@ -242,7 +242,11 @@ func TestReload(t *testing.T) {
 }
 
 func TestValidCreateRequest(t *testing.T) {
-	metaCDC := &MetaCDC{}
+	metaCDC := &MetaCDC{
+		config: &CDCServerConfig{
+			MaxNameLength: 6,
+		},
+	}
 	t.Run("empty host", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{})
 		assert.Error(t, err)
@@ -330,7 +334,7 @@ func TestValidCreateRequest(t *testing.T) {
 			},
 			CollectionInfos: []model.CollectionInfo{
 				{
-					Name: "foo",
+					Name: "foofoofoo",
 				},
 			},
 		})
@@ -419,6 +423,7 @@ func TestCreateRequest(t *testing.T) {
 					EtcdMetaSubPath:      "meta",
 					DefaultPartitionName: "_default",
 				},
+				MaxNameLength: 256,
 			},
 		}
 		initMetaCDCMap(metaCDC)

@@ -178,7 +178,7 @@ func (m *MilvusDataHandler) CreatePartition(ctx context.Context, param *api.Crea
 				return nil
 			}
 		}
-		return milvus.CreatePartition(ctx, param.CollectionName, param.PartitionName)
+		return milvus.CreatePartition(ctx, param.CollectionName, param.PartitionName, client.WithCreatePartitionMsgBase(param.Base))
 	})
 }
 
@@ -188,7 +188,7 @@ func (m *MilvusDataHandler) DropPartition(ctx context.Context, param *api.DropPa
 		return nil
 	}
 	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		return milvus.DropPartition(ctx, param.CollectionName, param.PartitionName)
+		return milvus.DropPartition(ctx, param.CollectionName, param.PartitionName, client.WithDropPartitionMsgBase(param.Base))
 	})
 }
 

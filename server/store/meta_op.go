@@ -105,6 +105,9 @@ func UpdateTaskCollectionPosition(taskPositionStore api.MetaStore[*meta.TaskColl
 	}
 
 	if len(positions) == 0 {
+		if collectionID == 0 {
+			collectionID = -1
+		}
 		metaPosition := &meta.TaskCollectionPosition{
 			TaskID:         taskID,
 			CollectionID:   collectionID,
@@ -129,6 +132,9 @@ func UpdateTaskCollectionPosition(taskPositionStore api.MetaStore[*meta.TaskColl
 	}
 
 	metaPosition := positions[0]
+	if len(positions) > 1 && positions[1].CollectionID > 0 {
+		metaPosition = positions[1]
+	}
 	if metaPosition.Positions == nil {
 		metaPosition.Positions = make(map[string]*meta.PositionInfo)
 	}

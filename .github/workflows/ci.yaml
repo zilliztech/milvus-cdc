@@ -111,7 +111,7 @@ jobs:
           path: milvus
         
       - name: Run test
-        timeout-minutes: 60
+        timeout-minutes: 15
         shell: bash
         working-directory: milvus/tests/python_client
         run: |
@@ -259,7 +259,7 @@ jobs:
           }'
         
       - name: Run test
-        timeout-minutes: 60
+        timeout-minutes: 15
         shell: bash
         working-directory: tests
         run: |

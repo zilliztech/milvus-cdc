@@ -25,6 +25,7 @@ import (
 
 var configManager = config.NewManager()
 
+// nolint
 func NewParamItem(value string) paramtable.ParamItem {
 	item := paramtable.ParamItem{
 		Formatter: func(_ string) string {
