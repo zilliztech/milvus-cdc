@@ -30,6 +30,7 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
+	"github.com/milvus-io/milvus-sdk-go/v2/merr"
 	"github.com/milvus-io/milvus-sdk-go/v2/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -57,6 +58,19 @@ func TestDataHandler(t *testing.T) {
 		Status: &commonpb.Status{},
 	}, nil)
 	milvuspb.RegisterMilvusServiceServer(server, milvusService)
+
+	var hasPartitionCall *mock.Call
+	setHasPartitionCall := func(has bool) {
+		if hasPartitionCall != nil {
+			hasPartitionCall.Unset()
+			hasPartitionCall = nil
+		}
+		hasPartitionCall = milvusService.EXPECT().HasPartition(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+			Status: merr.Success(),
+			Value:  has,
+		}, nil).Maybe()
+	}
+	setHasPartitionCall(false)
 
 	go func() {
 		log.Println("Server started on port 50051")
@@ -313,6 +327,7 @@ func TestDataHandler(t *testing.T) {
 	})
 
 	t.Run("drop partition", func(t *testing.T) {
+		setHasPartitionCall(true)
 		dataHandler.ignorePartition = true
 		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
 			Status: &commonpb.Status{},
@@ -415,6 +430,7 @@ func TestDataHandler(t *testing.T) {
 	})
 
 	t.Run("load partitions", func(t *testing.T) {
+		setHasPartitionCall(true)
 		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
 			Status: &commonpb.Status{},
 			Value:  true,
@@ -430,6 +446,7 @@ func TestDataHandler(t *testing.T) {
 	})
 
 	t.Run("release partitions", func(t *testing.T) {
+		setHasPartitionCall(true)
 		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
 			Status: &commonpb.Status{},
 			Value:  true,
