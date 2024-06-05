@@ -1,9 +1,3 @@
-run:
-  skip-dirs:
-    - pb
-    - mocks
-    - tool
-
 linters:
   disable-all: true
   enable:
@@ -81,6 +75,10 @@ linters-settings:
 
 issues:
   exclude-use-default: false
+  exclude-dirs:
+    - pb
+    - mocks
+    - tool
   exclude:
     - should have a package comment
     - should have comment
@@ -99,5 +97,3 @@ issues:
   max-issues-per-linter: 0
   # Maximum count of issues with same text. Set to 0 to disable. Default is 3.
   max-same-issues: 0
-service:
-  golangci-lint-version: 1.50.0 # use the fixed version to not introduce new linters unexpectedly

@@ -1,16 +1,16 @@
 module github.com/zilliztech/milvus-cdc/server
 
-go 1.18
+go 1.21
 
 require (
 	github.com/cockroachdb/errors v1.9.1
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/goccy/go-json v0.10.2
-	github.com/golang/protobuf v1.5.3
+	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.3.0
-	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.5
-	github.com/milvus-io/milvus-sdk-go/v2 v2.3.5
-	github.com/milvus-io/milvus/pkg v0.0.2-0.20231023021410-6b33420b3a1b
+	github.com/milvus-io/milvus-proto/go-api/v2 v2.4.3
+	github.com/milvus-io/milvus-sdk-go/v2 v2.4.1-0.20240604033341-0f2b1f29bf47
+	github.com/milvus-io/milvus/pkg v0.0.2-0.20240605063157-545d4725fb04
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pingcap/log v1.1.1-0.20221015072633-39906604fb81
 	github.com/prometheus/client_golang v1.14.0
@@ -19,7 +19,7 @@ require (
 	github.com/zilliztech/milvus-cdc/core v0.0.1
 	go.etcd.io/etcd/client/v3 v3.5.5
 	go.uber.org/zap v1.21.0
-	google.golang.org/grpc v1.54.0
+	google.golang.org/grpc v1.57.1
 	sigs.k8s.io/yaml v1.3.0
 )
 
@@ -46,7 +46,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
-	github.com/dvsekhvalnov/jose2go v1.5.0 // indirect
+	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/getsentry/sentry-go v0.12.0 // indirect
@@ -68,7 +68,7 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jonboulle/clockwork v0.2.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.16.5 // indirect
+	github.com/klauspost/compress v1.17.7 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/linkedin/goavro/v2 v2.11.1 // indirect
@@ -79,10 +79,10 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mtibben/percent v0.2.1 // indirect
-	github.com/nats-io/jwt/v2 v2.4.1 // indirect
-	github.com/nats-io/nats-server/v2 v2.9.17 // indirect
-	github.com/nats-io/nats.go v1.24.0 // indirect
-	github.com/nats-io/nkeys v0.4.4 // indirect
+	github.com/nats-io/jwt/v2 v2.5.5 // indirect
+	github.com/nats-io/nats-server/v2 v2.10.12 // indirect
+	github.com/nats-io/nats.go v1.34.1 // indirect
+	github.com/nats-io/nkeys v0.4.7 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2 // indirect
 	github.com/panjf2000/ants/v2 v2.7.2 // indirect
@@ -116,6 +116,7 @@ require (
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
@@ -135,20 +136,22 @@ require (
 	go.opentelemetry.io/otel/trace v1.13.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	go.uber.org/automaxprocs v1.5.2 // indirect
+	go.uber.org/automaxprocs v1.5.3 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
-	golang.org/x/crypto v0.14.0 // indirect
+	golang.org/x/crypto v0.22.0 // indirect
 	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2 // indirect
-	golang.org/x/net v0.17.0 // indirect
-	golang.org/x/oauth2 v0.6.0 // indirect
+	golang.org/x/net v0.24.0 // indirect
+	golang.org/x/oauth2 v0.7.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.13.0 // indirect
-	golang.org/x/term v0.13.0 // indirect
-	golang.org/x/text v0.13.0 // indirect
-	golang.org/x/time v0.3.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/term v0.19.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230331144136-dcfb400f0633 // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
+	google.golang.org/genproto v0.0.0-20230526161137-0005af68ea54 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20230525234035-dd9d682886f9 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240401170217-c3f982113cda // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
@@ -161,7 +164,7 @@ replace (
 	github.com/apache/pulsar-client-go => github.com/milvus-io/pulsar-client-go v0.6.10
 	//github.com/milvus-io/milvus-sdk-go/v2 => github.com/SimFG/milvus-sdk-go/v2 v2.0.0-20231025090810-3c862f081ed2
 	// github.com/milvus-io/milvus-sdk-go/v2 => ../../milvus-sdk-go
-	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240126152941-561b213af6d1 // cdc-v2-pkg
+	//github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240126152941-561b213af6d1 // cdc-v2-pkg
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => ./../rocksdb
 	github.com/zilliztech/milvus-cdc/core => ../core
