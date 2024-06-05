@@ -24,11 +24,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/pingcap/log"
 	"github.com/stretchr/testify/assert"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
+
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 
 	"github.com/zilliztech/milvus-cdc/server/api"
 	"github.com/zilliztech/milvus-cdc/server/model"

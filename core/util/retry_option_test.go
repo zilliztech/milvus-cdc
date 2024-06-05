@@ -24,8 +24,9 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
-	"github.com/milvus-io/milvus/pkg/util/retry"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/milvus-io/milvus/pkg/util/retry"
 
 	"github.com/zilliztech/milvus-cdc/core/config"
 )

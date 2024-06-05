@@ -11,7 +11,7 @@ lint-fix:
 	@echo "Running gofumpt fix"
 	@gofumpt -l -w ./
 	@echo "Running gci fix"
-	@gci write ./ -s standard -s default -s "prefix(github.com/zilliztech)" --custom-order --skip-generated
+	@gci write ./ -s standard -s default -s "prefix(github.com/milvus-io)" -s "prefix(github.com/zilliztech)" --custom-order --skip-generated
 
 static-check:
 	@echo "Running go-lint check:"

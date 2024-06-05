@@ -21,9 +21,10 @@ package util
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestOnceChan(t *testing.T) {

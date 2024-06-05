@@ -32,6 +32,12 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/golang/protobuf/proto"
+	"github.com/samber/lo"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"sigs.k8s.io/yaml"
+
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/log"
@@ -39,11 +45,6 @@ import (
 	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 	"github.com/milvus-io/milvus/pkg/util/paramtable"
 	"github.com/milvus-io/milvus/pkg/util/tsoutil"
-	"github.com/samber/lo"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"sigs.k8s.io/yaml"
 
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/reader"

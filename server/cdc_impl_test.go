@@ -27,16 +27,17 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc"
+
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	sdkmocks "github.com/milvus-io/milvus-sdk-go/v2/mocks"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/typeutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"google.golang.org/grpc"
 
 	"github.com/zilliztech/milvus-cdc/core/config"
 	coremocks "github.com/zilliztech/milvus-cdc/core/mocks"

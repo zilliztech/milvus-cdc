@@ -16,41 +16,37 @@
  * limitations under the License.
  */
 
-package main
+package util
 
 import (
-	"io/ioutil"
-	"os"
+	"context"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"sigs.k8s.io/yaml"
-
-	pkglog "github.com/milvus-io/milvus/pkg/log"
-	"github.com/milvus-io/milvus/pkg/util/paramtable"
+	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
-	"github.com/zilliztech/milvus-cdc/server"
-	"github.com/zilliztech/milvus-cdc/server/tag"
 )
 
-func main() {
-	pkglog.ReplaceGlobals(zap.NewNop(), &pkglog.ZapProperties{
-		Core:   zapcore.NewNopCore(),
-		Syncer: zapcore.AddSync(ioutil.Discard),
-		Level:  zap.NewAtomicLevel(),
-	})
-	paramtable.Init()
-	tag.LogInfo()
+type MsgStreamFactory struct {
+	innerFactory msgstream.Factory
+}
 
-	s := &server.CDCServer{}
-
-	// parse config file
-	fileContent, _ := os.ReadFile("./configs/cdc.yaml")
-	var serverConfig server.CDCServerConfig
-	err := yaml.Unmarshal(fileContent, &serverConfig)
-	if err != nil {
-		log.Panic("Failed to parse config file", zap.Error(err))
+func NewMsgStreamFactory(factory msgstream.Factory) msgstream.Factory {
+	if factory == nil {
+		log.Panic("the factory can't be nil")
 	}
-	s.Run(&serverConfig)
+	return &MsgStreamFactory{
+		innerFactory: factory,
+	}
+}
+
+func (m *MsgStreamFactory) NewMsgStream(ctx context.Context) (msgstream.MsgStream, error) {
+	return m.innerFactory.NewMsgStream(ctx)
+}
+
+func (m *MsgStreamFactory) NewTtMsgStream(ctx context.Context) (msgstream.MsgStream, error) {
+	return m.innerFactory.NewMsgStream(ctx)
+}
+
+func (m *MsgStreamFactory) NewMsgStreamDisposer(ctx context.Context) func([]string, string) error {
+	return m.innerFactory.NewMsgStreamDisposer(ctx)
 }
