@@ -303,4 +303,4 @@ jobs:
           path: |
             scripts/k8s_logs
             tests/deployment/upstream/logs
-            server.log
+            server/server.log
