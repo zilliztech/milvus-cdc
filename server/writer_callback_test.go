@@ -23,10 +23,11 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/errors"
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
+
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/server/mocks"

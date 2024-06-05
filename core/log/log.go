@@ -22,8 +22,9 @@ import (
 	"context"
 	"sync/atomic"
 
-	"github.com/milvus-io/milvus/pkg/log"
 	"go.uber.org/zap"
+
+	"github.com/milvus-io/milvus/pkg/log"
 )
 
 var (

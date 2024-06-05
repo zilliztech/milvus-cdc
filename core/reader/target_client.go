@@ -22,8 +22,9 @@ import (
 	"context"
 
 	"github.com/cockroachdb/errors"
-	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"go.uber.org/zap"
+
+	"github.com/milvus-io/milvus-sdk-go/v2/client"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/log"

@@ -21,8 +21,9 @@ package util
 import (
 	"testing"
 
-	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 )
 
 func TestGetCollectionNameFromRequest(t *testing.T) {

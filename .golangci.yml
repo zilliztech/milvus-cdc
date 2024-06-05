@@ -26,10 +26,11 @@ linters-settings:
     sections:
       - standard
       - default
+      - prefix(github.com/milvus-io)
       - prefix(github.com/zilliztech)
     custom-order: true
   gofumpt:
-    lang-version: "1.18"
+    lang-version: "1.21"
     module-path: github.com/zilliztech
   goimports:
     local-prefixes: github.com/zilliztech

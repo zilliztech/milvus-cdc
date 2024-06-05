@@ -26,9 +26,10 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
+	"go.uber.org/zap"
+
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus/pkg/util/resource"
-	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
 )

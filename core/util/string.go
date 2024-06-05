@@ -26,8 +26,9 @@ import (
 	"unsafe"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"go.uber.org/zap"
+
+	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
 )

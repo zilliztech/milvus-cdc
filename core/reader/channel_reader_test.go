@@ -25,9 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/mocks"
