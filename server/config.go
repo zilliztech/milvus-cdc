@@ -53,6 +53,7 @@ type MilvusSourceConfig struct {
 	EtcdMetaSubPath      string
 	Etcd                 config.EtcdServerConfig
 	ReadChanLen          int
+	TimeTickInterval     int
 	DefaultPartitionName string
 	Pulsar               config.PulsarConfig
 	Kafka                config.KafkaConfig

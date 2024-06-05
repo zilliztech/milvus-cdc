@@ -61,6 +61,7 @@ type replicateChannelManager struct {
 	retryOptions          []retry.Option
 	startReadRetryOptions []retry.Option
 	messageBufferSize     int
+	ttInterval            int
 
 	channelLock       deadlock.Mutex
 	channelHandlerMap map[string]*replicateChannelHandler
@@ -111,6 +112,7 @@ func NewReplicateChannelManager(mqConfig config.MQConfig,
 			MaxBackOff:  readConfig.Retry.InitBackOff,
 		}),
 		messageBufferSize:       readConfig.MessageBufferSize,
+		ttInterval:              readConfig.TTInterval,
 		channelHandlerMap:       make(map[string]*replicateChannelHandler),
 		channelForwardMap:       make(map[string]struct{}),
 		replicateCollections:    make(map[int64]chan struct{}),
@@ -518,7 +520,12 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 		channelHandler, err = newReplicateChannelHandler(r.getCtx(),
 			sourceInfo, targetInfo,
 			r.targetClient, r.metaOp, r.apiEventChan,
-			&model.HandlerOpts{MessageBufferSize: r.messageBufferSize, Factory: r.factory, RetryOptions: r.retryOptions})
+			&model.HandlerOpts{
+				MessageBufferSize: r.messageBufferSize,
+				TTInterval:        r.ttInterval,
+				Factory:           r.factory,
+				RetryOptions:      r.retryOptions,
+			})
 		if err != nil {
 			channelLog.Warn("fail to new replicate channel handler", zap.Error(err))
 			return nil, err
@@ -1322,6 +1329,9 @@ func newReplicateChannelHandler(ctx context.Context,
 		}
 		log.Info("success to seek the msg stream")
 	}
+	if opts.TTInterval <= 0 {
+		opts.TTInterval = util.DefaultReplicateTTInterval
+	}
 	channelHandler := &replicateChannelHandler{
 		replicateCtx:       ctx,
 		pChannelName:       sourceInfo.PChannelName,
@@ -1337,7 +1347,7 @@ func newReplicateChannelHandler(ctx context.Context,
 		generatePackChan:   make(chan *msgstream.MsgPack, 30),
 		retryOptions:       opts.RetryOptions,
 		lastSendTTTime:     time.Now(),
-		ttPeriod:           5 * time.Second,
+		ttPeriod:           time.Duration(opts.TTInterval) * time.Second,
 		sourceSeekPosition: sourceInfo.SeekPosition,
 	}
 	channelHandler.AddCollection(sourceInfo.CollectionID, targetInfo)
