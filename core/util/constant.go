@@ -16,10 +16,6 @@
  * limitations under the License.
  */
 
-package config
+package util
 
-type ReaderConfig struct {
-	MessageBufferSize int
-	TTInterval        int
-	Retry             RetrySettings
-}
+var DefaultReplicateTTInterval = 3

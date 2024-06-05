@@ -47,6 +47,7 @@ type TargetCollectionInfo struct {
 
 type HandlerOpts struct {
 	MessageBufferSize int
+	TTInterval        int
 	Factory           msgstream.Factory
 	RetryOptions      []retry.Option
 }

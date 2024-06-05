@@ -529,11 +529,13 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	}
 
 	bufferSize := e.config.SourceConfig.ReadChanLen
+	ttInterval := e.config.SourceConfig.TimeTickInterval
 	channelManager, err := cdcreader.NewReplicateChannelManager(config.MQConfig{
 		Pulsar: e.config.SourceConfig.Pulsar,
 		Kafka:  e.config.SourceConfig.Kafka,
 	}, e.mqFactoryCreator, milvusClient, config.ReaderConfig{
 		MessageBufferSize: bufferSize,
+		TTInterval:        ttInterval,
 		Retry:             e.config.Retry,
 	}, metaOp, func(s string, pack *msgstream.MsgPack) {
 		replicateMetric(info, s, pack, metrics.OPTypeRead)

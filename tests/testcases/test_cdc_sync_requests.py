@@ -206,13 +206,13 @@ class TestCDCSyncRequest(TestBase):
         c.upsert(data)
         # check data has been upserted in upstream
         time.sleep(5)
-        res = c.query('varchar == "hello"', timeout=3)
+        res = c.query('varchar == "hello"', timeout=10)
         assert len(res) == nb
         # check collections in downstream
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        res = c_downstream.query('varchar == "hello"', timeout=3)
+        res = c_downstream.query('varchar == "hello"', timeout=10)
         timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
@@ -224,7 +224,7 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
             time.sleep(1)
-            res = c_downstream.query('varchar == "hello"', timeout=3)
+            res = c_downstream.query('varchar == "hello"', timeout=10)
             if time.time() - t0 > timeout:
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert len(res) == nb
@@ -260,7 +260,7 @@ class TestCDCSyncRequest(TestBase):
         c.delete(f"int64 in {[i for i in range(100)]}")
         time.sleep(5)
         # query data in upstream
-        res = c.query(f"int64 in {[i for i in range(100)]}", timeout=3)
+        res = c.query(f"int64 in {[i for i in range(100)]}", timeout=10)
         assert len(res) == 0
         # check collections in downstream
         connections.disconnect("default")
@@ -270,7 +270,7 @@ class TestCDCSyncRequest(TestBase):
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # get the number of entities in downstream
-            res = c_downstream.query(f"int64 in {[i for i in range(100)]}", timeout=3)
+            res = c_downstream.query(f"int64 in {[i for i in range(100)]}", timeout=10)
             if len(res) != 100:
                 log.info(f"sync progress:{(100-len(res)) / 100 * 100:.2f}%")
             # collections in subset of downstream
