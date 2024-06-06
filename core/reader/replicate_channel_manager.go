@@ -1350,6 +1350,7 @@ func newReplicateChannelHandler(ctx context.Context,
 		ttPeriod:           time.Duration(opts.TTInterval) * time.Second,
 		sourceSeekPosition: sourceInfo.SeekPosition,
 	}
+	channelHandler.lastSendTTTime = time.Now().Add(-channelHandler.ttPeriod)
 	channelHandler.AddCollection(sourceInfo.CollectionID, targetInfo)
 	GetTSManager().CollectTS(channelHandler.pChannelName, math.MaxUint64)
 	return channelHandler, nil
