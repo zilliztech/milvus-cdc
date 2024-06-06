@@ -31,7 +31,8 @@ jobs:
            COMMIT_ID=$(git rev-parse --short HEAD)
            docker tag milvus-cdc:${BRANCH}-${COMMIT_ID} ${{ secrets.DOCKER_USER }}/milvus-cdc:${BRANCH}-${COMMIT_ID}
            docker push ${{ secrets.DOCKER_USER }}/milvus-cdc:${BRANCH}-${COMMIT_ID}
-            
+           docker tag milvus-cdc:${BRANCH}-${COMMIT_ID} ${{ secrets.DOCKER_USER }}/milvus-cdc:${BRANCH}-latest
+           docker push ${{ secrets.DOCKER_USER }}/milvus-cdc:${BRANCH}-latest
 
 
 
