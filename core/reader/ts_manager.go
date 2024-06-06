@@ -110,7 +110,8 @@ func (m *tsManager) getUnsafeTSInfo() (map[string]uint64, map[string]int) {
 }
 
 func (m *tsManager) GetMinTS(channelName string) (uint64, bool) {
-	minTS := m.channelTS.LoadWithDefault(channelName, math.MaxUint64)
+	curChannelTS := m.channelTS.LoadWithDefault(channelName, math.MaxUint64)
+	minTS := curChannelTS
 
 	err := retry.Do(context.Background(), func() error {
 		m.channelTS.Range(func(k string, v uint64) bool {
@@ -150,6 +151,14 @@ func (m *tsManager) GetMinTS(channelName string) (uint64, bool) {
 	})
 	msgTime, _ := tsoutil.ParseHybridTs(minTS)
 	TSMetricVec.WithLabelValues(channelName).Set(float64(msgTime))
+
+	channelTime, _ := tsoutil.ParseHybridTs(curChannelTS)
+	diffTimeValue := channelTime - msgTime
+	if diffTimeValue > 3*1000 { // diff 3 second
+		a, b := m.getUnsafeTSInfo()
+		log.Info("there is a big diff between channel ts and min ts", zap.Uint64("minTS", minTS),
+			zap.String("channelName", channelName), zap.Any("channelTS", a), zap.Any("channelRef", b))
+	}
 	return minTS, resetTS
 }
 
