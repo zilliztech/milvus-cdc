@@ -1,0 +1,37 @@
+name: Build and Push Docker image
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    types: [closed]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true || github.event_name == 'push'
+    steps:
+        - uses: actions/checkout@v3
+        - run: git fetch --force --tags
+        - uses: actions/setup-go@v4
+          with:
+            go-version: '1.21'
+        - name: Docker Login
+          uses: docker/login-action@v2
+          with:
+            username: ${{ secrets.DOCKER_USER }}
+            password: ${{ secrets.DOCKER_TOKEN }}      
+        - name: Build and push docker image
+          run: |
+           bash build_image.sh
+           BRANCH=$(git symbolic-ref --short HEAD)
+           COMMIT_ID=$(git rev-parse --short HEAD)
+           docker tag milvus-cdc:${BRANCH}-${COMMIT_ID} ${{ secrets.DOCKER_USER }}/milvus-cdc:${BRANCH}-${COMMIT_ID}
+           docker push ${{ secrets.DOCKER_USER }}/milvus-cdc:${BRANCH}-${COMMIT_ID}
+            
+
+
+
