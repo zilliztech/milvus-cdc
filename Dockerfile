@@ -6,7 +6,7 @@ WORKDIR /app
 COPY . .
 RUN cd server && make build && mv ../bin/cdc /app/milvus-cdc
 
-FROM debian:bullseye
+FROM debian:bookworm
 WORKDIR /app
 COPY --from=builder /app/milvus-cdc ./
 COPY --from=builder /app/server/configs ./configs

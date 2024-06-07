@@ -28,11 +28,10 @@ jobs:
       
       - name: Build CDC
         timeout-minutes: 15
-        working-directory: server
         shell: bash
         run: |
-          go build -o milvus-cdc main/main.go
-          ls -l 
+          docker build --build-arg GIT_COMMIT_ARG=$(git rev-parse --short HEA) -t milvus-cdc:latest .
+          docker tag milvus-cdc:latest milvusdb/milvus-cdc:latest
 
       - name: Creating kind cluster
         uses: helm/kind-action@v1.2.0
@@ -70,11 +69,12 @@ jobs:
 
       - name: Deploy Milvus CDC
         timeout-minutes: 15
-        working-directory: server
+        working-directory: deployment/docker
         shell: bash
         run: |
-          ./milvus-cdc > server.log 2>&1 &
+          docker-compose up -d
           sleep 20s
+          docker-compose ps
 
       - name: Create CDC task
         timeout-minutes: 15
@@ -138,6 +138,16 @@ jobs:
         run: |
           python diff_upstream_downstream.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
 
+
+      - name: Export milvus cdc logs
+        if: ${{ always() }}
+        timeout-minutes: 5
+        working-directory: deployment/docker
+        run: |
+          docker-compose ps -a
+          docker stats --no-stream
+          docker-compose logs > server.log
+
       - name: Export upstream milvus logs
         if: ${{ always() }}
         timeout-minutes: 5
@@ -162,7 +172,7 @@ jobs:
           path: |
             scripts/k8s_logs
             tests/deployment/upstream/logs
-            server.log
+            deployment/docker/server.log
   
   milvus-cdc-function-test:
       runs-on: ubuntu-latest
