@@ -30,8 +30,7 @@ jobs:
         timeout-minutes: 15
         shell: bash
         run: |
-          COMMIT_ID = $(git rev-parse --short HEAD)
-          docker build --build-arg GIT_COMMIT_ARG=${COMMIT_ID} -t milvus-cdc:latest .
+          docker build --build-arg GIT_COMMIT_ARG=$(git rev-parse --short HEA) -t milvus-cdc:latest .
           docker tag milvus-cdc:latest milvusdb/milvus-cdc:latest
 
       - name: Creating kind cluster
