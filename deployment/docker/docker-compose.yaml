@@ -1,7 +1,7 @@
 services:
   milvus-cdc:
     container_name: milvus-cdc
-    image: milvusdb/milvus-cdc:v0.0.1
+    image: milvusdb/milvus-cdc:latest
     tty: true
     ports:
       - "8444:8444"
