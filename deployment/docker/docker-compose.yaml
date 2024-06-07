@@ -3,8 +3,6 @@ services:
     container_name: milvus-cdc
     image: milvusdb/milvus-cdc:latest
     tty: true
-    ports:
-      - "8444:8444"
     volumes:
       - type: bind
         source: ./cdc.yaml
