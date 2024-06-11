@@ -140,7 +140,7 @@ func (m *tsManager) GetMinTS(channelName string) (uint64, bool) {
 		a, b := m.getUnsafeTSInfo()
 		m.rateLog.Info("last ts is larger than min ts", zap.Uint64("lastTS", m.lastTS.Load()), zap.Uint64("minTS", minTS),
 			zap.String("channelName", channelName), zap.Any("channelTS", a), zap.Any("channelRef", b))
-		minTS = m.lastTS.Load()
+		minTS = m.lastTS.Load() + 1
 		resetTS = true
 	}
 	m.lastTS.CompareAndSwapWithFunc(func(old uint64) uint64 {
