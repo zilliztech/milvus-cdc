@@ -58,6 +58,10 @@ func ToPhysicalChannel(vchannel string) string {
 	return vchannel[:index]
 }
 
+func GetVChannel(pchannel, mark string) string {
+	return fmt.Sprintf("%s_%s", pchannel, mark)
+}
+
 func Base64Encode(obj []byte) string {
 	return base64.StdEncoding.EncodeToString(obj)
 }

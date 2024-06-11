@@ -42,11 +42,24 @@ func TestNewChannelReader(t *testing.T) {
 
 		creator.EXPECT().NewPmsFactory(mock.Anything).Return(factory)
 		{
-			// msg stream error
+			// wrong format seek position
 			factory.NewMsgStreamFunc = func(ctx context.Context) (msgstream.MsgStream, error) {
 				return nil, errors.New("error")
 			}
 			_, err := NewChannelReader("test", "test", config.MQConfig{
+				Pulsar: config.PulsarConfig{
+					Address: "localhost",
+				},
+			}, nil, creator)
+			assert.Error(t, err)
+		}
+
+		{
+			// msg stream error
+			factory.NewMsgStreamFunc = func(ctx context.Context) (msgstream.MsgStream, error) {
+				return nil, errors.New("error")
+			}
+			_, err := NewChannelReader("test", "", config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
 				},
@@ -61,19 +74,7 @@ func TestNewChannelReader(t *testing.T) {
 		{
 			// as consumer error
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("error")).Once()
-			_, err := NewChannelReader("test", "1", config.MQConfig{
-				Pulsar: config.PulsarConfig{
-					Address: "localhost",
-				},
-			}, nil, creator)
-			assert.Error(t, err)
-		}
-
-		{
-			// wrong format seek position
-			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-			stream.EXPECT().Close().Return().Once()
-			_, err := NewChannelReader("test", "1", config.MQConfig{
+			_, err := NewChannelReader("test", "", config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
 				},
@@ -98,6 +99,8 @@ func TestNewChannelReader(t *testing.T) {
 			// success
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 			stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+			packChan := make(chan *msgstream.MsgPack, 1)
+			stream.EXPECT().Chan().Return(packChan).Once()
 			_, err := NewChannelReader("test", base64.StdEncoding.EncodeToString([]byte("foo")), config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
@@ -118,6 +121,8 @@ func TestNewChannelReader(t *testing.T) {
 		factory := msgstream.NewMockMqFactory()
 		stream := msgstream.NewMockMsgStream(t)
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		packChan := make(chan *msgstream.MsgPack, 1)
+		stream.EXPECT().Chan().Return(packChan)
 		factory.NewMsgStreamFunc = func(ctx context.Context) (msgstream.MsgStream, error) {
 			return stream, nil
 		}
