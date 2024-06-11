@@ -117,13 +117,13 @@ jobs:
         run: |
           pip install -r requirements.txt --trusted-host https://test.pypi.org
           cd chaos && pytest testcases/test_concurrent_operation.py --host 127.0.0.1 --log-cli-level=INFO --capture=no --request_duration 10m
-
+         
       - name: List CDC task
         timeout-minutes: 15
-        working-directory: server
+        working-directory: deployment/docker
         shell: bash
         run: | 
-          cat server.log | tail -n 100
+          docker-compose logs
           curl --location '127.0.0.1:8444/cdc' \
           --header 'Content-Type: application/json' \
           --data '{
