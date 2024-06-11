@@ -34,6 +34,7 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
+	"github.com/milvus-io/milvus/pkg/mq/msgdispatcher"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/tsoutil"
 
@@ -58,8 +59,9 @@ type ReplicateEntity struct {
 	targetClient   api.TargetAPI
 	metaOp         api.MetaOp
 	readerObj      api.Reader // TODO the reader's counter may be more than one
-	quitFunc       func()
 	writerObj      api.Writer
+	mqDispatcher   msgdispatcher.Client
+	quitFunc       func()
 }
 
 type MetaCDC struct {
@@ -528,6 +530,15 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 		return nil, servererror.NewClientError("fail to new the meta op")
 	}
 
+	msgDispatcherClient, err := cdcreader.GetMsgDispatcherClient(e.mqFactoryCreator, config.MQConfig{
+		Pulsar: e.config.SourceConfig.Pulsar,
+		Kafka:  e.config.SourceConfig.Kafka,
+	})
+	if err != nil {
+		taskLog.Warn("fail to get the msg dispatcher client", zap.Error(err))
+		return nil, servererror.NewClientError("fail to get the msg dispatcher client")
+	}
+
 	bufferSize := e.config.SourceConfig.ReadChanLen
 	ttInterval := e.config.SourceConfig.TimeTickInterval
 	channelManager, err := cdcreader.NewReplicateChannelManager(config.MQConfig{
@@ -572,6 +583,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 			metaOp:         metaOp,
 			writerObj:      writerObj,
 			quitFunc:       cancelReplicateFunc,
+			mqDispatcher:   msgDispatcherClient,
 		}
 		e.replicateEntityMap.data[milvusAddress] = entity
 		e.startReplicateAPIEvent(replicateCtx, info, entity)
@@ -743,10 +755,7 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 	isAnyCollection := collectionName == cdcreader.AllCollection
 	// isTmpCollection := collectionName == model.TmpCollectionName
 
-	channelReader, err := cdcreader.NewChannelReader(channelName, channelPosition, config.MQConfig{
-		Pulsar: e.config.SourceConfig.Pulsar,
-		Kafka:  e.config.SourceConfig.Kafka,
-	}, func(funcCtx context.Context, pack *msgstream.MsgPack) bool {
+	dataHandleFunc := func(funcCtx context.Context, pack *msgstream.MsgPack) bool {
 		if !e.isRunningTask(info.TaskID) {
 			taskLog.Warn("not running task", zap.Any("pack", pack))
 			return false
@@ -793,7 +802,13 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 			return false
 		}
 		return true
-	}, e.mqFactoryCreator)
+	}
+
+	channelReader, err := cdcreader.NewChannelReaderWithDispatchClient(channelName, channelPosition, replicateEntity.mqDispatcher, info.TaskID, dataHandleFunc)
+	// channelReader, err := cdcreader.NewChannelReader(channelName, channelPosition, config.MQConfig{
+	//	 Pulsar: e.config.SourceConfig.Pulsar,
+	//	 Kafka:  e.config.SourceConfig.Kafka,
+	// }, dataHandleFunc, e.mqFactoryCreator)
 	if err != nil {
 		taskLog.Warn("fail to new the channel reader", zap.Error(err))
 		return nil, servererror.NewServerError(errors.WithMessage(err, "fail to new the channel reader"))

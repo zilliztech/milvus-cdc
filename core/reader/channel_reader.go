@@ -30,6 +30,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
+	"github.com/milvus-io/milvus/pkg/mq/msgdispatcher"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 
@@ -42,18 +43,15 @@ import (
 type ChannelReader struct {
 	api.DefaultReader
 
-	mqConfig             config.MQConfig
-	factoryCreator       FactoryCreator
 	channelName          string
 	subscriptionPosition mqwrapper.SubscriptionInitialPosition
-	seekPosition         string
+	seekPosition         *msgpb.MsgPosition
 
-	// TODO make it single stream when there are many tasks
-	msgStream   msgstream.MsgStream
-	dataHandler func(context.Context, *msgstream.MsgPack) bool // the return value is false means quit
-	isQuit      util.Value[bool]
-	startOnce   sync.Once
-	quitOnce    sync.Once
+	msgPackChan   <-chan *msgstream.MsgPack
+	dataHandler   func(context.Context, *msgstream.MsgPack) bool // the return value is false means quit
+	isQuit        util.Value[bool]
+	startOnceFunc func(ctx context.Context)
+	quitOnceFunc  func()
 }
 
 var _ api.Reader = (*ChannelReader)(nil)
@@ -64,10 +62,7 @@ func NewChannelReader(channelName, seekPosition string,
 	creator FactoryCreator,
 ) (api.Reader, error) {
 	channelReader := &ChannelReader{
-		factoryCreator:       creator,
 		channelName:          channelName,
-		seekPosition:         seekPosition,
-		mqConfig:             mqConfig,
 		dataHandler:          dataHandler,
 		subscriptionPosition: mqwrapper.SubscriptionPositionUnknown,
 	}
@@ -75,29 +70,81 @@ func NewChannelReader(channelName, seekPosition string,
 		channelReader.subscriptionPosition = mqwrapper.SubscriptionPositionLatest
 	}
 	channelReader.isQuit.Store(false)
-	err := channelReader.initMsgStream()
+	err := channelReader.decodeSeekPosition(seekPosition)
+	if err != nil {
+		log.Warn("fail to seek the position", zap.Error(err))
+		return nil, err
+	}
+	closeFunc, err := channelReader.initMsgStream(mqConfig, creator)
 	if err != nil {
 		log.Warn("fail to init the msg stream", zap.Error(err))
 		return nil, err
 	}
 
+	channelReader.startOnceFunc = util.OnceFuncWithContext(func(ctx context.Context) {
+		go channelReader.readPack(ctx)
+	})
+	channelReader.quitOnceFunc = sync.OnceFunc(func() {
+		channelReader.isQuit.Store(true)
+		closeFunc()
+	})
+
 	return channelReader, nil
 }
 
-func (c *ChannelReader) initMsgStream() error {
+func NewChannelReaderWithDispatchClient(channelName, seekPosition string,
+	dispatchClient msgdispatcher.Client,
+	taskID string,
+	dataHandler func(context.Context, *msgstream.MsgPack) bool,
+) (api.Reader, error) {
+	channelReader := &ChannelReader{
+		channelName:          channelName,
+		dataHandler:          dataHandler,
+		subscriptionPosition: mqwrapper.SubscriptionPositionUnknown,
+	}
+	if seekPosition == "" {
+		channelReader.subscriptionPosition = mqwrapper.SubscriptionPositionLatest
+	}
+	channelReader.isQuit.Store(false)
+	err := channelReader.decodeSeekPosition(seekPosition)
+	if err != nil {
+		log.Warn("fail to seek the position", zap.Error(err))
+		return nil, err
+	}
+	msgPackChan, err := dispatchClient.Register(context.Background(),
+		util.GetVChannel(channelName, taskID),
+		channelReader.seekPosition,
+		channelReader.subscriptionPosition)
+	if err != nil {
+		log.Warn("fail to init the msg stream", zap.Error(err))
+		return nil, err
+	}
+	channelReader.msgPackChan = msgPackChan
+
+	channelReader.startOnceFunc = util.OnceFuncWithContext(func(ctx context.Context) {
+		go channelReader.readPack(ctx)
+	})
+	channelReader.quitOnceFunc = sync.OnceFunc(func() {
+		channelReader.isQuit.Store(true)
+		dispatchClient.Deregister(util.GetVChannel(channelName, taskID))
+	})
+	return channelReader, nil
+}
+
+func (c *ChannelReader) initMsgStream(mqConfig config.MQConfig, creator FactoryCreator) (func(), error) {
 	var factory msgstream.Factory
 	switch {
-	case c.mqConfig.Pulsar.Address != "":
-		factory = c.factoryCreator.NewPmsFactory(&c.mqConfig.Pulsar)
-	case c.mqConfig.Kafka.Address != "":
-		factory = c.factoryCreator.NewKmsFactory(&c.mqConfig.Kafka)
+	case mqConfig.Pulsar.Address != "":
+		factory = creator.NewPmsFactory(&mqConfig.Pulsar)
+	case mqConfig.Kafka.Address != "":
+		factory = creator.NewKmsFactory(&mqConfig.Kafka)
 	default:
-		return errors.New("fail to get the msg stream, check the mqConfig param")
+		return nil, errors.New("fail to get the msg stream, check the mqConfig param")
 	}
 	stream, err := factory.NewMsgStream(context.Background())
 	if err != nil {
 		log.Warn("fail to new the msg stream", zap.Error(err))
-		return err
+		return nil, err
 	}
 
 	rand.Seed(time.Now().UnixNano())
@@ -105,69 +152,74 @@ func (c *ChannelReader) initMsgStream() error {
 	err = stream.AsConsumer(context.Background(), []string{c.channelName}, consumeSubName, c.subscriptionPosition)
 	if err != nil {
 		log.Warn("fail to create the consumer", zap.Error(err))
-		return err
+		return nil, err
 	}
 	log.Info("consume channel", zap.String("channel", c.channelName))
 
-	if c.seekPosition != "" {
-		decodeBytes, err := base64.StdEncoding.DecodeString(c.seekPosition)
+	if c.seekPosition != nil {
+		err = stream.Seek(context.Background(), []*msgstream.MsgPosition{c.seekPosition}, false)
 		if err != nil {
-			log.Warn("fail to decode the seek position", zap.Error(err))
+			log.Warn("fail to seek the msg position",
+				zap.Any("position", util.Base64MsgPosition(c.seekPosition)), zap.Error(err))
 			stream.Close()
-			return err
-		}
-		msgPosition := &msgpb.MsgPosition{
-			ChannelName: c.channelName,
-			MsgID:       decodeBytes,
-		}
-		err = stream.Seek(context.Background(), []*msgstream.MsgPosition{msgPosition}, false)
-		if err != nil {
-			log.Warn("fail to seek the msg position", zap.Any("position", msgPosition), zap.Error(err))
-			stream.Close()
-			return err
+			return nil, err
 		}
 	}
-	c.msgStream = stream
+	c.msgPackChan = stream.Chan()
+	return func() {
+		stream.Close()
+	}, nil
+}
+
+func (c *ChannelReader) decodeSeekPosition(seekPosition string) error {
+	if seekPosition == "" {
+		return nil
+	}
+	decodeBytes, err := base64.StdEncoding.DecodeString(seekPosition)
+	if err != nil {
+		log.Warn("fail to decode the seek position", zap.Error(err))
+		return err
+	}
+	c.seekPosition = &msgpb.MsgPosition{
+		ChannelName: c.channelName,
+		MsgID:       decodeBytes,
+	}
 	return nil
 }
 
 func (c *ChannelReader) StartRead(ctx context.Context) {
-	c.startOnce.Do(func() {
-		msgChan := c.msgStream.Chan()
-		go func() {
-			for {
-				if c.isQuit.Load() {
-					log.Info("the channel reader is quit")
-					return
-				}
-				select {
-				case <-ctx.Done():
-					log.Warn("channel reader context is done")
-					return
-				case msgPack, ok := <-msgChan:
-					if !ok || msgPack == nil {
-						log.Info("the msg pack is nil, the channel reader is quit")
-						return
-					}
-					if c.dataHandler == nil {
-						log.Warn("the data handler is nil")
-						return
-					}
-					// TODO when cdc chaos kill, maybe the collection has drop,
-					// and the op message has not been handled, which will block the task
-					if !c.dataHandler(ctx, msgPack) {
-						log.Warn("the data handler return false, the channel reader is quit")
-						return
-					}
-				}
+	c.startOnceFunc(ctx)
+}
+
+func (c *ChannelReader) readPack(ctx context.Context) {
+	for {
+		if c.isQuit.Load() {
+			log.Info("the channel reader is quit")
+			return
+		}
+		select {
+		case <-ctx.Done():
+			log.Warn("channel reader context is done")
+			return
+		case msgPack, ok := <-c.msgPackChan:
+			if !ok || msgPack == nil {
+				log.Info("the msg pack is nil, the channel reader is quit")
+				return
 			}
-		}()
-	})
+			if c.dataHandler == nil {
+				log.Warn("the data handler is nil")
+				return
+			}
+			// TODO when cdc chaos kill, maybe the collection has drop,
+			// and the op message has not been handled, which will block the task
+			if !c.dataHandler(ctx, msgPack) {
+				log.Warn("the data handler return false, the channel reader is quit")
+				return
+			}
+		}
+	}
 }
 
 func (c *ChannelReader) QuitRead(ctx context.Context) {
-	c.quitOnce.Do(func() {
-		c.isQuit.Store(true)
-		c.msgStream.Close()
-	})
+	c.quitOnceFunc()
 }
