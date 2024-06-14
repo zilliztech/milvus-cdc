@@ -14,3 +14,4 @@ go.work
 go.work.sum
 **/bak/**
 bin/
+*.out

@@ -22,17 +22,59 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 
+	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/mocks"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
+
+func NewChannelReaderWithFactory(channelName, seekPosition string,
+	mqConfig config.MQConfig,
+	dataHandler func(context.Context, *msgstream.MsgPack) bool,
+	creator FactoryCreator,
+) (api.Reader, error) {
+	channelReader := &ChannelReader{
+		channelName:          channelName,
+		dataHandler:          dataHandler,
+		subscriptionPosition: mqwrapper.SubscriptionPositionUnknown,
+	}
+	if seekPosition == "" {
+		channelReader.subscriptionPosition = mqwrapper.SubscriptionPositionLatest
+	}
+	channelReader.isQuit.Store(false)
+	err := channelReader.decodeSeekPosition(seekPosition)
+	if err != nil {
+		log.Warn("fail to seek the position", zap.Error(err))
+		return nil, err
+	}
+	closeFunc, err := channelReader.initMsgStream(mqConfig, creator)
+	if err != nil {
+		log.Warn("fail to init the msg stream", zap.Error(err))
+		return nil, err
+	}
+
+	channelReader.startOnceFunc = util.OnceFuncWithContext(func(ctx context.Context) {
+		go channelReader.readPack(ctx)
+	})
+	channelReader.quitOnceFunc = sync.OnceFunc(func() {
+		channelReader.isQuit.Store(true)
+		closeFunc()
+	})
+
+	return channelReader, nil
+}
 
 func TestNewChannelReader(t *testing.T) {
 	t.Run("channel mq", func(t *testing.T) {
@@ -46,7 +88,7 @@ func TestNewChannelReader(t *testing.T) {
 			factory.NewMsgStreamFunc = func(ctx context.Context) (msgstream.MsgStream, error) {
 				return nil, errors.New("error")
 			}
-			_, err := NewChannelReader("test", "test", config.MQConfig{
+			_, err := NewChannelReaderWithFactory("test", "test", config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
 				},
@@ -59,7 +101,7 @@ func TestNewChannelReader(t *testing.T) {
 			factory.NewMsgStreamFunc = func(ctx context.Context) (msgstream.MsgStream, error) {
 				return nil, errors.New("error")
 			}
-			_, err := NewChannelReader("test", "", config.MQConfig{
+			_, err := NewChannelReaderWithFactory("test", "", config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
 				},
@@ -74,7 +116,7 @@ func TestNewChannelReader(t *testing.T) {
 		{
 			// as consumer error
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("error")).Once()
-			_, err := NewChannelReader("test", "", config.MQConfig{
+			_, err := NewChannelReaderWithFactory("test", "", config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
 				},
@@ -87,7 +129,7 @@ func TestNewChannelReader(t *testing.T) {
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 			stream.EXPECT().Close().Return().Once()
 			stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(errors.New("error")).Once()
-			_, err := NewChannelReader("test", base64.StdEncoding.EncodeToString([]byte("foo")), config.MQConfig{
+			_, err := NewChannelReaderWithFactory("test", base64.StdEncoding.EncodeToString([]byte("foo")), config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
 				},
@@ -101,7 +143,7 @@ func TestNewChannelReader(t *testing.T) {
 			stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 			packChan := make(chan *msgstream.MsgPack, 1)
 			stream.EXPECT().Chan().Return(packChan).Once()
-			_, err := NewChannelReader("test", base64.StdEncoding.EncodeToString([]byte("foo")), config.MQConfig{
+			_, err := NewChannelReaderWithFactory("test", base64.StdEncoding.EncodeToString([]byte("foo")), config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
 				},
@@ -114,7 +156,7 @@ func TestNewChannelReader(t *testing.T) {
 	t.Run("mq config", func(t *testing.T) {
 		creator := mocks.NewFactoryCreator(t)
 		{
-			_, err := NewChannelReader("test", "", config.MQConfig{}, nil, creator)
+			_, err := NewChannelReaderWithFactory("test", "", config.MQConfig{}, nil, creator)
 			assert.Error(t, err)
 		}
 
@@ -128,7 +170,7 @@ func TestNewChannelReader(t *testing.T) {
 		}
 		{
 			creator.EXPECT().NewPmsFactory(mock.Anything).Return(factory).Once()
-			_, err := NewChannelReader("test", "", config.MQConfig{
+			_, err := NewChannelReaderWithFactory("test", "", config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
 				},
@@ -137,7 +179,7 @@ func TestNewChannelReader(t *testing.T) {
 		}
 		{
 			creator.EXPECT().NewKmsFactory(mock.Anything).Return(factory).Once()
-			_, err := NewChannelReader("test", "", config.MQConfig{
+			_, err := NewChannelReaderWithFactory("test", "", config.MQConfig{
 				Kafka: config.KafkaConfig{
 					Address: "localhost",
 				},
@@ -163,7 +205,7 @@ func TestChannelReader(t *testing.T) {
 	t.Run("quit", func(t *testing.T) {
 		dataChan := make(chan *msgstream.MsgPack, 1)
 		stream.EXPECT().Chan().Return(dataChan).Once()
-		reader, err := NewChannelReader("test", "", config.MQConfig{
+		reader, err := NewChannelReaderWithFactory("test", "", config.MQConfig{
 			Pulsar: config.PulsarConfig{
 				Address: "localhost",
 			},
@@ -176,7 +218,7 @@ func TestChannelReader(t *testing.T) {
 	t.Run("close", func(t *testing.T) {
 		dataChan := make(chan *msgstream.MsgPack, 1)
 		stream.EXPECT().Chan().Return(dataChan).Once()
-		reader, err := NewChannelReader("test", "", config.MQConfig{
+		reader, err := NewChannelReaderWithFactory("test", "", config.MQConfig{
 			Pulsar: config.PulsarConfig{
 				Address: "localhost",
 			},
@@ -189,7 +231,7 @@ func TestChannelReader(t *testing.T) {
 	t.Run("empty handler", func(t *testing.T) {
 		dataChan := make(chan *msgstream.MsgPack, 1)
 		stream.EXPECT().Chan().Return(dataChan).Once()
-		reader, err := NewChannelReader("test", "", config.MQConfig{
+		reader, err := NewChannelReaderWithFactory("test", "", config.MQConfig{
 			Pulsar: config.PulsarConfig{
 				Address: "localhost",
 			},
@@ -203,7 +245,7 @@ func TestChannelReader(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		dataChan := make(chan *msgstream.MsgPack, 1)
 		stream.EXPECT().Chan().Return(dataChan).Once()
-		reader, err := NewChannelReader("test", "", config.MQConfig{
+		reader, err := NewChannelReaderWithFactory("test", "", config.MQConfig{
 			Pulsar: config.PulsarConfig{
 				Address: "localhost",
 			},

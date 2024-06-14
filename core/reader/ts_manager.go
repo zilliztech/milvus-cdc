@@ -52,6 +52,7 @@ type tsManager struct {
 	channelRef   util.Map[string, *util.Value[int]]
 	retryOptions []retry.Option
 	lastTS       *util.Value[uint64]
+	lastMsgTS    util.Map[string, uint64]
 	refLock      sync.Mutex
 	rateLog      *log.RateLog
 }
@@ -136,19 +137,21 @@ func (m *tsManager) GetMinTS(channelName string) (uint64, bool) {
 	}
 
 	resetTS := false
-	if m.lastTS.Load() > minTS {
+	lastTS := m.lastMsgTS.LoadWithDefault(channelName, 0)
+	if lastTS > minTS {
 		a, b := m.getUnsafeTSInfo()
-		m.rateLog.Info("last ts is larger than min ts", zap.Uint64("lastTS", m.lastTS.Load()), zap.Uint64("minTS", minTS),
+		m.rateLog.Info("last ts is larger than min ts", zap.Uint64("lastTS", lastTS), zap.Uint64("minTS", minTS),
 			zap.String("channelName", channelName), zap.Any("channelTS", a), zap.Any("channelRef", b))
-		minTS = m.lastTS.Load() + 1
+		// TODO how to handle the upsert case or insert / delete same ts
+		minTS = lastTS
 		resetTS = true
 	}
-	m.lastTS.CompareAndSwapWithFunc(func(old uint64) uint64 {
-		if old <= minTS {
-			return minTS
-		}
-		return old
-	})
+	// m.lastTS.CompareAndSwapWithFunc(func(old uint64) uint64 {
+	// 	if old <= minTS {
+	// 		return minTS
+	// 	}
+	// 	return old
+	// })
 	msgTime, _ := tsoutil.ParseHybridTs(minTS)
 	TSMetricVec.WithLabelValues(channelName).Set(float64(msgTime))
 
@@ -156,10 +159,14 @@ func (m *tsManager) GetMinTS(channelName string) (uint64, bool) {
 	diffTimeValue := channelTime - msgTime
 	if diffTimeValue > 3*1000 { // diff 3 second
 		a, b := m.getUnsafeTSInfo()
-		log.Info("there is a big diff between channel ts and min ts", zap.Uint64("minTS", minTS),
+		m.rateLog.Info("there is a big diff between channel ts and min ts", zap.Uint64("minTS", minTS),
 			zap.String("channelName", channelName), zap.Any("channelTS", a), zap.Any("channelRef", b))
 	}
 	return minTS, resetTS
+}
+
+func (m *tsManager) SetLastMsgTS(channelName string, lastTS uint64) {
+	m.lastMsgTS.Store(channelName, lastTS)
 }
 
 // EmptyTS Only for test
