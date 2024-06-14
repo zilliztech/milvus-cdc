@@ -1,4 +1,5 @@
 etcdServerConfig:
-  address: 127.0.0.1:2379
+  address:
+    - 127.0.0.1:2379
 rootPath: by-dev
-collectionID: 1
+collectionID: 450541344162316901

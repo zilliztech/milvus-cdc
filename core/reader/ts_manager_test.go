@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
@@ -73,7 +74,8 @@ func TestTS(t *testing.T) {
 			InitBackOff: 1,
 			MaxBackOff:  1,
 		}),
-		lastTS: util.NewValue[uint64](0),
+		lastTS:  util.NewValue[uint64](0),
+		rateLog: log.NewRateLog(1, log.L()),
 	}
 
 	m.AddRef("a")

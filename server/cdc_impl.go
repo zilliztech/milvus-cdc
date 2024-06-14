@@ -541,10 +541,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 
 	bufferSize := e.config.SourceConfig.ReadChanLen
 	ttInterval := e.config.SourceConfig.TimeTickInterval
-	channelManager, err := cdcreader.NewReplicateChannelManager(config.MQConfig{
-		Pulsar: e.config.SourceConfig.Pulsar,
-		Kafka:  e.config.SourceConfig.Kafka,
-	}, e.mqFactoryCreator, milvusClient, config.ReaderConfig{
+	channelManager, err := cdcreader.NewReplicateChannelManagerWithDispatchClient(msgDispatcherClient, milvusClient, config.ReaderConfig{
 		MessageBufferSize: bufferSize,
 		TTInterval:        ttInterval,
 		Retry:             e.config.Retry,
@@ -804,11 +801,7 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 		return true
 	}
 
-	channelReader, err := cdcreader.NewChannelReaderWithDispatchClient(channelName, channelPosition, replicateEntity.mqDispatcher, info.TaskID, dataHandleFunc)
-	// channelReader, err := cdcreader.NewChannelReader(channelName, channelPosition, config.MQConfig{
-	//	 Pulsar: e.config.SourceConfig.Pulsar,
-	//	 Kafka:  e.config.SourceConfig.Kafka,
-	// }, dataHandleFunc, e.mqFactoryCreator)
+	channelReader, err := cdcreader.NewChannelReader(channelName, channelPosition, replicateEntity.mqDispatcher, info.TaskID, dataHandleFunc)
 	if err != nil {
 		taskLog.Warn("fail to new the channel reader", zap.Error(err))
 		return nil, servererror.NewServerError(errors.WithMessage(err, "fail to new the channel reader"))

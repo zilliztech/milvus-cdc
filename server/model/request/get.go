@@ -33,7 +33,7 @@ type GetPositionRequest struct {
 
 type Position struct {
 	ChannelName string `json:"channel_name" mapstructure:"channel_name"`
-	Time        int64  `json:"time" mapstructure:"time"`
+	Time        int64  `json:"time" mapstructure:"time"` // time.UnixMilli()
 	MsgID       string `json:"msg_id" mapstructure:"msg_id"`
 }
 

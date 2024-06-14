@@ -57,42 +57,6 @@ type ChannelReader struct {
 var _ api.Reader = (*ChannelReader)(nil)
 
 func NewChannelReader(channelName, seekPosition string,
-	mqConfig config.MQConfig,
-	dataHandler func(context.Context, *msgstream.MsgPack) bool,
-	creator FactoryCreator,
-) (api.Reader, error) {
-	channelReader := &ChannelReader{
-		channelName:          channelName,
-		dataHandler:          dataHandler,
-		subscriptionPosition: mqwrapper.SubscriptionPositionUnknown,
-	}
-	if seekPosition == "" {
-		channelReader.subscriptionPosition = mqwrapper.SubscriptionPositionLatest
-	}
-	channelReader.isQuit.Store(false)
-	err := channelReader.decodeSeekPosition(seekPosition)
-	if err != nil {
-		log.Warn("fail to seek the position", zap.Error(err))
-		return nil, err
-	}
-	closeFunc, err := channelReader.initMsgStream(mqConfig, creator)
-	if err != nil {
-		log.Warn("fail to init the msg stream", zap.Error(err))
-		return nil, err
-	}
-
-	channelReader.startOnceFunc = util.OnceFuncWithContext(func(ctx context.Context) {
-		go channelReader.readPack(ctx)
-	})
-	channelReader.quitOnceFunc = sync.OnceFunc(func() {
-		channelReader.isQuit.Store(true)
-		closeFunc()
-	})
-
-	return channelReader, nil
-}
-
-func NewChannelReaderWithDispatchClient(channelName, seekPosition string,
 	dispatchClient msgdispatcher.Client,
 	taskID string,
 	dataHandler func(context.Context, *msgstream.MsgPack) bool,

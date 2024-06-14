@@ -18,4 +18,4 @@
 
 package util
 
-var DefaultReplicateTTInterval = 3
+var DefaultReplicateTTInterval = 1
