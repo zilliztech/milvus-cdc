@@ -23,13 +23,13 @@ jobs:
           cache-dependency-path: server/go.sum
           cache: true
 
-      - uses: goreleaser/goreleaser-action@v4
+      - uses: goreleaser/goreleaser-action@v6
         with:
           # either 'goreleaser' (default) or 'goreleaser-pro':
           distribution: goreleaser
           workdir: ./server
-          version: latest
-          args: release --skip-publish --config .goreleaser-linux.yaml
+          version: '~> v2'
+          args: release --skip publish --config .goreleaser-linux.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       - name: Upload
@@ -52,13 +52,13 @@ jobs:
           cache-dependency-path: server/go.sum
           cache: true
 
-      - uses: goreleaser/goreleaser-action@v4
+      - uses: goreleaser/goreleaser-action@v6
         with:
           # either 'goreleaser' (default) or 'goreleaser-pro':
           distribution: goreleaser
           workdir: ./server
-          version: latest
-          args: release --skip-publish --config .goreleaser-darwin.yaml
+          version: '~> v2'
+          args: release --skip publish --config .goreleaser-darwin.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       - name: Upload
@@ -108,8 +108,9 @@ jobs:
           git status
 
       - name: Release
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v6
         with:
+          version: '~> v2'
           args: release --clean --config .goreleaser.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}

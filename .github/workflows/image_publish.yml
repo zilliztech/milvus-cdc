@@ -35,4 +35,3 @@ jobs:
            docker push ${{ secrets.DOCKER_USER }}/milvus-cdc:${BRANCH}-latest
 
 
-
