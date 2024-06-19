@@ -55,6 +55,9 @@ type tsManager struct {
 	lastMsgTS    util.Map[string, uint64]
 	refLock      sync.Mutex
 	rateLog      *log.RateLog
+
+	channelTS2 map[string]uint64
+	tsLock     sync.RWMutex
 }
 
 func GetTSManager() *tsManager {
@@ -63,6 +66,7 @@ func GetTSManager() *tsManager {
 			retryOptions: util.GetRetryOptions(config.GetCommonConfig().Retry),
 			lastTS:       util.NewValue[uint64](0),
 			rateLog:      log.NewRateLog(1, log.L()),
+			channelTS2:   make(map[string]uint64),
 		}
 	})
 	return tsInstance
@@ -98,6 +102,17 @@ func (m *tsManager) RemoveRef(channelName string) {
 
 func (m *tsManager) CollectTS(channelName string, currentTS uint64) {
 	m.channelTS.Store(channelName, currentTS)
+
+	m.tsLock.Lock()
+	defer m.tsLock.Unlock()
+	ts2, ok := m.channelTS2[channelName]
+	if !ok {
+		m.channelTS2[channelName] = currentTS
+		return
+	}
+	if ts2 < currentTS {
+		m.channelTS2[channelName] = currentTS
+	}
 }
 
 func (m *tsManager) getUnsafeTSInfo() (map[string]uint64, map[string]int) {
@@ -163,6 +178,16 @@ func (m *tsManager) GetMinTS(channelName string) (uint64, bool) {
 			zap.String("channelName", channelName), zap.Any("channelTS", a), zap.Any("channelRef", b))
 	}
 	return minTS, resetTS
+}
+
+func (m *tsManager) GetMaxTS(channelName string) (uint64, bool) {
+	m.tsLock.RLock()
+	defer m.tsLock.RUnlock()
+	ts, ok := m.channelTS2[channelName]
+	if !ok {
+		return 0, false
+	}
+	return ts, true
 }
 
 func (m *tsManager) SetLastMsgTS(channelName string, lastTS uint64) {

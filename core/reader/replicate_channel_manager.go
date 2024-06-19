@@ -1118,11 +1118,11 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	endTS := pack.EndTs
 
 	// TODO how to handle the ts
-	minTS, resetTS := GetTSManager().GetMinTS(r.pChannelName)
-	if resetTS && minTS > beginTS {
-		beginTS = minTS
-		endTS = minTS
-	}
+	minTS, resetTS := GetTSManager().GetMaxTS(r.pChannelName)
+	// if resetTS && minTS > beginTS {
+	//	beginTS = minTS
+	//	endTS = minTS
+	// }
 
 	pChannel := r.targetPChannel
 	for _, msg := range pack.Msgs {
@@ -1337,6 +1337,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 
 	r.needTsMsg = r.needTsMsg || len(newPack.Msgs) == 0
 	if r.needTsMsg {
+		// TODO it will cause a lot of tt msg because a handler is related a vchannel, not a pchannel
 		timeTickResult := msgpb.TimeTickMsg{
 			Base: commonpbutil.NewMsgBase(
 				commonpbutil.WithMsgType(commonpb.MsgType_TimeTick),
@@ -1403,7 +1404,7 @@ func initReplicateChannelHandler(ctx context.Context,
 		forwardPackChan:    make(chan *msgstream.MsgPack, opts.MessageBufferSize),
 		generatePackChan:   make(chan *msgstream.MsgPack, 30),
 		retryOptions:       opts.RetryOptions,
-		ttPeriod:           time.Duration(opts.TTInterval) * time.Second,
+		ttPeriod:           time.Duration(opts.TTInterval) * time.Millisecond,
 		sourceSeekPosition: sourceInfo.SeekPosition,
 	}
 	channelHandler.lastSendTTTime = time.Now().Add(-channelHandler.ttPeriod)

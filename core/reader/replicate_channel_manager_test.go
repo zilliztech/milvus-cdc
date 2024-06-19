@@ -578,7 +578,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			DroppedPartition:     make(map[int64]struct{}),
 		}, targetClient, &api.DefaultMetaOp{}, nil, &model.HandlerOpts{
 			Factory:    factory,
-			TTInterval: 10,
+			TTInterval: 10000,
 		})
 		assert.NoError(t, err)
 

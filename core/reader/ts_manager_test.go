@@ -76,6 +76,8 @@ func TestTS(t *testing.T) {
 		}),
 		lastTS:  util.NewValue[uint64](0),
 		rateLog: log.NewRateLog(1, log.L()),
+
+		channelTS2: make(map[string]uint64),
 	}
 
 	m.AddRef("a")
