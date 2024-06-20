@@ -59,13 +59,22 @@ func GetMilvusClientManager() *MilvusClientResourceManager {
 	return clientManager
 }
 
-func (m *MilvusClientResourceManager) newMilvusClient(ctx context.Context, address, apiKey, database string, enableTLS bool) resource.NewResourceFunc {
+func (m *MilvusClientResourceManager) newMilvusClient(ctx context.Context, address, apiKey, database string, enableTLS bool, dialConfig DialConfig) resource.NewResourceFunc {
 	return func() (resource.Resource, error) {
+		dialOptions, err := GetDialOptions(dialConfig)
+		if err != nil {
+			log.Warn("fail to get dial options", zap.Error(err))
+			return nil, err
+		}
+		if enableTLS {
+			address = fmt.Sprintf("https://%s", address)
+		}
 		c, err := client.NewClient(ctx, client.Config{
 			Address:       address,
 			APIKey:        apiKey,
 			EnableTLSAuth: enableTLS,
 			DBName:        database,
+			DialOptions:   dialOptions,
 		})
 		if err != nil {
 			log.Warn("fail to new the milvus client", zap.String("database", database), zap.String("address", address), zap.Error(err))
@@ -80,14 +89,14 @@ func (m *MilvusClientResourceManager) newMilvusClient(ctx context.Context, addre
 	}
 }
 
-func (m *MilvusClientResourceManager) GetMilvusClient(ctx context.Context, address, apiKey, database string, enableTLS bool) (client.Client, error) {
+func (m *MilvusClientResourceManager) GetMilvusClient(ctx context.Context, address, apiKey, database string, enableTLS bool, dialConfig DialConfig) (client.Client, error) {
 	if database == "" {
 		database = DefaultDbName
 	}
 	ctxLog := log.Ctx(ctx).With(zap.String("database", database), zap.String("address", address))
 	res, err := m.manager.Get(MilvusClientResourceTyp,
 		getMilvusClientResourceName(address, database),
-		m.newMilvusClient(ctx, address, apiKey, database, enableTLS))
+		m.newMilvusClient(ctx, address, apiKey, database, enableTLS, dialConfig))
 	if err != nil {
 		ctxLog.Error("fail to get milvus client", zap.Error(err))
 		return nil, err

@@ -332,7 +332,9 @@ func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 		cdcwriter.UserOption(connectParam.Username, connectParam.Password),
 		cdcwriter.TLSOption(connectParam.EnableTLS),
 		cdcwriter.IgnorePartitionOption(connectParam.IgnorePartition),
-		cdcwriter.ConnectTimeoutOption(connectParam.ConnectTimeout))
+		cdcwriter.ConnectTimeoutOption(connectParam.ConnectTimeout),
+		cdcwriter.DialConfigOption(connectParam.DialConfig),
+	)
 	if err != nil {
 		log.Warn("fail to connect the milvus", zap.Any("connect_param", connectParam), zap.Error(err))
 		return errors.WithMessage(err, "fail to connect the milvus")
@@ -510,10 +512,11 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	ctx := context.TODO()
 	timeoutCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(milvusConnectParam.ConnectTimeout)*time.Second)
 	milvusClient, err := cdcreader.NewTarget(timeoutCtx, cdcreader.TargetConfig{
-		Address:   milvusAddress,
-		Username:  milvusConnectParam.Username,
-		Password:  milvusConnectParam.Password,
-		EnableTLS: milvusConnectParam.EnableTLS,
+		Address:    milvusAddress,
+		Username:   milvusConnectParam.Username,
+		Password:   milvusConnectParam.Password,
+		EnableTLS:  milvusConnectParam.EnableTLS,
+		DialConfig: milvusConnectParam.DialConfig,
 	})
 	cancelFunc()
 	if err != nil {
@@ -558,7 +561,9 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 		cdcwriter.UserOption(targetConfig.Username, targetConfig.Password),
 		cdcwriter.TLSOption(targetConfig.EnableTLS),
 		cdcwriter.IgnorePartitionOption(targetConfig.IgnorePartition),
-		cdcwriter.ConnectTimeoutOption(targetConfig.ConnectTimeout))
+		cdcwriter.ConnectTimeoutOption(targetConfig.ConnectTimeout),
+		cdcwriter.DialConfigOption(targetConfig.DialConfig),
+	)
 	if err != nil {
 		taskLog.Warn("fail to new the data handler", zap.Error(err))
 		return nil, servererror.NewClientError("fail to new the data handler, task_id: ")

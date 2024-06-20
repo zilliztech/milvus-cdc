@@ -45,9 +45,7 @@ type MilvusDataHandler struct {
 	ignorePartition bool // sometimes the has partition api is a deny api
 	connectTimeout  int
 	retryOptions    []retry.Option
-
-	// default db milvus client
-	milvus client.Client
+	dialConfig      util.DialConfig
 }
 
 // NewMilvusDataHandler options must include AddressOption
@@ -66,11 +64,8 @@ func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*Milvus
 	timeoutContext, cancel := context.WithTimeout(context.Background(), time.Duration(handler.connectTimeout)*time.Second)
 	defer cancel()
 
-	handler.milvus, err = client.NewClient(timeoutContext, client.Config{
-		Address:       handler.address,
-		Username:      handler.username,
-		Password:      handler.password,
-		EnableTLSAuth: handler.enableTLS,
+	err = handler.milvusOp(timeoutContext, "", func(milvus client.Client) error {
+		return nil
 	})
 	if err != nil {
 		log.Warn("fail to new the milvus client", zap.Error(err))
@@ -97,14 +92,7 @@ func (m *MilvusDataHandler) milvusOp(ctx context.Context, database string, f fun
 		return nil
 	}
 
-	if database == "" || database == util.DefaultDbName {
-		return retryMilvusFunc(m.milvus)
-	}
-	milvusClient, err := util.GetMilvusClientManager().GetMilvusClient(ctx,
-		m.address,
-		util.GetAPIKey(m.username, m.password),
-		database,
-		m.enableTLS)
+	milvusClient, err := util.GetMilvusClientManager().GetMilvusClient(ctx, m.address, util.GetAPIKey(m.username, m.password), database, m.enableTLS, m.dialConfig)
 	if err != nil {
 		log.Warn("fail to get milvus client", zap.Error(err))
 		return err
@@ -303,16 +291,18 @@ func (m *MilvusDataHandler) DescribeCollection(ctx context.Context, param *api.D
 }
 
 func (m *MilvusDataHandler) DescribeDatabase(ctx context.Context, param *api.DescribeDatabaseParam) error {
-	databases, err := m.milvus.ListDatabases(ctx)
-	if err != nil {
-		return err
-	}
-	for _, database := range databases {
-		if database.Name == param.Name {
-			return nil
+	return m.milvusOp(ctx, "", func(milvus client.Client) error {
+		databases, err := milvus.ListDatabases(ctx)
+		if err != nil {
+			return err
 		}
-	}
-	return errors.Newf("database [%s] not found", param.Name)
+		for _, database := range databases {
+			if database.Name == param.Name {
+				return nil
+			}
+		}
+		return errors.Newf("database [%s] not found", param.Name)
+	})
 }
 
 func (m *MilvusDataHandler) DescribePartition(ctx context.Context, param *api.DescribePartitionParam) error {

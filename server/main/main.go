@@ -34,7 +34,11 @@ import (
 
 func main() {
 	pkglog.ReplaceGlobals(log.L(), log.Prop())
-	paramtable.Init()
+	baseTable := paramtable.NewBaseTable(
+		paramtable.SkipRemote(true),
+		paramtable.Interval(0),
+	)
+	paramtable.InitWithBaseTable(baseTable)
 	tag.LogInfo()
 
 	s := &server.CDCServer{}

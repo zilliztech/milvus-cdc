@@ -154,7 +154,87 @@ After success, the task_id will be returned, such as:
 }
 ```
 
-If there is an exception, an http error will appear.
+If there is an exception, a http error will appear.
+
+Tips: If you want to know how to use tls to connect to the target, you can add the `dial_config` parameter to the `milvus_connect_param` parameter. For specific usage, refer to the following section.
+
+#### create request with tls one-way authentication
+
+Prerequisite:
+1. Place server.pem in a directory **on the cdc server**.
+2. Know the server name when the certificate is generated, which will be filled in dial_config.server_name.
+
+```http
+POST localhost:8444/cdc
+Content-Type: application/json
+
+body:
+{
+  "request_type":"create",
+  "request_data":{
+    "milvus_connect_param":{
+      "host":"localhost",
+      "port":19530,
+      "username":"root",
+      "password":"Milvus",
+      "enable_tls":true,
+      "connect_timeout":10,
+      "dial_config": {
+        "server_name": "localhost",
+        "server_pem_path": "/xxx/server.pem"
+      }
+    },
+    "collection_infos":[
+      {
+        "name":"*"
+      }
+    ],
+    "rpc_channel_info": {
+      "name": "by-dev-replicate-msg"
+    }
+  }
+}
+```
+
+#### create request with tls two-way authentication
+
+Prerequisite:
+1. Place ca.pem/client.pem/client.key in a directory **on the cdc server**.
+2. Know the server name when the certificate is generated, which will be filled in dial_config.server_name.
+
+```http
+POST localhost:8444/cdc
+Content-Type: application/json
+
+body:
+{
+  "request_type":"create",
+  "request_data":{
+    "milvus_connect_param":{
+      "host":"localhost",
+      "port":19530,
+      "username":"root",
+      "password":"Milvus",
+      "enable_tls":true,
+      "connect_timeout":10,
+      "dial_config": {
+        "server_name": "localhost",
+        "ca_pem_path": "/xxx/ca.pem",
+        "client_pem_path": "/xxx/client.pem",
+        "client_key_path": "/xxx/client.key"
+      }
+    },
+    "collection_infos":[
+      {
+        "name":"*"
+      }
+    ],
+    "rpc_channel_info": {
+      "name": "by-dev-replicate-msg"
+    }
+  }
+}
+```
 
 ### delete request
 

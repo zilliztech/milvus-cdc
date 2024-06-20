@@ -537,7 +537,7 @@ func NewMockMilvus(t *testing.T) (*sdkmocks.MilvusServiceServer, func() error) {
 	milvusService := sdkmocks.NewMilvusServiceServer(t)
 	milvusService.EXPECT().Connect(mock.Anything, mock.Anything).Return(&milvuspb.ConnectResponse{
 		Status: &commonpb.Status{},
-	}, nil)
+	}, nil).Maybe()
 	milvuspb.RegisterMilvusServiceServer(server, milvusService)
 
 	go func() {
