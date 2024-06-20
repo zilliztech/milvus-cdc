@@ -454,10 +454,10 @@ func TestCreateRequest(t *testing.T) {
 		positionStore.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskCollectionPosition{
 			{
 				Positions: map[string]*meta.PositionInfo{
-					"ch1": {
+					"ch1_v0": {
 						Time: 1,
 						DataPair: &commonpb.KeyDataPair{
-							Key:  "ch1",
+							Key:  "ch1_v0",
 							Data: []byte("ch1-position"),
 						},
 					},
@@ -504,7 +504,7 @@ func TestCreateRequest(t *testing.T) {
 					Name: "foo",
 				},
 				Positions: map[string]string{
-					"ch1": base64.StdEncoding.EncodeToString([]byte("ch1-position")),
+					"ch1_v0": base64.StdEncoding.EncodeToString([]byte("ch1-position")),
 				},
 			})
 			assert.NoError(t, err)

@@ -58,6 +58,10 @@ func L() *zap.Logger {
 	return _l.Load().(*zap.Logger)
 }
 
+func Prop() *log.ZapProperties {
+	return _p.Load().(*log.ZapProperties)
+}
+
 func Debug(msg string, fields ...zap.Field) {
 	L().Debug(msg, fields...)
 }

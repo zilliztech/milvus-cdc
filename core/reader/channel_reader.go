@@ -75,8 +75,12 @@ func NewChannelReader(channelName, seekPosition string,
 		log.Warn("fail to seek the position", zap.Error(err))
 		return nil, err
 	}
+	vchannel := util.GetVChannel(channelName, taskID)
+	if channelReader.seekPosition != nil && !IsVirtualChannel(channelReader.seekPosition.ChannelName) {
+		channelReader.seekPosition.ChannelName = vchannel
+	}
 	msgPackChan, err := dispatchClient.Register(context.Background(),
-		util.GetVChannel(channelName, taskID),
+		vchannel,
 		channelReader.seekPosition,
 		channelReader.subscriptionPosition)
 	if err != nil {

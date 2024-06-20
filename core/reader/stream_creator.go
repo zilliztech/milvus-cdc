@@ -101,6 +101,9 @@ func (dcsc *DisptachClientStreamCreator) GetStreamChan(ctx context.Context,
 	if seekPosition != nil {
 		seekPosition.ChannelName = CheckAndFixVirtualChannel(seekPosition.ChannelName)
 	}
+	if !IsVirtualChannel(vchannel) {
+		log.Panic("the channel name is not virtual channel", zap.String("channel_name", vchannel))
+	}
 	msgpackChan, err := dcsc.dispatchClient.Register(ctx, vchannel, seekPosition, subPositionType)
 	if err != nil {
 		log.Warn("fail to register the channel", zap.Error(err))
@@ -118,14 +121,18 @@ func (sc StreamCloser) Close() error {
 	return nil
 }
 
-func CheckAndFixVirtualChannel(vchannel string) string {
-	fakeVirtualName := "_fakev0"
+func IsVirtualChannel(vchannel string) bool {
 	i := strings.LastIndex(vchannel, "_")
 	if i == -1 {
-		return vchannel + fakeVirtualName
+		return false
 	}
-	if !strings.Contains(vchannel[i+1:], "v") {
-		return vchannel + fakeVirtualName
+	return strings.Contains(vchannel[i+1:], "v")
+}
+
+func CheckAndFixVirtualChannel(vchannel string) string {
+	fakeVirtualName := "_fakev0"
+	if IsVirtualChannel(vchannel) {
+		return vchannel
 	}
-	return vchannel
+	return vchannel + fakeVirtualName
 }

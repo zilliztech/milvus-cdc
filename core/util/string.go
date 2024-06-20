@@ -59,7 +59,7 @@ func ToPhysicalChannel(vchannel string) string {
 }
 
 func GetVChannel(pchannel, mark string) string {
-	return fmt.Sprintf("%s_%s", pchannel, mark)
+	return fmt.Sprintf("%s_%sv0", pchannel, mark)
 }
 
 func Base64Encode(obj []byte) string {
