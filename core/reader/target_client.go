@@ -40,24 +40,20 @@ type TargetClient struct {
 }
 
 type TargetConfig struct {
-	Address   string
-	Username  string
-	Password  string
-	APIKey    string
-	EnableTLS bool
+	Address    string
+	Username   string
+	Password   string
+	APIKey     string
+	EnableTLS  bool
+	DialConfig util.DialConfig
 }
 
 func NewTarget(ctx context.Context, config TargetConfig) (api.TargetAPI, error) {
 	targetClient := &TargetClient{
 		config: config,
 	}
-	var err error
-	targetClient.client, err = client.NewClient(ctx, client.Config{
-		Address:       config.Address,
-		Username:      config.Username,
-		Password:      config.Password,
-		EnableTLSAuth: config.EnableTLS,
-	})
+
+	_, err := targetClient.GetMilvus(ctx, "")
 	if err != nil {
 		log.Warn("fail to new target client", zap.String("address", config.Address), zap.Error(err))
 		return nil, err
@@ -66,18 +62,11 @@ func NewTarget(ctx context.Context, config TargetConfig) (api.TargetAPI, error) 
 }
 
 func (t *TargetClient) GetMilvus(ctx context.Context, databaseName string) (client.Client, error) {
-	if databaseName == "" || databaseName == util.DefaultDbName {
-		return t.client, nil
-	}
 	apiKey := t.config.APIKey
 	if apiKey == "" {
 		apiKey = util.GetAPIKey(t.config.Username, t.config.Password)
 	}
-	milvusClient, err := util.GetMilvusClientManager().GetMilvusClient(ctx,
-		t.config.Address,
-		apiKey,
-		databaseName,
-		t.config.EnableTLS)
+	milvusClient, err := util.GetMilvusClientManager().GetMilvusClient(ctx, t.config.Address, apiKey, databaseName, t.config.EnableTLS, t.config.DialConfig)
 	if err != nil {
 		return nil, err
 	}

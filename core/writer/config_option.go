@@ -20,6 +20,7 @@ package writer
 
 import (
 	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 func AddressOption(address string) config.Option[*MilvusDataHandler] {
@@ -52,5 +53,11 @@ func ConnectTimeoutOption(timeout int) config.Option[*MilvusDataHandler] {
 func IgnorePartitionOption(ignore bool) config.Option[*MilvusDataHandler] {
 	return config.OptionFunc[*MilvusDataHandler](func(object *MilvusDataHandler) {
 		object.ignorePartition = ignore
+	})
+}
+
+func DialConfigOption(dialConfig util.DialConfig) config.Option[*MilvusDataHandler] {
+	return config.OptionFunc[*MilvusDataHandler](func(object *MilvusDataHandler) {
+		object.dialConfig = dialConfig
 	})
 }
