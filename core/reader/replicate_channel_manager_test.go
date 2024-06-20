@@ -231,6 +231,7 @@ func TestStartReadCollection(t *testing.T) {
 			// start read
 			_, err := realManager.startReadChannel(&model.SourceCollectionInfo{
 				PChannelName: "test_read_channel",
+				VChannelName: "test_read_channel_v0",
 				CollectionID: 11001,
 				ShardNum:     1,
 			}, &model.TargetCollectionInfo{
@@ -240,7 +241,7 @@ func TestStartReadCollection(t *testing.T) {
 					"_default": 1101,
 				},
 				PChannel:    "ttest_read_channel",
-				VChannel:    "ttest_read_channel_p",
+				VChannel:    "ttest_read_channel_v0",
 				BarrierChan: util.NewOnceWriteChan(make(chan<- uint64)),
 				PartitionBarrierChan: map[int64]*util.OnceWriteChan[uint64]{
 					1101: util.NewOnceWriteChan(make(chan<- uint64)),
@@ -251,10 +252,12 @@ func TestStartReadCollection(t *testing.T) {
 
 			_, err = realManager.startReadChannel(&model.SourceCollectionInfo{
 				PChannelName: "test_read_channel_2",
+				VChannelName: "test_read_channel_2_v0",
 				CollectionID: 11002,
 			}, &model.TargetCollectionInfo{
 				CollectionName: "read_channel_2",
 				PChannel:       "ttest_read_channel_2",
+				VChannel:       "ttest_read_channel_2_v0",
 			})
 			assert.NoError(t, err)
 		}
@@ -293,7 +296,7 @@ func TestStartReadCollection(t *testing.T) {
 					},
 				},
 				PhysicalChannelNames: []string{"collection-partition-p1"},
-				VirtualChannelNames:  []string{"collection-partition-p1_2"},
+				VirtualChannelNames:  []string{"collection-partition-p1_v0"},
 			}, nil)
 			assert.NoError(t, err)
 		}

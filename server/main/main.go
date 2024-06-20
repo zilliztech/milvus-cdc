@@ -19,11 +19,9 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
 
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/yaml"
 
 	pkglog "github.com/milvus-io/milvus/pkg/log"
@@ -35,11 +33,7 @@ import (
 )
 
 func main() {
-	pkglog.ReplaceGlobals(zap.NewNop(), &pkglog.ZapProperties{
-		Core:   zapcore.NewNopCore(),
-		Syncer: zapcore.AddSync(ioutil.Discard),
-		Level:  zap.NewAtomicLevel(),
-	})
+	pkglog.ReplaceGlobals(log.L(), log.Prop())
 	paramtable.Init()
 	tag.LogInfo()
 
