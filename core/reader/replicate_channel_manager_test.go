@@ -21,10 +21,10 @@ package reader
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
+	"github.com/sasha-s/go-deadlock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
@@ -80,7 +80,7 @@ func NewReplicateChannelManagerWithFactory(mqConfig config.MQConfig,
 		apiEventChan:            make(chan *api.ReplicateAPIEvent, 10),
 		forwardReplicateChannel: make(chan string),
 		msgPackCallback:         msgPackCallback,
-		addCollectionLock:       &sync.RWMutex{},
+		addCollectionLock:       &deadlock.RWMutex{},
 		addCollectionCnt:        new(int),
 	}, nil
 }
@@ -165,6 +165,8 @@ func TestChannelUtils(t *testing.T) {
 }
 
 func TestStartReadCollection(t *testing.T) {
+	util.InitMilvusPkgParam()
+
 	factoryCreator := mocks.NewFactoryCreator(t)
 	factory := msgstream.NewMockFactory(t)
 	targetClient := mocks.NewTargetAPI(t)
@@ -371,12 +373,14 @@ func newReplicateChannelHandler(ctx context.Context,
 		creator)
 	if err == nil {
 		channelHandler.addCollectionCnt = new(int)
-		channelHandler.addCollectionLock = &sync.RWMutex{}
+		channelHandler.addCollectionLock = &deadlock.RWMutex{}
 	}
 	return channelHandler, err
 }
 
 func TestReplicateChannelHandler(t *testing.T) {
+	util.InitMilvusPkgParam()
+
 	t.Run("fail to new msg stream", func(t *testing.T) {
 		factory := msgstream.NewMockFactory(t)
 		factory.EXPECT().NewMsgStream(mock.Anything).Return(nil, errors.New("mock error"))
@@ -561,9 +565,11 @@ func TestReplicateChannelHandler(t *testing.T) {
 
 		barrierChan := make(chan uint64, 1)
 		partitionBarrierChan := make(chan uint64, 1)
+		apiEventChan := make(chan *api.ReplicateAPIEvent, 10)
 		handler, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{
 			CollectionID: 1,
-			PChannelName: "test_p_s",
+			PChannelName: "test_p",
+			VChannelName: "test_p_v1",
 			SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")},
 		}, &model.TargetCollectionInfo{
 			CollectionID:   100,
@@ -571,12 +577,12 @@ func TestReplicateChannelHandler(t *testing.T) {
 			PartitionInfo: map[string]int64{
 				"p1": 100021,
 			},
-			PChannel:             "test_p",
-			VChannel:             "test_p_1",
+			PChannel:             "test_q",
+			VChannel:             "test_q_v1",
 			BarrierChan:          util.NewOnceWriteChan(barrierChan),
 			PartitionBarrierChan: map[int64]*util.OnceWriteChan[uint64]{},
 			DroppedPartition:     make(map[int64]struct{}),
-		}, targetClient, &api.DefaultMetaOp{}, nil, &model.HandlerOpts{
+		}, targetClient, &api.DefaultMetaOp{}, apiEventChan, &model.HandlerOpts{
 			Factory:    factory,
 			TTInterval: 10000,
 		})
@@ -627,7 +633,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 				insertMsg := pack.Msgs[0].(*msgstream.InsertMsg)
 				assert.EqualValues(t, 100, insertMsg.CollectionID)
 				assert.EqualValues(t, 100021, insertMsg.PartitionID)
-				assert.Equal(t, "test_p_1", insertMsg.ShardName)
+				assert.Equal(t, "test_q_v1", insertMsg.ShardName)
 			}
 
 			{
@@ -638,13 +644,13 @@ func TestReplicateChannelHandler(t *testing.T) {
 					deleteMsg := pack.Msgs[0].(*msgstream.DeleteMsg)
 					assert.EqualValues(t, 100, deleteMsg.CollectionID)
 					assert.EqualValues(t, 0, deleteMsg.PartitionID)
-					assert.Equal(t, "test_p_1", deleteMsg.ShardName)
+					assert.Equal(t, "test_q_v1", deleteMsg.ShardName)
 				}
 				{
 					deleteMsg := pack.Msgs[1].(*msgstream.DeleteMsg)
 					assert.EqualValues(t, 100, deleteMsg.CollectionID)
 					assert.EqualValues(t, 100021, deleteMsg.PartitionID)
-					assert.Equal(t, "test_p_1", deleteMsg.ShardName)
+					assert.Equal(t, "test_q_v1", deleteMsg.ShardName)
 				}
 			}
 
@@ -946,6 +952,12 @@ func TestReplicateChannelHandler(t *testing.T) {
 		// close
 		log.Info("close")
 		handler.Close()
-		<-done
+		doneTimer := time.NewTimer(10 * time.Second)
+		defer doneTimer.Stop()
+		select {
+		case <-done:
+		case <-doneTimer.C:
+			t.FailNow()
+		}
 	})
 }
