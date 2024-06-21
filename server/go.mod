@@ -10,7 +10,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/milvus-io/milvus-proto/go-api/v2 v2.4.3
 	github.com/milvus-io/milvus-sdk-go/v2 v2.4.1-0.20240604033341-0f2b1f29bf47
-	github.com/milvus-io/milvus/pkg v0.0.2-0.20240605063157-545d4725fb04
+	github.com/milvus-io/milvus/pkg v0.0.2-0.20240618133959-0d20303e54ae
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pingcap/log v1.1.1-0.20221015072633-39906604fb81
 	github.com/prometheus/client_golang v1.14.0

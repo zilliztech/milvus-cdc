@@ -7,7 +7,7 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/milvus-io/milvus-proto/go-api/v2 v2.4.3
 	github.com/milvus-io/milvus-sdk-go/v2 v2.4.1-0.20240604033341-0f2b1f29bf47
-	github.com/milvus-io/milvus/pkg v0.0.2-0.20240605063157-545d4725fb04
+	github.com/milvus-io/milvus/pkg v0.0.2-0.20240618133959-0d20303e54ae
 	github.com/prometheus/client_golang v1.14.0
 	github.com/samber/lo v1.27.0
 	github.com/sasha-s/go-deadlock v0.3.1

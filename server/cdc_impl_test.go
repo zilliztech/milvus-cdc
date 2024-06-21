@@ -410,6 +410,7 @@ func TestValidCreateRequest(t *testing.T) {
 }
 
 func TestCreateRequest(t *testing.T) {
+	util.InitMilvusPkgParam()
 	t.Run("success", func(t *testing.T) {
 		metaCDC := &MetaCDC{
 			config: &CDCServerConfig{

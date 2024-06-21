@@ -24,7 +24,6 @@ import (
 	"math"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -65,7 +64,7 @@ type replicateChannelManager struct {
 	messageBufferSize     int
 	ttInterval            int
 
-	channelLock       deadlock.Mutex
+	channelLock       deadlock.RWMutex
 	channelHandlerMap map[string]*replicateChannelHandler
 	channelForwardMap map[string]struct{}
 
@@ -84,7 +83,7 @@ type replicateChannelManager struct {
 	droppedCollections util.Map[int64, struct{}]
 	droppedPartitions  util.Map[int64, struct{}]
 
-	addCollectionLock *sync.RWMutex
+	addCollectionLock *deadlock.RWMutex
 	addCollectionCnt  *int
 }
 
@@ -119,7 +118,7 @@ func NewReplicateChannelManagerWithDispatchClient(
 		forwardReplicateChannel: make(chan string),
 		msgPackCallback:         msgPackCallback,
 
-		addCollectionLock: &sync.RWMutex{},
+		addCollectionLock: &deadlock.RWMutex{},
 		addCollectionCnt:  new(int),
 	}, nil
 }
@@ -315,9 +314,11 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 		return nil
 	})
 
-	for _, channelHandler := range channelHandlers {
-		channelHandler.startReadChannel()
-		log.Info("start read the source channel", zap.String("channel_name", channelHandler.pChannelName))
+	if err == nil {
+		for _, channelHandler := range channelHandlers {
+			channelHandler.startReadChannel()
+			log.Info("start read the source channel", zap.String("channel_name", channelHandler.pChannelName))
+		}
 	}
 	return err
 }
@@ -367,7 +368,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 			partitionLog.Info("the collection is dropped when add partition")
 			return nil
 		}
-		r.channelLock.Lock()
+		r.channelLock.RLock()
 		for _, handler := range r.channelHandlerMap {
 			handler.recordLock.RLock()
 			if _, ok := handler.collectionRecords[collectionID]; ok {
@@ -375,7 +376,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 			}
 			handler.recordLock.RUnlock()
 		}
-		r.channelLock.Unlock()
+		r.channelLock.RUnlock()
 		if len(handlers) == 0 {
 			partitionLog.Info("waiting handler", zap.Int64("collection_id", collectionID))
 			return errors.New("no handler found")
@@ -499,8 +500,8 @@ func (r *replicateChannelManager) GetChannelChan() <-chan string {
 }
 
 func (r *replicateChannelManager) GetMsgChan(pChannel string) <-chan *msgstream.MsgPack {
-	r.channelLock.Lock()
-	defer r.channelLock.Unlock()
+	r.channelLock.RLock()
+	defer r.channelLock.RUnlock()
 
 	handler := r.channelHandlerMap[pChannel]
 	if handler != nil {
@@ -641,8 +642,8 @@ func (r *replicateChannelManager) forwardMsg(targetPChannel string, msg *msgstre
 	var handler *replicateChannelHandler
 
 	_ = retry.Do(r.replicateCtx, func() error {
-		r.channelLock.Lock()
-		defer r.channelLock.Unlock()
+		r.channelLock.RLock()
+		defer r.channelLock.RUnlock()
 
 		for _, channelHandler := range r.channelHandlerMap {
 			if channelHandler.targetPChannel == targetPChannel {
@@ -684,12 +685,13 @@ func (r *replicateChannelManager) isDroppedPartition(partition int64) bool {
 }
 
 func (r *replicateChannelManager) stopReadChannel(pChannelName string, collectionID int64) {
-	r.channelLock.Lock()
-	defer r.channelLock.Unlock()
+	r.channelLock.RLock()
 	channelHandler, ok := r.channelHandlerMap[pChannelName]
 	if !ok {
+		r.channelLock.RUnlock()
 		return
 	}
+	r.channelLock.RUnlock()
 	channelHandler.RemoveCollection(collectionID)
 	// because the channel maybe be repeated to use for the forward message, NOT CLOSE
 	// if channelHandler.IsEmpty() {
@@ -721,12 +723,13 @@ type replicateChannelHandler struct {
 	isDroppedCollection func(int64) bool
 	isDroppedPartition  func(int64) bool
 
-	retryOptions   []retry.Option
-	lastSendTTTime time.Time
-	ttPeriod       time.Duration
-	needTsMsg      bool
+	retryOptions []retry.Option
+	ttPeriod     time.Duration
 
-	addCollectionLock *sync.RWMutex
+	ttLock         deadlock.Mutex
+	lastSendTTTime time.Time
+
+	addCollectionLock *deadlock.RWMutex
 	addCollectionCnt  *int
 
 	sourceSeekPosition *msgstream.MsgPosition
@@ -817,20 +820,25 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 }
 
 func (r *replicateChannelHandler) RemoveCollection(collectionID int64) {
+	// HINT: please care the lock when you return, because the closeStreamFunc func maybe block
 	r.recordLock.Lock()
-	defer r.recordLock.Unlock()
 	collectionRecord, ok := r.collectionRecords[collectionID]
 	if !ok {
+		r.recordLock.Unlock()
 		return
 	}
 	delete(r.collectionRecords, collectionID)
 	if collectionRecord != nil {
 		delete(r.collectionNames, collectionRecord.CollectionName)
 	}
-	closeStreamFunc, ok := r.closeStreamFuncs[collectionID]
+	var closeStreamFunc io.Closer
+	closeStreamFunc, ok = r.closeStreamFuncs[collectionID]
 	if ok {
-		_ = closeStreamFunc.Close()
 		delete(r.closeStreamFuncs, collectionID)
+	}
+	r.recordLock.Unlock()
+	if closeStreamFunc != nil {
+		_ = closeStreamFunc.Close()
 	}
 	GetTSManager().RemoveRef(r.pChannelName)
 	log.Info("remove collection from handler", zap.Int64("collection_id", collectionID))
@@ -1117,19 +1125,26 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	beginTS := pack.BeginTs
 	endTS := pack.EndTs
 
-	// TODO how to handle the ts
-	minTS, resetTS := GetTSManager().GetMaxTS(r.pChannelName)
+	// TODO it need be check
+	// minTS, resetTS := GetTSManager().GetMaxTS(r.pChannelName)
 	// if resetTS && minTS > beginTS {
 	//	beginTS = minTS
 	//	endTS = minTS
 	// }
+
+	minTS, resetTS := GetTSManager().GetMinTS(r.pChannelName)
+	if resetTS && minTS > beginTS {
+		beginTS = minTS
+		endTS = minTS
+	}
+	needTsMsg := false
 
 	pChannel := r.targetPChannel
 	for _, msg := range pack.Msgs {
 		if forward {
 			newPack.Msgs = append(newPack.Msgs, msg)
 			if msg.Type() == commonpb.MsgType_DropCollection {
-				r.needTsMsg = true
+				needTsMsg = true
 			}
 			continue
 		}
@@ -1207,7 +1222,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				collectionID := realMsg.CollectionID
 				realMsg.CollectionID = info.CollectionID
 				info.BarrierChan.Write(msg.EndTs())
-				r.needTsMsg = true
+				needTsMsg = true
 				r.RemoveCollection(collectionID)
 				if resetTS {
 					realMsg.BeginTimestamp = endTS
@@ -1279,11 +1294,15 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				return nil
 			}
 			originPosition := msg.Position()
+			positionChannel := info.PChannel
+			if IsVirtualChannel(originPosition.GetChannelName()) {
+				positionChannel = info.VChannel
+			}
 			msg.SetPosition(&msgpb.MsgPosition{
-				ChannelName: info.PChannel,
+				ChannelName: positionChannel,
 				MsgID:       originPosition.GetMsgID(),
 				MsgGroup:    originPosition.GetMsgGroup(),
-				Timestamp:   msg.EndTs(),
+				Timestamp:   originPosition.GetTimestamp(),
 			})
 			logFields := []zap.Field{
 				zap.String("msg", msg.Type().String()),
@@ -1311,19 +1330,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		}
 	}
 
-	if minTS == 0 {
-		if !r.needTsMsg && len(newPack.Msgs) == 0 {
-			return util.EmptyMsgPack
-		}
-		r.sendErrEvent(errors.Newf("fail to get channel ts, channel: %s", r.pChannelName))
-		log.Warn("fail to get channel ts", zap.String("channel", r.pChannelName))
-		return nil
-	}
-
-	if !r.needTsMsg && len(newPack.Msgs) == 0 && time.Since(r.lastSendTTTime) < r.ttPeriod {
-		return util.EmptyMsgPack
-	}
-
 	for _, position := range newPack.StartPositions {
 		position.ChannelName = pChannel
 		position.Timestamp = beginTS
@@ -1335,9 +1341,24 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	newPack.BeginTs = beginTS
 	newPack.EndTs = endTS
 
-	r.needTsMsg = r.needTsMsg || len(newPack.Msgs) == 0
-	if r.needTsMsg {
-		// TODO it will cause a lot of tt msg because a handler is related a vchannel, not a pchannel
+	if minTS == 0 {
+		if !needTsMsg && len(newPack.Msgs) == 0 {
+			return util.EmptyMsgPack
+		}
+		r.sendErrEvent(errors.Newf("fail to get channel ts, channel: %s", r.pChannelName))
+		log.Warn("fail to get channel ts", zap.String("channel", r.pChannelName))
+		return nil
+	}
+
+	r.ttLock.Lock()
+	defer r.ttLock.Unlock()
+
+	if !needTsMsg && len(newPack.Msgs) == 0 && time.Since(r.lastSendTTTime) < r.ttPeriod {
+		return util.EmptyMsgPack
+	}
+
+	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
+	if needTsMsg {
 		timeTickResult := msgpb.TimeTickMsg{
 			Base: commonpbutil.NewMsgBase(
 				commonpbutil.WithMsgType(commonpb.MsgType_TimeTick),
@@ -1357,7 +1378,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		}
 		newPack.Msgs = append(newPack.Msgs, timeTickMsg)
 		GetTSManager().SetLastMsgTS(r.pChannelName, endTS)
-		r.needTsMsg = false
 		r.lastSendTTTime = time.Now()
 	}
 	return newPack
@@ -1407,7 +1427,9 @@ func initReplicateChannelHandler(ctx context.Context,
 		ttPeriod:           time.Duration(opts.TTInterval) * time.Millisecond,
 		sourceSeekPosition: sourceInfo.SeekPosition,
 	}
+	channelHandler.ttLock.Lock()
 	channelHandler.lastSendTTTime = time.Now().Add(-channelHandler.ttPeriod)
+	channelHandler.ttLock.Unlock()
 	channelHandler.AddCollection(sourceInfo, targetInfo)
 	GetTSManager().CollectTS(channelHandler.pChannelName, math.MaxUint64)
 	return channelHandler, nil

@@ -16,35 +16,18 @@
  * limitations under the License.
  */
 
-package main
+package util
 
-import (
-	"os"
+import "github.com/milvus-io/milvus/pkg/util/paramtable"
 
-	"go.uber.org/zap"
-	"sigs.k8s.io/yaml"
-
-	pkglog "github.com/milvus-io/milvus/pkg/log"
-
-	"github.com/zilliztech/milvus-cdc/core/log"
-	"github.com/zilliztech/milvus-cdc/core/util"
-	"github.com/zilliztech/milvus-cdc/server"
-	"github.com/zilliztech/milvus-cdc/server/tag"
-)
-
-func main() {
-	pkglog.ReplaceGlobals(log.L(), log.Prop())
-	util.InitMilvusPkgParam()
-	tag.LogInfo()
-
-	s := &server.CDCServer{}
-
-	// parse config file
-	fileContent, _ := os.ReadFile("./configs/cdc.yaml")
-	var serverConfig server.CDCServerConfig
-	err := yaml.Unmarshal(fileContent, &serverConfig)
-	if err != nil {
-		log.Panic("Failed to parse config file", zap.Error(err))
-	}
-	s.Run(&serverConfig)
+func InitMilvusPkgParam() {
+	baseTable := paramtable.NewBaseTable(
+		paramtable.SkipRemote(true),
+		paramtable.Interval(0),
+	)
+	paramtable.InitWithBaseTable(baseTable)
+	innerParam := paramtable.Get()
+	_ = innerParam.Save(innerParam.MQCfg.MaxTolerantLag.Key, "10")
+	_ = innerParam.Save(innerParam.MQCfg.MergeCheckInterval.Key, "3")
+	_ = innerParam.Save(innerParam.MQCfg.TargetBufSize.Key, "256")
 }
