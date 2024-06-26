@@ -30,9 +30,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
+	"github.com/milvus-io/milvus/pkg/mq/common"
 	"github.com/milvus-io/milvus/pkg/mq/msgdispatcher"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -44,7 +44,7 @@ type ChannelReader struct {
 	api.DefaultReader
 
 	channelName          string
-	subscriptionPosition mqwrapper.SubscriptionInitialPosition
+	subscriptionPosition common.SubscriptionInitialPosition
 	seekPosition         *msgpb.MsgPosition
 
 	msgPackChan   <-chan *msgstream.MsgPack
@@ -64,10 +64,10 @@ func NewChannelReader(channelName, seekPosition string,
 	channelReader := &ChannelReader{
 		channelName:          channelName,
 		dataHandler:          dataHandler,
-		subscriptionPosition: mqwrapper.SubscriptionPositionUnknown,
+		subscriptionPosition: common.SubscriptionPositionUnknown,
 	}
 	if seekPosition == "" {
-		channelReader.subscriptionPosition = mqwrapper.SubscriptionPositionLatest
+		channelReader.subscriptionPosition = common.SubscriptionPositionLatest
 	}
 	channelReader.isQuit.Store(false)
 	err := channelReader.decodeSeekPosition(seekPosition)

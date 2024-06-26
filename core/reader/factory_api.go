@@ -118,3 +118,17 @@ func GetMsgDispatcherClient(creator FactoryCreator, mqConfig config.MQConfig) (m
 	warpFactory := util.NewMsgStreamFactory(factory)
 	return msgdispatcher.NewClient(warpFactory, "cdc", 8444), nil
 }
+
+func GetStreamFactory(creator FactoryCreator, mqConfig config.MQConfig) (msgstream.Factory, error) {
+	var factory msgstream.Factory
+	switch {
+	case mqConfig.Pulsar.Address != "":
+		factory = creator.NewPmsFactory(&mqConfig.Pulsar)
+	case mqConfig.Kafka.Address != "":
+		factory = creator.NewKmsFactory(&mqConfig.Kafka)
+	default:
+		return nil, errors.New("fail to get the msg stream, check the mqConfig param")
+	}
+	warpFactory := util.NewMsgStreamFactory(factory)
+	return warpFactory, nil
+}

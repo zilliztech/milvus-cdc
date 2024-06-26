@@ -89,6 +89,7 @@ type replicateChannelManager struct {
 
 func NewReplicateChannelManagerWithDispatchClient(
 	dispatchClient msgdispatcher.Client,
+	factory msgstream.Factory,
 	client api.TargetAPI,
 	readConfig config.ReaderConfig,
 	metaOp api.MetaOp,
@@ -98,6 +99,7 @@ func NewReplicateChannelManagerWithDispatchClient(
 		streamDispatchClient: dispatchClient,
 		streamCreator: &DisptachClientStreamCreator{
 			dispatchClient: dispatchClient,
+			factory:        factory,
 		},
 		targetClient: client,
 		metaOp:       metaOp,
@@ -822,9 +824,9 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 func (r *replicateChannelHandler) RemoveCollection(collectionID int64) {
 	// HINT: please care the lock when you return, because the closeStreamFunc func maybe block
 	r.recordLock.Lock()
+	defer r.recordLock.Unlock()
 	collectionRecord, ok := r.collectionRecords[collectionID]
 	if !ok {
-		r.recordLock.Unlock()
 		return
 	}
 	delete(r.collectionRecords, collectionID)
@@ -836,9 +838,10 @@ func (r *replicateChannelHandler) RemoveCollection(collectionID int64) {
 	if ok {
 		delete(r.closeStreamFuncs, collectionID)
 	}
-	r.recordLock.Unlock()
 	if closeStreamFunc != nil {
-		_ = closeStreamFunc.Close()
+		go func() {
+			_ = closeStreamFunc.Close()
+		}()
 	}
 	GetTSManager().RemoveRef(r.pChannelName)
 	log.Info("remove collection from handler", zap.Int64("collection_id", collectionID))
@@ -1396,15 +1399,14 @@ func initReplicateChannelHandler(ctx context.Context,
 	targetClient api.TargetAPI, metaOp api.MetaOp, apiEventChan chan *api.ReplicateAPIEvent,
 	opts *model.HandlerOpts, streamCreator StreamCreator,
 ) (*replicateChannelHandler, error) {
-	_, closeStreamFunc, err := streamCreator.GetStreamChan(ctx, sourceInfo.VChannelName, sourceInfo.SeekPosition)
+	err := streamCreator.CheckConnection(sourceInfo.VChannelName, sourceInfo.SeekPosition)
 	if err != nil {
-		log.Warn("fail to get the msg pack channel",
+		log.Warn("fail to connect the mq stream",
 			zap.String("channel_name", sourceInfo.VChannelName),
 			zap.Int64("collection_id", sourceInfo.CollectionID),
 			zap.Error(err))
 		return nil, err
 	}
-	_ = closeStreamFunc.Close()
 
 	if opts.TTInterval <= 0 {
 		opts.TTInterval = util.DefaultReplicateTTInterval

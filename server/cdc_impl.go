@@ -533,24 +533,31 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 		return nil, servererror.NewClientError("fail to new the meta op")
 	}
 
-	msgDispatcherClient, err := cdcreader.GetMsgDispatcherClient(e.mqFactoryCreator, config.MQConfig{
+	mqConfig := config.MQConfig{
 		Pulsar: e.config.SourceConfig.Pulsar,
 		Kafka:  e.config.SourceConfig.Kafka,
-	})
+	}
+	msgDispatcherClient, err := cdcreader.GetMsgDispatcherClient(e.mqFactoryCreator, mqConfig)
 	if err != nil {
 		taskLog.Warn("fail to get the msg dispatcher client", zap.Error(err))
 		return nil, servererror.NewClientError("fail to get the msg dispatcher client")
 	}
 
+	streamFactory, _ := cdcreader.GetStreamFactory(e.mqFactoryCreator, mqConfig)
+
 	bufferSize := e.config.SourceConfig.ReadChanLen
 	ttInterval := e.config.SourceConfig.TimeTickInterval
-	channelManager, err := cdcreader.NewReplicateChannelManagerWithDispatchClient(msgDispatcherClient, milvusClient, config.ReaderConfig{
-		MessageBufferSize: bufferSize,
-		TTInterval:        ttInterval,
-		Retry:             e.config.Retry,
-	}, metaOp, func(s string, pack *msgstream.MsgPack) {
-		replicateMetric(info, s, pack, metrics.OPTypeRead)
-	})
+	channelManager, err := cdcreader.NewReplicateChannelManagerWithDispatchClient(
+		msgDispatcherClient,
+		streamFactory,
+		milvusClient,
+		config.ReaderConfig{
+			MessageBufferSize: bufferSize,
+			TTInterval:        ttInterval,
+			Retry:             e.config.Retry,
+		}, metaOp, func(s string, pack *msgstream.MsgPack) {
+			replicateMetric(info, s, pack, metrics.OPTypeRead)
+		})
 	if err != nil {
 		taskLog.Warn("fail to create replicate channel manager", zap.Error(err))
 		return nil, servererror.NewClientError("fail to create replicate channel manager")

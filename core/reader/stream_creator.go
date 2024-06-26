@@ -27,9 +27,9 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/milvus-io/milvus/pkg/mq/common"
 	"github.com/milvus-io/milvus/pkg/mq/msgdispatcher"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 	"github.com/milvus-io/milvus/pkg/util/funcutil"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
@@ -37,6 +37,7 @@ import (
 
 type StreamCreator interface {
 	GetStreamChan(ctx context.Context, vchannel string, seekPosition *msgstream.MsgPosition) (<-chan *msgstream.MsgPack, io.Closer, error)
+	CheckConnection(vchannel string, seekPosition *msgstream.MsgPosition) error
 }
 
 type FactoryStreamCreator struct {
@@ -47,16 +48,39 @@ func (fsc *FactoryStreamCreator) GetStreamChan(ctx context.Context,
 	vchannel string,
 	seekPosition *msgstream.MsgPosition,
 ) (<-chan *msgstream.MsgPack, io.Closer, error) {
-	stream, err := fsc.factory.NewMsgStream(ctx)
+	stream, err := getStream(ctx, fsc.factory, vchannel, seekPosition)
+	if err != nil {
+		return nil, nil, err
+	}
+	return stream.Chan(), StreamCloser(func() {
+		stream.Close()
+	}), nil
+}
+
+func (fsc *FactoryStreamCreator) CheckConnection(vchannel string, seekPosition *msgstream.MsgPosition) error {
+	stream, err := getStream(context.Background(), fsc.factory, vchannel, seekPosition)
+	if err != nil {
+		return err
+	}
+	stream.Close()
+	return nil
+}
+
+func getStream(ctx context.Context,
+	factory msgstream.Factory,
+	vchannel string,
+	seekPosition *msgstream.MsgPosition,
+) (msgstream.MsgStream, error) {
+	stream, err := factory.NewMsgStream(ctx)
 	log := log.With(zap.String("channel_name", vchannel))
 	if err != nil {
 		log.Warn("fail to new the msg stream", zap.Error(err))
-		return nil, nil, err
+		return nil, err
 	}
 
-	subPositionType := mqwrapper.SubscriptionPositionUnknown
+	subPositionType := common.SubscriptionPositionUnknown
 	if seekPosition == nil {
-		subPositionType = mqwrapper.SubscriptionPositionLatest
+		subPositionType = common.SubscriptionPositionLatest
 	}
 	pchannel := funcutil.ToPhysicalChannel(vchannel)
 
@@ -64,7 +88,7 @@ func (fsc *FactoryStreamCreator) GetStreamChan(ctx context.Context,
 	if err != nil {
 		log.Warn("fail to consume the channel", zap.Error(err))
 		stream.Close()
-		return nil, nil, err
+		return nil, err
 	}
 
 	if seekPosition != nil {
@@ -72,19 +96,18 @@ func (fsc *FactoryStreamCreator) GetStreamChan(ctx context.Context,
 		if err != nil {
 			log.Warn("fail to seek the msg stream", zap.Error(err))
 			stream.Close()
-			return nil, nil, err
+			return nil, err
 		}
 		if seekPosition.Timestamp == 0 {
 			log.Info("the seek timestamp is zero")
 		}
 		log.Info("success to seek the msg stream")
 	}
-	return stream.Chan(), StreamCloser(func() {
-		stream.Close()
-	}), nil
+	return stream, nil
 }
 
 type DisptachClientStreamCreator struct {
+	factory        msgstream.Factory
 	dispatchClient msgdispatcher.Client
 }
 
@@ -93,9 +116,9 @@ func (dcsc *DisptachClientStreamCreator) GetStreamChan(ctx context.Context,
 	seekPosition *msgstream.MsgPosition,
 ) (<-chan *msgstream.MsgPack, io.Closer, error) {
 	log := log.With(zap.String("channel_name", vchannel))
-	subPositionType := mqwrapper.SubscriptionPositionUnknown
+	subPositionType := common.SubscriptionPositionUnknown
 	if seekPosition == nil {
-		subPositionType = mqwrapper.SubscriptionPositionLatest
+		subPositionType = common.SubscriptionPositionLatest
 	}
 	// make the position channel is v channel
 	if seekPosition != nil {
@@ -112,6 +135,15 @@ func (dcsc *DisptachClientStreamCreator) GetStreamChan(ctx context.Context,
 	return msgpackChan, StreamCloser(func() {
 		dcsc.dispatchClient.Deregister(vchannel)
 	}), nil
+}
+
+func (dcsc *DisptachClientStreamCreator) CheckConnection(vchannel string, seekPosition *msgstream.MsgPosition) error {
+	stream, err := getStream(context.Background(), dcsc.factory, vchannel, seekPosition)
+	if err != nil {
+		return err
+	}
+	stream.Close()
+	return nil
 }
 
 type StreamCloser func()
