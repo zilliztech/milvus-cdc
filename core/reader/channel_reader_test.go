@@ -30,8 +30,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 
+	"github.com/milvus-io/milvus/pkg/mq/common"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -48,10 +48,10 @@ func NewChannelReaderWithFactory(channelName, seekPosition string,
 	channelReader := &ChannelReader{
 		channelName:          channelName,
 		dataHandler:          dataHandler,
-		subscriptionPosition: mqwrapper.SubscriptionPositionUnknown,
+		subscriptionPosition: common.SubscriptionPositionUnknown,
 	}
 	if seekPosition == "" {
-		channelReader.subscriptionPosition = mqwrapper.SubscriptionPositionLatest
+		channelReader.subscriptionPosition = common.SubscriptionPositionLatest
 	}
 	channelReader.isQuit.Store(false)
 	err := channelReader.decodeSeekPosition(seekPosition)

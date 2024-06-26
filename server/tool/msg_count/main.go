@@ -41,8 +41,8 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/log"
+	"github.com/milvus-io/milvus/pkg/mq/common"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream/mqwrapper"
 	"github.com/milvus-io/milvus/pkg/util/paramtable"
 	"github.com/milvus-io/milvus/pkg/util/tsoutil"
 
@@ -199,7 +199,7 @@ func GetMQMessageDetail(ctx context.Context, config PositionConfig, pchannel str
 	defer msgStream.Close()
 
 	consumeSubName := pchannel + strconv.Itoa(rand.Int())
-	initialPosition := mqwrapper.SubscriptionPositionUnknown
+	initialPosition := common.SubscriptionPositionUnknown
 	// initialPosition := mqwrapper.SubscriptionPositionEarliest
 	err := msgStream.AsConsumer(ctx, []string{pchannel}, consumeSubName, initialPosition)
 	if err != nil {
@@ -279,7 +279,7 @@ func GetLatestMsgInfo(ctx context.Context, config PositionConfig, pchannel strin
 	defer msgStream.Close()
 
 	consumeSubName := pchannel + strconv.Itoa(rand.Int())
-	initialPosition := mqwrapper.SubscriptionPositionLatest
+	initialPosition := common.SubscriptionPositionLatest
 	err := msgStream.AsConsumer(ctx, []string{pchannel}, consumeSubName, initialPosition)
 	if err != nil {
 		msgStream.Close()

@@ -56,11 +56,13 @@ func NewReplicateChannelManagerWithFactory(mqConfig config.MQConfig,
 		log.Warn("fail to get the msg dispatcher client", zap.Error(err))
 		return nil, err
 	}
+	streamFactory, _ := GetStreamFactory(factoryCreator, mqConfig)
 
 	return &replicateChannelManager{
 		streamDispatchClient: streamDispatchClient,
 		streamCreator: &DisptachClientStreamCreator{
 			dispatchClient: streamDispatchClient,
+			factory:        streamFactory,
 		},
 		targetClient: client,
 		metaOp:       metaOp,
