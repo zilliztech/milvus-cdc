@@ -107,6 +107,7 @@ func getStream(ctx context.Context,
 }
 
 type DisptachClientStreamCreator struct {
+	// only be used for checking the connection
 	factory        msgstream.Factory
 	dispatchClient msgdispatcher.Client
 }

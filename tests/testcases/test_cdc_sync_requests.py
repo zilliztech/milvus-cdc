@@ -147,6 +147,9 @@ class TestCDCSyncRequest(TestBase):
             ]
             c.insert(data)
         c.flush()
+        index_params = {"index_type": "IVF_FLAT", "params": {"nlist": 128}, "metric_type": "L2"}
+        c.create_index("float_vector", index_params)
+        c.load()
         # get number of entities in upstream
         log.info(f"number of entities in upstream: {c.num_entities}")
         # check collections in downstream
@@ -157,6 +160,7 @@ class TestCDCSyncRequest(TestBase):
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
+            c_downstream.flush(timeout=5)
             # get the number of entities in downstream
             if c_downstream.num_entities != nb:
                 log.info(f"sync progress:{c_downstream.num_entities / (nb*epoch) * 100:.2f}%")
@@ -212,10 +216,18 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        res = c_downstream.query('varchar == "hello"', timeout=10)
         timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
+            if time.time() - t0 > timeout:
+                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                break
+            time.sleep(1)
+            c_state = utility.load_state(collection_name)
+            if c_state != LoadState.Loaded:
+                log.info(f"collection state in downstream: {str(c_state)}")
+                continue
+            res = c_downstream.query('varchar == "hello"', timeout=10)
             # get the number of entities in downstream
             if len(res) != nb:
                 log.info(f"sync progress:{len(res) / nb * 100:.2f}%")
@@ -223,10 +235,6 @@ class TestCDCSyncRequest(TestBase):
             if len(res) == nb:
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(1)
-            res = c_downstream.query('varchar == "hello"', timeout=10)
-            if time.time() - t0 > timeout:
-                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert len(res) == nb
 
     def test_cdc_sync_delete_entities_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
@@ -269,6 +277,14 @@ class TestCDCSyncRequest(TestBase):
         timeout = 30
         t0 = time.time()
         while True and time.time() - t0 < timeout:
+            if time.time() - t0 > timeout:
+                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                break
+            time.sleep(1)
+            c_state = utility.load_state(collection_name)
+            if c_state != LoadState.Loaded:
+                log.info(f"collection state in downstream: {str(c_state)}")
+                continue
             # get the number of entities in downstream
             res = c_downstream.query(f"int64 in {[i for i in range(100)]}", timeout=10)
             if len(res) != 100:
@@ -277,9 +293,6 @@ class TestCDCSyncRequest(TestBase):
             if len(res) == 0:
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(1)
-            if time.time() - t0 > timeout:
-                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert len(res) == 0
 
     def test_cdc_sync_create_partition_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
@@ -604,7 +617,7 @@ class TestCDCSyncRequest(TestBase):
             time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
-        c_downstream.flush()
+        c_downstream.flush(timeout=10)
         log.info(f"number of entities in downstream: {c_downstream.num_entities}")
 
     def test_cdc_sync_create_database_request(self, upstream_host, upstream_port, downstream_host, downstream_port):

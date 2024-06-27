@@ -51,12 +51,12 @@ func NewReplicateChannelManagerWithFactory(mqConfig config.MQConfig,
 	metaOp api.MetaOp,
 	msgPackCallback func(string, *msgstream.MsgPack),
 ) (api.ChannelManager, error) {
-	streamDispatchClient, err := GetMsgDispatcherClient(factoryCreator, mqConfig)
+	streamDispatchClient, err := GetMsgDispatcherClient(factoryCreator, mqConfig, false)
 	if err != nil {
 		log.Warn("fail to get the msg dispatcher client", zap.Error(err))
 		return nil, err
 	}
-	streamFactory, _ := GetStreamFactory(factoryCreator, mqConfig)
+	streamFactory, _ := GetStreamFactory(factoryCreator, mqConfig, false)
 
 	return &replicateChannelManager{
 		streamDispatchClient: streamDispatchClient,

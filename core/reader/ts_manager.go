@@ -105,6 +105,9 @@ func (m *tsManager) CollectTS(channelName string, currentTS uint64) {
 
 	m.tsLock.Lock()
 	defer m.tsLock.Unlock()
+	if currentTS == math.MaxUint64 {
+		return
+	}
 	ts2, ok := m.channelTS2[channelName]
 	if !ok {
 		m.channelTS2[channelName] = currentTS
@@ -192,6 +195,10 @@ func (m *tsManager) GetMaxTS(channelName string) (uint64, bool) {
 
 func (m *tsManager) SetLastMsgTS(channelName string, lastTS uint64) {
 	m.lastMsgTS.Store(channelName, lastTS)
+}
+
+func (m *tsManager) GetLastMsgTS(channelName string) uint64 {
+	return m.lastMsgTS.LoadWithDefault(channelName, 0)
 }
 
 // EmptyTS Only for test

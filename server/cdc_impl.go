@@ -61,6 +61,7 @@ type ReplicateEntity struct {
 	readerObj      api.Reader // TODO the reader's counter may be more than one
 	writerObj      api.Writer
 	mqDispatcher   msgdispatcher.Client
+	mqTTDispatcher msgdispatcher.Client
 	quitFunc       func()
 }
 
@@ -537,18 +538,19 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 		Pulsar: e.config.SourceConfig.Pulsar,
 		Kafka:  e.config.SourceConfig.Kafka,
 	}
-	msgDispatcherClient, err := cdcreader.GetMsgDispatcherClient(e.mqFactoryCreator, mqConfig)
+	msgDispatcherClient, err := cdcreader.GetMsgDispatcherClient(e.mqFactoryCreator, mqConfig, false)
 	if err != nil {
 		taskLog.Warn("fail to get the msg dispatcher client", zap.Error(err))
 		return nil, servererror.NewClientError("fail to get the msg dispatcher client")
 	}
 
-	streamFactory, _ := cdcreader.GetStreamFactory(e.mqFactoryCreator, mqConfig)
+	msgTTDispatcherClient, _ := cdcreader.GetMsgDispatcherClient(e.mqFactoryCreator, mqConfig, true)
+	streamFactory, _ := cdcreader.GetStreamFactory(e.mqFactoryCreator, mqConfig, false)
 
 	bufferSize := e.config.SourceConfig.ReadChanLen
 	ttInterval := e.config.SourceConfig.TimeTickInterval
 	channelManager, err := cdcreader.NewReplicateChannelManagerWithDispatchClient(
-		msgDispatcherClient,
+		msgTTDispatcherClient,
 		streamFactory,
 		milvusClient,
 		config.ReaderConfig{
@@ -593,6 +595,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 			writerObj:      writerObj,
 			quitFunc:       cancelReplicateFunc,
 			mqDispatcher:   msgDispatcherClient,
+			mqTTDispatcher: msgTTDispatcherClient,
 		}
 		e.replicateEntityMap.data[milvusAddress] = entity
 		e.startReplicateAPIEvent(replicateCtx, info, entity)

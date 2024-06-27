@@ -105,21 +105,15 @@ func (d *DefaultFactoryCreator) NewKmsFactory(cfg *config.KafkaConfig) msgstream
 
 // GetMsgDispatcherClient
 // TODO the client can't include the current msg, however it should include when give the position from the backup tool
-func GetMsgDispatcherClient(creator FactoryCreator, mqConfig config.MQConfig) (msgdispatcher.Client, error) {
-	var factory msgstream.Factory
-	switch {
-	case mqConfig.Pulsar.Address != "":
-		factory = creator.NewPmsFactory(&mqConfig.Pulsar)
-	case mqConfig.Kafka.Address != "":
-		factory = creator.NewKmsFactory(&mqConfig.Kafka)
-	default:
-		return nil, errors.New("fail to get the msg stream, check the mqConfig param")
+func GetMsgDispatcherClient(creator FactoryCreator, mqConfig config.MQConfig, ttMsgStream bool) (msgdispatcher.Client, error) {
+	warpFactory, err := GetStreamFactory(creator, mqConfig, ttMsgStream)
+	if err != nil {
+		return nil, err
 	}
-	warpFactory := util.NewMsgStreamFactory(factory)
 	return msgdispatcher.NewClient(warpFactory, "cdc", 8444), nil
 }
 
-func GetStreamFactory(creator FactoryCreator, mqConfig config.MQConfig) (msgstream.Factory, error) {
+func GetStreamFactory(creator FactoryCreator, mqConfig config.MQConfig, ttMsgStream bool) (msgstream.Factory, error) {
 	var factory msgstream.Factory
 	switch {
 	case mqConfig.Pulsar.Address != "":
@@ -129,6 +123,6 @@ func GetStreamFactory(creator FactoryCreator, mqConfig config.MQConfig) (msgstre
 	default:
 		return nil, errors.New("fail to get the msg stream, check the mqConfig param")
 	}
-	warpFactory := util.NewMsgStreamFactory(factory)
+	warpFactory := util.NewMsgStreamFactory(factory, ttMsgStream)
 	return warpFactory, nil
 }

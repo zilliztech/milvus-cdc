@@ -39,6 +39,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/util/conc"
 	"github.com/milvus-io/milvus/pkg/util/funcutil"
 	"github.com/milvus-io/milvus/pkg/util/retry"
+	"github.com/milvus-io/milvus/pkg/util/typeutil"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -725,11 +726,11 @@ type replicateChannelHandler struct {
 	isDroppedCollection func(int64) bool
 	isDroppedPartition  func(int64) bool
 
-	retryOptions []retry.Option
-	ttPeriod     time.Duration
-
+	retryOptions   []retry.Option
 	ttLock         deadlock.Mutex
+	ttPeriod       time.Duration
 	lastSendTTTime time.Time
+	ttRateLog      *log.RateLog
 
 	addCollectionLock *deadlock.RWMutex
 	addCollectionCnt  *int
@@ -760,14 +761,14 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 				log.Warn("replicate channel handler closed")
 				return
 			case msgPack, ok := <-streamChan:
-				if !ok {
-					log.Warn("replicate channel closed", zap.String("channel_name", sourceInfo.VChannelName))
-					return
-				}
 				GreedyConsumeChan(r.generatePackChan, r.innerHandlePack)
 				GreedyConsumeChan(r.forwardPackChan, func(pack *msgstream.MsgPack) {
 					r.msgPackChan <- r.handlePack(true, pack)
 				})
+				if !ok {
+					log.Warn("replicate channel closed", zap.String("channel_name", sourceInfo.VChannelName))
+					return
+				}
 
 				r.innerHandlePack(msgPack)
 			}
@@ -1099,22 +1100,38 @@ func (r *replicateChannelHandler) isDroppingPartition(partition int64, info *mod
 }
 
 func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPack) *msgstream.MsgPack {
-	if len(pack.Msgs) == 1 && pack.Msgs[0].Type() == commonpb.MsgType_TimeTick {
-		r.addCollectionLock.RLock()
-		if *r.addCollectionCnt != 0 {
-			r.addCollectionLock.RUnlock()
-			for {
-				r.addCollectionLock.RLock()
-				if *r.addCollectionCnt == 0 {
-					break
-				}
-				r.addCollectionLock.RUnlock()
-				time.Sleep(100 * time.Millisecond)
-			}
-		}
-		GetTSManager().CollectTS(r.pChannelName, pack.EndTs)
+	// if len(pack.Msgs) == 1 && pack.Msgs[0].Type() == commonpb.MsgType_TimeTick {
+	// 	r.addCollectionLock.RLock()
+	// 	if *r.addCollectionCnt != 0 {
+	// 		r.addCollectionLock.RUnlock()
+	// 		for {
+	// 			r.addCollectionLock.RLock()
+	// 			if *r.addCollectionCnt == 0 {
+	// 				break
+	// 			}
+	// 			r.addCollectionLock.RUnlock()
+	// 			time.Sleep(100 * time.Millisecond)
+	// 		}
+	// 	}
+	// 	GetTSManager().CollectTS(r.pChannelName, pack.EndTs)
+	// 	r.addCollectionLock.RUnlock()
+	// }
+
+	r.addCollectionLock.RLock()
+	if *r.addCollectionCnt != 0 {
 		r.addCollectionLock.RUnlock()
+		for {
+			r.addCollectionLock.RLock()
+			if *r.addCollectionCnt == 0 {
+				break
+			}
+			r.addCollectionLock.RUnlock()
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
+	GetTSManager().CollectTS(r.pChannelName, pack.BeginTs)
+	r.addCollectionLock.RUnlock()
+
 	if r.msgPackCallback != nil {
 		r.msgPackCallback(r.pChannelName, pack)
 	}
@@ -1125,8 +1142,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		EndPositions:   pack.EndPositions,
 		Msgs:           make([]msgstream.TsMsg, 0),
 	}
-	beginTS := pack.BeginTs
-	endTS := pack.EndTs
 
 	// TODO it need be check
 	// minTS, resetTS := GetTSManager().GetMaxTS(r.pChannelName)
@@ -1135,11 +1150,11 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	//	endTS = minTS
 	// }
 
-	minTS, resetTS := GetTSManager().GetMinTS(r.pChannelName)
-	if resetTS && minTS > beginTS {
-		beginTS = minTS
-		endTS = minTS
-	}
+	// minTS, resetTS := GetTSManager().GetMinTS(r.pChannelName)
+	// if resetTS && minTS > beginTS {
+	// 	beginTS = minTS
+	// 	endTS = minTS
+	// }
 	needTsMsg := false
 
 	pChannel := r.targetPChannel
@@ -1191,10 +1206,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				}
 				realMsg.ShardName = info.VChannel
 				dataLen = int(realMsg.GetNumRows())
-				if resetTS {
-					realMsg.BeginTimestamp = endTS
-					realMsg.EndTimestamp = endTS
-				}
 			case *msgstream.DeleteMsg:
 				if info.Dropped {
 					log.Info("skip delete msg because collection has been dropped", zap.Int64("collection_id", sourceCollectionID))
@@ -1217,20 +1228,17 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				}
 				realMsg.ShardName = info.VChannel
 				dataLen = int(realMsg.GetNumRows())
-				if resetTS {
-					realMsg.BeginTimestamp = endTS
-					realMsg.EndTimestamp = endTS
-				}
 			case *msgstream.DropCollectionMsg:
 				collectionID := realMsg.CollectionID
+
+				// copy msg, aviod the msg be modified by other goroutines when the msg dispather is spliting
+				msg = copyDropTypeMsg(realMsg)
+				realMsg = msg.(*msgstream.DropCollectionMsg)
+
 				realMsg.CollectionID = info.CollectionID
 				info.BarrierChan.Write(msg.EndTs())
 				needTsMsg = true
 				r.RemoveCollection(collectionID)
-				if resetTS {
-					realMsg.BeginTimestamp = endTS
-					realMsg.EndTimestamp = endTS
-				}
 			case *msgstream.DropPartitionMsg:
 				if info.Dropped {
 					log.Info("skip drop partition msg because collection has been dropped",
@@ -1245,6 +1253,11 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 						zap.String("partition_name", realMsg.PartitionName))
 					continue
 				}
+
+				// copy msg
+				msg = copyDropTypeMsg(realMsg)
+				realMsg = msg.(*msgstream.DropPartitionMsg)
+
 				realMsg.CollectionID = info.CollectionID
 				if realMsg.PartitionName == "" {
 					log.Warn("invalid drop partition message, empty partition name", zap.Any("msg", msg))
@@ -1286,10 +1299,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 					partitionBarrierChan.Write(msg.EndTs())
 					r.RemovePartitionInfo(sourceCollectionID, realMsg.PartitionName, partitionID)
 				}
-				if resetTS {
-					realMsg.BeginTimestamp = endTS
-					realMsg.EndTimestamp = endTS
-				}
 			}
 			if err != nil {
 				r.sendErrEvent(err)
@@ -1305,7 +1314,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				ChannelName: positionChannel,
 				MsgID:       originPosition.GetMsgID(),
 				MsgGroup:    originPosition.GetMsgGroup(),
-				Timestamp:   originPosition.GetTimestamp(),
+				Timestamp:   msg.EndTs(),
 			})
 			logFields := []zap.Field{
 				zap.String("msg", msg.Type().String()),
@@ -1335,23 +1344,24 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 
 	for _, position := range newPack.StartPositions {
 		position.ChannelName = pChannel
-		position.Timestamp = beginTS
 	}
 	for _, position := range newPack.EndPositions {
 		position.ChannelName = pChannel
-		position.Timestamp = endTS
 	}
-	newPack.BeginTs = beginTS
-	newPack.EndTs = endTS
 
-	if minTS == 0 {
-		if !needTsMsg && len(newPack.Msgs) == 0 {
-			return util.EmptyMsgPack
-		}
-		r.sendErrEvent(errors.Newf("fail to get channel ts, channel: %s", r.pChannelName))
-		log.Warn("fail to get channel ts", zap.String("channel", r.pChannelName))
-		return nil
-	}
+	// if maxTS == 0 {
+	// 	if !needTsMsg && len(newPack.Msgs) == 0 {
+	// 		return util.EmptyMsgPack
+	// 	}
+	// 	r.sendErrEvent(errors.Newf("fail to get channel ts, channel: %s", r.pChannelName))
+	// 	log.Warn("fail to get channel ts", zap.String("channel", r.pChannelName))
+	// 	return nil
+	// }
+
+	maxTS, _ := GetTSManager().GetMaxTS(r.pChannelName)
+	resetTS := resetMsgPackTimestamp(newPack, maxTS)
+	beginTS := pack.BeginTs
+	endTS := pack.EndTs
 
 	r.ttLock.Lock()
 	defer r.ttLock.Unlock()
@@ -1360,30 +1370,134 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		return util.EmptyMsgPack
 	}
 
-	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
-	if needTsMsg {
-		timeTickResult := msgpb.TimeTickMsg{
-			Base: commonpbutil.NewMsgBase(
-				commonpbutil.WithMsgType(commonpb.MsgType_TimeTick),
-				commonpbutil.WithMsgID(0),
-				commonpbutil.WithTimeStamp(endTS),
-				commonpbutil.WithSourceID(-1),
-			),
-		}
-		timeTickMsg := &msgstream.TimeTickMsg{
-			BaseMsg: msgstream.BaseMsg{
-				BeginTimestamp: minTS,
-				EndTimestamp:   minTS,
-				HashValues:     []uint32{0},
-				MsgPosition:    newPack.EndPositions[0],
-			},
-			TimeTickMsg: timeTickResult,
-		}
-		newPack.Msgs = append(newPack.Msgs, timeTickMsg)
-		GetTSManager().SetLastMsgTS(r.pChannelName, endTS)
-		r.lastSendTTTime = time.Now()
+	var resetTS2 bool
+	if GetTSManager().GetLastMsgTS(r.pChannelName) > beginTS {
+		maxTS2, _ := GetTSManager().GetMaxTS(r.pChannelName)
+		resetTS2 = resetMsgPackTimestamp(newPack, maxTS2)
 	}
+
+	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
+	if !needTsMsg {
+		return newPack
+	}
+	timeTickResult := msgpb.TimeTickMsg{
+		Base: commonpbutil.NewMsgBase(
+			commonpbutil.WithMsgType(commonpb.MsgType_TimeTick),
+			commonpbutil.WithMsgID(0),
+			commonpbutil.WithTimeStamp(maxTS),
+			commonpbutil.WithSourceID(-1),
+		),
+	}
+	timeTickMsg := &msgstream.TimeTickMsg{
+		BaseMsg: msgstream.BaseMsg{
+			BeginTimestamp: maxTS,
+			EndTimestamp:   maxTS,
+			HashValues:     []uint32{0},
+			MsgPosition:    newPack.EndPositions[0],
+		},
+		TimeTickMsg: timeTickResult,
+	}
+	newPack.Msgs = append(newPack.Msgs, timeTickMsg)
+	GetTSManager().SetLastMsgTS(r.pChannelName, endTS)
+	if resetTS || resetTS2 {
+		GetTSManager().CollectTS(r.pChannelName, endTS)
+	}
+	r.lastSendTTTime = time.Now()
+	r.ttRateLog.Info("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", maxTS))
 	return newPack
+}
+
+func resetMsgPackTimestamp(pack *msgstream.MsgPack, newTimestamp uint64) bool {
+	beginTs := pack.BeginTs
+	if beginTs >= newTimestamp || len(pack.Msgs) == 0 {
+		return false
+	}
+	deltas := make([]uint64, len(pack.Msgs))
+	lastTS := uint64(0)
+	for i, msg := range pack.Msgs {
+		if lastTS == msg.BeginTs() {
+			deltas[i] = deltas[i-1]
+		} else {
+			deltas[i] = uint64(i) + 1
+			lastTS = msg.BeginTs()
+		}
+	}
+
+	for i, msg := range pack.Msgs {
+		resetMsgTimestamp(msg, beginTs+deltas[i])
+	}
+	for _, pos := range pack.StartPositions {
+		pos.Timestamp = newTimestamp
+	}
+	for _, pos := range pack.EndPositions {
+		pos.Timestamp = newTimestamp
+	}
+	pack.BeginTs = newTimestamp + deltas[0]
+	pack.EndTs = newTimestamp + deltas[len(deltas)-1]
+	return true
+}
+
+func resetMsgTimestamp(msg msgstream.TsMsg, newTimestamp uint64) {
+	switch realMsg := msg.(type) {
+	case *msgstream.InsertMsg:
+		realMsg.BeginTimestamp = newTimestamp
+		realMsg.EndTimestamp = newTimestamp
+	case *msgstream.DeleteMsg:
+		realMsg.BeginTimestamp = newTimestamp
+		realMsg.EndTimestamp = newTimestamp
+	case *msgstream.DropCollectionMsg:
+		realMsg.BeginTimestamp = newTimestamp
+		realMsg.EndTimestamp = newTimestamp
+	case *msgstream.DropPartitionMsg:
+		realMsg.BeginTimestamp = newTimestamp
+		realMsg.EndTimestamp = newTimestamp
+	default:
+		log.Warn("reset msg timestamp: not support msg type", zap.Any("msg", msg))
+		return
+	}
+	pos := msg.Position()
+	msg.SetPosition(&msgpb.MsgPosition{
+		ChannelName: pos.GetChannelName(),
+		MsgID:       pos.GetMsgID(),
+		MsgGroup:    pos.GetMsgGroup(),
+		Timestamp:   newTimestamp,
+	})
+}
+
+func copyDropTypeMsg(msg msgstream.TsMsg) msgstream.TsMsg {
+	switch realMsg := msg.(type) {
+	case *msgstream.DropCollectionMsg:
+		hashValues := make([]uint32, len(realMsg.HashValues))
+		copy(hashValues, realMsg.HashValues)
+		copyDropCollectionMsg := &msgstream.DropCollectionMsg{
+			BaseMsg: msgstream.BaseMsg{
+				Ctx:            realMsg.Ctx,
+				BeginTimestamp: realMsg.BeginTimestamp,
+				EndTimestamp:   realMsg.EndTimestamp,
+				HashValues:     hashValues,
+				MsgPosition:    typeutil.Clone(realMsg.MsgPosition),
+			},
+			DropCollectionRequest: *typeutil.Clone(&realMsg.DropCollectionRequest),
+		}
+		return copyDropCollectionMsg
+	case *msgstream.DropPartitionMsg:
+		hashValues := make([]uint32, len(realMsg.HashValues))
+		copy(hashValues, realMsg.HashValues)
+		copyDropPartitionMsg := &msgstream.DropPartitionMsg{
+			BaseMsg: msgstream.BaseMsg{
+				Ctx:            realMsg.Ctx,
+				BeginTimestamp: realMsg.BeginTimestamp,
+				EndTimestamp:   realMsg.EndTimestamp,
+				HashValues:     hashValues,
+				MsgPosition:    typeutil.Clone(realMsg.MsgPosition),
+			},
+			DropPartitionRequest: *typeutil.Clone(&realMsg.DropPartitionRequest),
+		}
+		return copyDropPartitionMsg
+	default:
+		log.Warn("copy drop type msg: not support msg type", zap.Any("msg", msg.Type()))
+		return realMsg
+	}
 }
 
 func (r *replicateChannelHandler) sendErrEvent(err error) {
@@ -1428,6 +1542,7 @@ func initReplicateChannelHandler(ctx context.Context,
 		retryOptions:       opts.RetryOptions,
 		ttPeriod:           time.Duration(opts.TTInterval) * time.Millisecond,
 		sourceSeekPosition: sourceInfo.SeekPosition,
+		ttRateLog:          log.NewRateLog(1, log.L()),
 	}
 	channelHandler.ttLock.Lock()
 	channelHandler.lastSendTTTime = time.Now().Add(-channelHandler.ttPeriod)
