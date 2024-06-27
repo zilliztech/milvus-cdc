@@ -28,14 +28,16 @@ import (
 
 type MsgStreamFactory struct {
 	innerFactory msgstream.Factory
+	ttMsgStream  bool
 }
 
-func NewMsgStreamFactory(factory msgstream.Factory) msgstream.Factory {
+func NewMsgStreamFactory(factory msgstream.Factory, ttMsgStream bool) msgstream.Factory {
 	if factory == nil {
 		log.Panic("the factory can't be nil")
 	}
 	return &MsgStreamFactory{
 		innerFactory: factory,
+		ttMsgStream:  ttMsgStream,
 	}
 }
 
@@ -44,6 +46,9 @@ func (m *MsgStreamFactory) NewMsgStream(ctx context.Context) (msgstream.MsgStrea
 }
 
 func (m *MsgStreamFactory) NewTtMsgStream(ctx context.Context) (msgstream.MsgStream, error) {
+	if m.ttMsgStream {
+		return m.innerFactory.NewTtMsgStream(ctx)
+	}
 	return m.innerFactory.NewMsgStream(ctx)
 }
 
