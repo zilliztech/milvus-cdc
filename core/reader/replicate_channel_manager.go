@@ -580,7 +580,9 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 		log.Info("diff target pchannel", zap.String("target_channel", targetInfo.PChannel), zap.String("handler_channel", channelHandler.targetPChannel))
 		r.forwardChannel(targetInfo)
 	}
-	channelHandler.AddCollection(sourceInfo, targetInfo)
+	// the msg dispatch client maybe blocked, and has get the target channel,
+	// so we can use the goroutine and release the channelLock
+	go channelHandler.AddCollection(sourceInfo, targetInfo)
 	return nil, nil
 }
 
@@ -1547,7 +1549,7 @@ func initReplicateChannelHandler(ctx context.Context,
 	channelHandler.ttLock.Lock()
 	channelHandler.lastSendTTTime = time.Now().Add(-channelHandler.ttPeriod)
 	channelHandler.ttLock.Unlock()
-	channelHandler.AddCollection(sourceInfo, targetInfo)
+	go channelHandler.AddCollection(sourceInfo, targetInfo)
 	GetTSManager().CollectTS(channelHandler.pChannelName, math.MaxUint64)
 	return channelHandler, nil
 }
