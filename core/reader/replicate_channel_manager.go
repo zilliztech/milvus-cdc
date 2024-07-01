@@ -1362,8 +1362,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 
 	maxTS, _ := GetTSManager().GetMaxTS(r.pChannelName)
 	resetTS := resetMsgPackTimestamp(newPack, maxTS)
-	beginTS := pack.BeginTs
-	endTS := pack.EndTs
 
 	r.ttLock.Lock()
 	defer r.ttLock.Unlock()
@@ -1373,9 +1371,9 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	}
 
 	var resetTS2 bool
-	if GetTSManager().GetLastMsgTS(r.pChannelName) > beginTS {
-		maxTS2, _ := GetTSManager().GetMaxTS(r.pChannelName)
-		resetTS2 = resetMsgPackTimestamp(newPack, maxTS2)
+	if GetTSManager().GetLastMsgTS(r.pChannelName) > pack.BeginTs {
+		maxTS, _ = GetTSManager().GetMaxTS(r.pChannelName)
+		resetTS2 = resetMsgPackTimestamp(newPack, maxTS)
 	}
 
 	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
@@ -1392,17 +1390,17 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	}
 	timeTickMsg := &msgstream.TimeTickMsg{
 		BaseMsg: msgstream.BaseMsg{
-			BeginTimestamp: maxTS,
-			EndTimestamp:   maxTS,
+			BeginTimestamp: pack.EndTs,
+			EndTimestamp:   pack.EndTs,
 			HashValues:     []uint32{0},
 			MsgPosition:    newPack.EndPositions[0],
 		},
 		TimeTickMsg: timeTickResult,
 	}
 	newPack.Msgs = append(newPack.Msgs, timeTickMsg)
-	GetTSManager().SetLastMsgTS(r.pChannelName, endTS)
+	GetTSManager().SetLastMsgTS(r.pChannelName, pack.EndTs)
 	if resetTS || resetTS2 {
-		GetTSManager().CollectTS(r.pChannelName, endTS)
+		GetTSManager().CollectTS(r.pChannelName, pack.EndTs)
 	}
 	r.lastSendTTTime = time.Now()
 	r.ttRateLog.Info("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", maxTS))
