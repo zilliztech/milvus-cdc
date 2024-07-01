@@ -763,10 +763,6 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 				log.Warn("replicate channel handler closed")
 				return
 			case msgPack, ok := <-streamChan:
-				GreedyConsumeChan(r.generatePackChan, r.innerHandlePack)
-				GreedyConsumeChan(r.forwardPackChan, func(pack *msgstream.MsgPack) {
-					r.msgPackChan <- r.handlePack(true, pack)
-				})
 				if !ok {
 					log.Warn("replicate channel closed", zap.String("channel_name", sourceInfo.VChannelName))
 					return
@@ -1002,8 +998,12 @@ func (r *replicateChannelHandler) startReadChannel() {
 				return
 			case msgPack := <-r.forwardPackChan:
 				r.msgPackChan <- r.handlePack(true, msgPack)
+				GreedyConsumeChan(r.forwardPackChan, func(pack *msgstream.MsgPack) {
+					r.msgPackChan <- r.handlePack(true, pack)
+				})
 			case msgPack := <-r.generatePackChan:
 				r.innerHandlePack(msgPack)
+				GreedyConsumeChan(r.generatePackChan, r.innerHandlePack)
 			}
 		}
 	}()
