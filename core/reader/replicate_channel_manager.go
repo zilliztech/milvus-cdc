@@ -1544,7 +1544,7 @@ func initReplicateChannelHandler(ctx context.Context,
 		retryOptions:       opts.RetryOptions,
 		ttPeriod:           time.Duration(opts.TTInterval) * time.Millisecond,
 		sourceSeekPosition: sourceInfo.SeekPosition,
-		ttRateLog:          log.NewRateLog(1, log.L()),
+		ttRateLog:          log.NewRateLog(0.01, log.L()),
 	}
 	channelHandler.ttLock.Lock()
 	channelHandler.lastSendTTTime = time.Now().Add(-channelHandler.ttPeriod)
