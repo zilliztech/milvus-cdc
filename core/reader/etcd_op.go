@@ -273,14 +273,14 @@ func (e *EtcdOp) WatchCollection(ctx context.Context, filter api.CollectionFilte
 							if databaseID := e.getDatabaseIDFromCollectionKey(collectionKey); databaseID != 0 {
 								e.collectionID2DBID.Store(info.ID, databaseID)
 							}
-							hasConsume := e.subscribeCollectionEvent.Range(func(key string, value api.CollectionEventConsumer) bool {
+							notConsumed := e.subscribeCollectionEvent.Range(func(key string, value api.CollectionEventConsumer) bool {
 								if value != nil && value(info) {
 									log.Info("the collection has been consumed", zap.Int64("collection_id", info.ID), zap.String("task_id", key))
 									return false
 								}
 								return true
 							})
-							if !hasConsume {
+							if notConsumed {
 								log.Info("the collection is not consumed",
 									zap.Int64("collection_id", info.ID),
 									zap.String("collection_name", collectionName))
