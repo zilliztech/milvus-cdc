@@ -1131,7 +1131,16 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
-	GetTSManager().CollectTS(r.pChannelName, pack.BeginTs)
+	beginTS := pack.BeginTs
+	if beginTS == 0 {
+		if len(pack.StartPositions) > 1 {
+			beginTS = pack.StartPositions[0].Timestamp
+			pack.BeginTs = beginTS
+		} else {
+			log.Warn("begin timestamp is 0")
+		}
+	}
+	GetTSManager().CollectTS(r.pChannelName, beginTS)
 	r.addCollectionLock.RUnlock()
 
 	if r.msgPackCallback != nil {
@@ -1380,6 +1389,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		GetTSManager().CollectTS(r.pChannelName, newPack.EndTs)
 	}
 
+	resetLastTs := needTsMsg
 	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
 	if !needTsMsg {
 		return newPack
@@ -1405,6 +1415,9 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	newPack.Msgs = append(newPack.Msgs, timeTickMsg)
 	GetTSManager().SetLastMsgTS(r.pChannelName, generateTS)
 	r.lastSendTTTime = time.Now()
+	if resetLastTs {
+		r.lastSendTTTime = r.lastSendTTTime.Add(-r.ttPeriod)
+	}
 	r.ttRateLog.Info("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", maxTS))
 	return newPack
 }
