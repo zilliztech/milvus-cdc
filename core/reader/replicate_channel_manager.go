@@ -1330,8 +1330,8 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				r.forwardMsgFunc(info.PChannel, &msgstream.MsgPack{
 					BeginTs:        msg.BeginTs(),
 					EndTs:          msg.EndTs(),
-					StartPositions: []*msgpb.MsgPosition{originPosition},
-					EndPositions:   []*msgpb.MsgPosition{originPosition},
+					StartPositions: []*msgpb.MsgPosition{msg.Position()},
+					EndPositions:   []*msgpb.MsgPosition{msg.Position()},
 					Msgs: []msgstream.TsMsg{
 						msg,
 					},
@@ -1371,37 +1371,39 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	}
 
 	var resetTS2 bool
-	if GetTSManager().GetLastMsgTS(r.pChannelName) > pack.BeginTs {
+	if GetTSManager().GetLastMsgTS(r.pChannelName) > newPack.BeginTs {
 		maxTS, _ = GetTSManager().GetMaxTS(r.pChannelName)
 		resetTS2 = resetMsgPackTimestamp(newPack, maxTS)
+	}
+
+	if resetTS || resetTS2 {
+		GetTSManager().CollectTS(r.pChannelName, newPack.EndTs)
 	}
 
 	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
 	if !needTsMsg {
 		return newPack
 	}
+	generateTS := maxTS
 	timeTickResult := msgpb.TimeTickMsg{
 		Base: commonpbutil.NewMsgBase(
 			commonpbutil.WithMsgType(commonpb.MsgType_TimeTick),
 			commonpbutil.WithMsgID(0),
-			commonpbutil.WithTimeStamp(maxTS),
+			commonpbutil.WithTimeStamp(generateTS),
 			commonpbutil.WithSourceID(-1),
 		),
 	}
 	timeTickMsg := &msgstream.TimeTickMsg{
 		BaseMsg: msgstream.BaseMsg{
-			BeginTimestamp: pack.EndTs,
-			EndTimestamp:   pack.EndTs,
+			BeginTimestamp: generateTS,
+			EndTimestamp:   generateTS,
 			HashValues:     []uint32{0},
 			MsgPosition:    newPack.EndPositions[0],
 		},
 		TimeTickMsg: timeTickResult,
 	}
 	newPack.Msgs = append(newPack.Msgs, timeTickMsg)
-	GetTSManager().SetLastMsgTS(r.pChannelName, pack.EndTs)
-	if resetTS || resetTS2 {
-		GetTSManager().CollectTS(r.pChannelName, pack.EndTs)
-	}
+	GetTSManager().SetLastMsgTS(r.pChannelName, generateTS)
 	r.lastSendTTTime = time.Now()
 	r.ttRateLog.Info("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", maxTS))
 	return newPack
@@ -1426,14 +1428,14 @@ func resetMsgPackTimestamp(pack *msgstream.MsgPack, newTimestamp uint64) bool {
 	for i, msg := range pack.Msgs {
 		resetMsgTimestamp(msg, beginTs+deltas[i])
 	}
-	for _, pos := range pack.StartPositions {
-		pos.Timestamp = newTimestamp
-	}
-	for _, pos := range pack.EndPositions {
-		pos.Timestamp = newTimestamp
-	}
 	pack.BeginTs = newTimestamp + deltas[0]
 	pack.EndTs = newTimestamp + deltas[len(deltas)-1]
+	for _, pos := range pack.StartPositions {
+		pos.Timestamp = pack.BeginTs
+	}
+	for _, pos := range pack.EndPositions {
+		pos.Timestamp = pack.EndTs
+	}
 	return true
 }
 
