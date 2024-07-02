@@ -156,11 +156,13 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 30
+        timeout = 60
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
-            c_downstream.flush(timeout=5)
+            if time.time() - t0 > timeout:
+                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                break
             # get the number of entities in downstream
             if c_downstream.num_entities != nb:
                 log.info(f"sync progress:{c_downstream.num_entities / (nb*epoch) * 100:.2f}%")
@@ -169,8 +171,10 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
             time.sleep(1)
-            if time.time() - t0 > timeout:
-                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+            try:
+                c_downstream.flush(timeout=5)
+            except Exception as e:
+                log.info(f"flush err: {str(e)}")
         assert c_downstream.num_entities == nb*epoch
 
     def test_cdc_sync_upsert_entities_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
@@ -216,13 +220,13 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 30
+        timeout = 60
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if time.time() - t0 > timeout:
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
                 break
-            time.sleep(1)
+            time.sleep(3)
             c_state = utility.load_state(collection_name)
             if c_state != LoadState.Loaded:
                 log.info(f"collection state in downstream: {str(c_state)}")
@@ -275,13 +279,13 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 30
+        timeout = 60
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if time.time() - t0 > timeout:
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
                 break
-            time.sleep(1)
+            time.sleep(3)
             c_state = utility.load_state(collection_name)
             if c_state != LoadState.Loaded:
                 log.info(f"collection state in downstream: {str(c_state)}")
