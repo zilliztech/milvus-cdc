@@ -233,7 +233,15 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 		if err != nil {
 			return nil, err
 		}
-		log.Info("finish to handle msg", zap.String("type", msg.Type().String()))
+
+		logFields := []zap.Field{
+			zap.String("type", msg.Type().String()),
+		}
+		collectionName, _ := util.GetCollectionNameFromRequest(msg)
+		if collectionName != "" {
+			logFields = append(logFields, zap.String("collection", collectionName))
+		}
+		log.Info("finish to handle msg", logFields...)
 	}
 
 	return endPosition.MsgID, nil
