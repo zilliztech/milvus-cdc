@@ -235,6 +235,7 @@ class TestCDCSyncRequest(TestBase):
             if len(res) == nb:
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
+        assert c_state == LoadState.Loaded
         assert len(res) == nb
 
     def test_cdc_sync_delete_entities_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
@@ -293,6 +294,7 @@ class TestCDCSyncRequest(TestBase):
             if len(res) == 0:
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
+        assert c_state == LoadState.Loaded
         assert len(res) == 0
 
     def test_cdc_sync_create_partition_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
