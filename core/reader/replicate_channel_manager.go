@@ -1101,6 +1101,13 @@ func (r *replicateChannelHandler) isDroppingPartition(partition int64, info *mod
 	return ok
 }
 
+func isSupportedMsgType(msgType commonpb.MsgType) bool {
+	return msgType == commonpb.MsgType_Insert ||
+		msgType == commonpb.MsgType_Delete ||
+		msgType == commonpb.MsgType_DropCollection ||
+		msgType == commonpb.MsgType_DropPartition
+}
+
 func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPack) *msgstream.MsgPack {
 	// if len(pack.Msgs) == 1 && pack.Msgs[0].Type() == commonpb.MsgType_TimeTick {
 	// 	r.addCollectionLock.RLock()
@@ -1133,11 +1140,33 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	}
 	beginTS := pack.BeginTs
 	if beginTS == 0 {
-		if len(pack.StartPositions) > 1 {
+		validMsgTypeMap := make(map[commonpb.MsgType]int)
+		miniTS := pack.EndTs
+		for _, msg := range pack.Msgs {
+			if isSupportedMsgType(msg.Type()) {
+				cnt, ok := validMsgTypeMap[msg.Type()]
+				if !ok {
+					validMsgTypeMap[msg.Type()] = 1
+				} else {
+					validMsgTypeMap[msg.Type()] = cnt + 1
+				}
+				if miniTS > msg.BeginTs() {
+					miniTS = msg.BeginTs()
+				}
+			}
+		}
+
+		switch {
+		case len(validMsgTypeMap) == 0 && pack.EndTs != 0:
+			beginTS = pack.EndTs
+		case miniTS != pack.EndTs:
+			beginTS = miniTS - 1
+			pack.BeginTs = beginTS
+		case len(pack.StartPositions) > 1:
 			beginTS = pack.StartPositions[0].Timestamp
 			pack.BeginTs = beginTS
-		} else {
-			log.Warn("begin timestamp is 0")
+		default:
+			log.Warn("begin timestamp is 0", zap.Uint64("end_ts", pack.EndTs), zap.Any("valid_msg_type", validMsgTypeMap))
 		}
 	}
 	GetTSManager().CollectTS(r.pChannelName, beginTS)
@@ -1182,8 +1211,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			msg.Type() == commonpb.MsgType_TimeTick {
 			continue
 		}
-		if msg.Type() != commonpb.MsgType_Insert && msg.Type() != commonpb.MsgType_Delete &&
-			msg.Type() != commonpb.MsgType_DropCollection && msg.Type() != commonpb.MsgType_DropPartition {
+		if !isSupportedMsgType(msg.Type()) {
 			log.Warn("not support msg type", zap.Any("msg", msg))
 			continue
 		}
