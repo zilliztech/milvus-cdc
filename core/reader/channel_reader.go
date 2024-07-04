@@ -170,13 +170,17 @@ func (c *ChannelReader) readPack(ctx context.Context) {
 			log.Warn("channel reader context is done")
 			return
 		case msgPack, ok := <-c.msgPackChan:
-			if !ok || msgPack == nil {
-				log.Info("the msg pack is nil, the channel reader is quit")
+			if !ok {
+				log.Info("the channel reader is quit")
 				return
 			}
 			if c.dataHandler == nil {
 				log.Warn("the data handler is nil")
 				return
+			}
+			if msgPack == nil {
+				log.Warn("the msg pack is nil")
+				continue
 			}
 			// TODO when cdc chaos kill, maybe the collection has drop,
 			// and the op message has not been handled, which will block the task

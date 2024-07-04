@@ -90,6 +90,8 @@ func main() {
 			panic(err)
 		}
 		base64Position := base64.StdEncoding.EncodeToString(positionData)
+		requestPosition := base64.StdEncoding.EncodeToString(position.Data)
 		fmt.Println("channelName: ", position.Key, " position: ", base64Position)
+		fmt.Println("channelName: ", position.Key, " request position: ", requestPosition)
 	}
 }
