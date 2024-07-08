@@ -1399,6 +1399,9 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 
 	maxTS, _ := GetTSManager().GetMaxTS(r.pChannelName)
 	resetTS := resetMsgPackTimestamp(newPack, maxTS)
+	if resetTS {
+		GetTSManager().CollectTS(r.pChannelName, newPack.EndTs)
+	}
 
 	r.ttLock.Lock()
 	defer r.ttLock.Unlock()
@@ -1413,7 +1416,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		resetTS2 = resetMsgPackTimestamp(newPack, maxTS)
 	}
 
-	if resetTS || resetTS2 {
+	if resetTS2 {
 		GetTSManager().CollectTS(r.pChannelName, newPack.EndTs)
 	}
 
