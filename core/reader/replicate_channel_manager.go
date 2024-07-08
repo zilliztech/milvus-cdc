@@ -1488,9 +1488,17 @@ func resetMsgTimestamp(msg msgstream.TsMsg, newTimestamp uint64) {
 	case *msgstream.InsertMsg:
 		realMsg.BeginTimestamp = newTimestamp
 		realMsg.EndTimestamp = newTimestamp
+		realMsg.Timestamps = make([]uint64, len(realMsg.Timestamps))
+		for i := range realMsg.Timestamps {
+			realMsg.Timestamps[i] = newTimestamp
+		}
 	case *msgstream.DeleteMsg:
 		realMsg.BeginTimestamp = newTimestamp
 		realMsg.EndTimestamp = newTimestamp
+		realMsg.Timestamps = make([]uint64, len(realMsg.Timestamps))
+		for i := range realMsg.Timestamps {
+			realMsg.Timestamps[i] = newTimestamp
+		}
 	case *msgstream.DropCollectionMsg:
 		realMsg.BeginTimestamp = newTimestamp
 		realMsg.EndTimestamp = newTimestamp
