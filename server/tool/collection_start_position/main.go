@@ -41,6 +41,7 @@ type StartCollectionConfig struct {
 	EtcdServerConfig config.EtcdServerConfig
 	RootPath         string
 	CollectionID     string
+	DBID             string
 }
 
 func main() {
@@ -69,7 +70,7 @@ func main() {
 	}
 	etcdClient, _ := clientv3.New(etcdConfig)
 	getResp, err := etcdClient.Get(context.Background(),
-		fmt.Sprintf("%s/meta/root-coord/database/collection-info/1/%s", GlobalConfig.RootPath, GlobalConfig.CollectionID))
+		fmt.Sprintf("%s/meta/root-coord/database/collection-info/%s/%s", GlobalConfig.RootPath, GlobalConfig.DBID, GlobalConfig.CollectionID))
 	if err != nil {
 		panic(err)
 	}
