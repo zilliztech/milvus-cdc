@@ -1460,6 +1460,9 @@ func resetMsgPackTimestamp(pack *msgstream.MsgPack, newTimestamp uint64) bool {
 	}
 	deltas := make([]uint64, len(pack.Msgs))
 	lastTS := uint64(0)
+	sort.Slice(pack.Msgs, func(i, j int) bool {
+		return pack.Msgs[i].BeginTs() < pack.Msgs[j].BeginTs()
+	})
 	for i, msg := range pack.Msgs {
 		if lastTS == msg.BeginTs() {
 			deltas[i] = deltas[i-1]
@@ -1470,7 +1473,7 @@ func resetMsgPackTimestamp(pack *msgstream.MsgPack, newTimestamp uint64) bool {
 	}
 
 	for i, msg := range pack.Msgs {
-		resetMsgTimestamp(msg, beginTs+deltas[i])
+		resetMsgTimestamp(msg, newTimestamp+deltas[i])
 	}
 	pack.BeginTs = newTimestamp + deltas[0]
 	pack.EndTs = newTimestamp + deltas[len(deltas)-1]

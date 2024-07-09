@@ -963,3 +963,61 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}
 	})
 }
+
+func TestResetPack(t *testing.T) {
+	pack := &msgstream.MsgPack{
+		BeginTs: 1,
+		EndTs:   20,
+		StartPositions: []*msgstream.MsgPosition{
+			{
+				ChannelName: "test_p",
+				Timestamp:   1,
+			},
+		},
+		EndPositions: []*msgstream.MsgPosition{
+			{
+				ChannelName: "test_p",
+				Timestamp:   20,
+			},
+		},
+		Msgs: []msgstream.TsMsg{
+			&msgstream.InsertMsg{
+				BaseMsg: msgstream.BaseMsg{
+					BeginTimestamp: 10,
+				},
+				InsertRequest: msgpb.InsertRequest{
+					Timestamps: []uint64{10},
+				},
+			},
+			&msgstream.DeleteMsg{
+				BaseMsg: msgstream.BaseMsg{
+					BeginTimestamp: 11,
+				},
+				DeleteRequest: msgpb.DeleteRequest{
+					Timestamps: []uint64{11},
+				},
+			},
+			&msgstream.InsertMsg{
+				BaseMsg: msgstream.BaseMsg{
+					BeginTimestamp: 11,
+				},
+				InsertRequest: msgpb.InsertRequest{
+					Timestamps: []uint64{11},
+				},
+			},
+			&msgstream.DeleteMsg{
+				BaseMsg: msgstream.BaseMsg{
+					BeginTimestamp: 20,
+				},
+				DeleteRequest: msgpb.DeleteRequest{
+					Timestamps: []uint64{20},
+				},
+			},
+		},
+	}
+	resetMsgPackTimestamp(pack, 100)
+	assert.EqualValues(t, 101, pack.BeginTs)
+	assert.EqualValues(t, 104, pack.EndTs)
+	assert.EqualValues(t, 102, pack.Msgs[1].BeginTs())
+	assert.EqualValues(t, 102, pack.Msgs[2].BeginTs())
+}
