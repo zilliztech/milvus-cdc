@@ -13,11 +13,13 @@ pulsar:
   namespace: default
 #kafka:
 #  address: 10.104.34.53:9092
-collectionID: 1
+collectionID: 0
 dataKey: 1
 pkFieldName: pk
 taskPositionMode: false
 decodePositionType: 1
+
+enableCSV: false
 
 taskPositions:
   - name: by-dev-rootcoord-dml_0

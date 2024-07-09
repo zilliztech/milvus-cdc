@@ -15,3 +15,6 @@ go.work.sum
 **/bak/**
 bin/
 *.out
+*.csv
+*.duckdb
+*.duckdb.wal

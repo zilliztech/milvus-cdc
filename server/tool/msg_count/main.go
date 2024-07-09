@@ -53,7 +53,12 @@ import (
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 )
 
-var GlobalConfig PositionConfig
+var (
+	GlobalConfig  PositionConfig
+	InsertCSVFile *os.File
+	DeleteCSVFile *os.File
+	DeleteIdx     int64
+)
 
 type PositionConfig struct {
 	// deprecated
@@ -73,6 +78,8 @@ type PositionConfig struct {
 
 	CollectionID int64
 	Data         string
+
+	EnableCSV bool
 }
 
 func main() {
@@ -94,6 +101,23 @@ func main() {
 		panic(err)
 	}
 	GlobalConfig = positionConfig
+
+	if GlobalConfig.EnableCSV {
+		InsertCSVFile, err = os.OpenFile("insert.csv", os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			panic(err)
+		}
+		InsertCSVFile.Write([]byte("row_id,timestamp,pk\n"))
+		DeleteCSVFile, err = os.OpenFile("delete.csv", os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			panic(err)
+		}
+		DeleteCSVFile.Write([]byte("idx,pk,timestamp\n"))
+		defer func() {
+			_ = InsertCSVFile.Close()
+			_ = DeleteCSVFile.Close()
+		}()
+	}
 
 	if positionConfig.TaskPositionMode {
 		markPrintln("task position mode")
@@ -313,6 +337,24 @@ func MsgCount(msgpack *msgstream.MsgPack, msgCount map[string]int, detail int, p
 					continue
 				}
 			}
+			if InsertCSVFile != nil {
+				for _, data := range insertMsg.GetFieldsData() {
+					if data.GetFieldName() != pk {
+						continue
+					}
+					var dataStrs []string
+					if data.GetScalars().GetLongData() != nil {
+						dataStrs = lo.Map(data.GetScalars().GetLongData().GetData(), func(t int64, i int) string {
+							return strconv.FormatInt(t, 10)
+						})
+					} else if data.GetScalars().GetStringData() != nil {
+						dataStrs = data.GetScalars().GetStringData().GetData()
+					}
+					for i, str := range dataStrs {
+						InsertCSVFile.Write([]byte(fmt.Sprintf("%d,%d,%s\n", insertMsg.RowIDs[i], insertMsg.Timestamps[i], str)))
+					}
+				}
+			}
 			if detail > 0 {
 				pkString := ""
 				for _, data := range insertMsg.GetFieldsData() {
@@ -359,6 +401,25 @@ func MsgCount(msgpack *msgstream.MsgPack, msgCount map[string]int, detail int, p
 			msgCount["insert_count"] += int(insertMsg.GetNumRows())
 		} else if msg.Type() == commonpb.MsgType_Delete {
 			deleteMsg := msg.(*msgstream.DeleteMsg)
+			if GlobalConfig.CollectionID != 0 {
+				if deleteMsg.CollectionID != GlobalConfig.CollectionID {
+					continue
+				}
+			}
+			if DeleteCSVFile != nil {
+				var dataStrs []string
+				if deleteMsg.GetPrimaryKeys().GetIntId() != nil {
+					dataStrs = lo.Map(deleteMsg.GetPrimaryKeys().GetIntId().GetData(), func(t int64, i int) string {
+						return strconv.FormatInt(t, 10)
+					})
+				} else if deleteMsg.GetPrimaryKeys().GetStrId() != nil {
+					dataStrs = deleteMsg.GetPrimaryKeys().GetStrId().GetData()
+				}
+				for i, str := range dataStrs {
+					DeleteIdx++
+					DeleteCSVFile.Write([]byte(fmt.Sprintf("%d,%s,%d\n", DeleteIdx, str, deleteMsg.Timestamps[i])))
+				}
+			}
 			if detail > 0 {
 				if detail == 3 {
 					var dataStrs []string
