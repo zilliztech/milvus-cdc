@@ -370,7 +370,8 @@ func MsgCount(msgpack *msgstream.MsgPack, msgCount map[string]int, detail int, p
 							}
 							for i, str := range dataStrs {
 								if str == GlobalConfig.Data {
-									pkString = fmt.Sprintf("insert pk: %s, timestamp: %d, endTS: %s", str, insertMsg.Timestamps[i], tsoutil.PhysicalTime(msgpack.EndTs))
+									pkString = fmt.Sprintf("insert pk: %s, timestamp: %d, beginTS: %d, endTS: %s",
+										str, insertMsg.Timestamps[i], insertMsg.BeginTs(), tsoutil.PhysicalTime(msgpack.EndTs))
 									break
 								}
 							}
@@ -397,6 +398,15 @@ func MsgCount(msgpack *msgstream.MsgPack, msgCount map[string]int, detail int, p
 					markPrintln(pkString)
 				}
 			}
+
+			beginTS := insertMsg.BeginTs()
+			for _, timestamp := range insertMsg.Timestamps {
+				if timestamp != beginTS {
+					markPrintln(fmt.Sprintf("insert msg begin ts not equal to timestamp, %v", insertMsg.RowIDs))
+					break
+				}
+			}
+
 			markPrintln(fmt.Sprintf("channel_name=%s ,insert_data_len=%d", msgpack.EndPositions[0].GetChannelName(), insertMsg.GetNumRows()))
 			msgCount["insert_count"] += int(insertMsg.GetNumRows())
 		} else if msg.Type() == commonpb.MsgType_Delete {
@@ -432,7 +442,8 @@ func MsgCount(msgpack *msgstream.MsgPack, msgCount map[string]int, detail int, p
 					}
 					for i, str := range dataStrs {
 						if str == GlobalConfig.Data {
-							markPrintln(fmt.Sprintf("delete pk: %s, timestamp: %d, endTS: %s", str, deleteMsg.Timestamps[i], tsoutil.PhysicalTime(msgpack.EndTs)))
+							markPrintln(fmt.Sprintf("delete pk: %s, timestamp: %d, beginTS: %d, endPackTS: %s",
+								str, deleteMsg.Timestamps[i], deleteMsg.BeginTs(), tsoutil.PhysicalTime(msgpack.EndTs)))
 							break
 						}
 					}
@@ -448,6 +459,15 @@ func MsgCount(msgpack *msgstream.MsgPack, msgCount map[string]int, detail int, p
 					}
 				}
 			}
+
+			beginTS := deleteMsg.BeginTs()
+			for _, timestamp := range deleteMsg.Timestamps {
+				if timestamp != beginTS {
+					markPrintln(fmt.Sprintf("delete msg begin ts not equal to timestamp, %v", deleteMsg.Int64PrimaryKeys))
+					break
+				}
+			}
+
 			markPrintln(fmt.Sprintf("channel_name=%s ,delete_data_len=%d", msgpack.EndPositions[0].GetChannelName(), deleteMsg.GetNumRows()))
 			msgCount["delete_count"] += int(deleteMsg.GetNumRows())
 		} else if msg.Type() == commonpb.MsgType_TimeTick {

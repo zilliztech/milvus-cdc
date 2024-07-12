@@ -1196,8 +1196,13 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	// 	endTS = minTS
 	// }
 	needTsMsg := false
-
 	pChannel := r.targetPChannel
+
+	sort.Slice(pack.Msgs, func(i, j int) bool {
+		return pack.Msgs[i].BeginTs() < pack.Msgs[j].BeginTs() ||
+			(pack.Msgs[i].BeginTs() == pack.Msgs[j].BeginTs() && pack.Msgs[i].Type() == commonpb.MsgType_Delete)
+	})
+
 	for _, msg := range pack.Msgs {
 		if forward {
 			newPack.Msgs = append(newPack.Msgs, msg)
@@ -1270,7 +1275,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			case *msgstream.DropCollectionMsg:
 				collectionID := realMsg.CollectionID
 
-				// copy msg, aviod the msg be modified by other goroutines when the msg dispather is spliting
+				// copy msg, avoid the msg be modified by other goroutines when the msg dispather is spliting
 				msg = copyDropTypeMsg(realMsg)
 				realMsg = msg.(*msgstream.DropCollectionMsg)
 
@@ -1460,9 +1465,6 @@ func resetMsgPackTimestamp(pack *msgstream.MsgPack, newTimestamp uint64) bool {
 	}
 	deltas := make([]uint64, len(pack.Msgs))
 	lastTS := uint64(0)
-	sort.Slice(pack.Msgs, func(i, j int) bool {
-		return pack.Msgs[i].BeginTs() < pack.Msgs[j].BeginTs()
-	})
 	for i, msg := range pack.Msgs {
 		if lastTS == msg.BeginTs() {
 			deltas[i] = deltas[i-1]
