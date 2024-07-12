@@ -21,6 +21,7 @@ package reader
 import (
 	"context"
 	"errors"
+	"sort"
 	"testing"
 	"time"
 
@@ -1020,4 +1021,59 @@ func TestResetPack(t *testing.T) {
 	assert.EqualValues(t, 104, pack.EndTs)
 	assert.EqualValues(t, 102, pack.Msgs[1].BeginTs())
 	assert.EqualValues(t, 102, pack.Msgs[2].BeginTs())
+}
+
+func TestResetPack2(t *testing.T) {
+	pack := &msgstream.MsgPack{
+		BeginTs: 1,
+		EndTs:   20,
+		StartPositions: []*msgstream.MsgPosition{
+			{
+				ChannelName: "test_p",
+				Timestamp:   1,
+			},
+		},
+		EndPositions: []*msgstream.MsgPosition{
+			{
+				ChannelName: "test_p",
+				Timestamp:   20,
+			},
+		},
+		Msgs: []msgstream.TsMsg{
+			&msgstream.InsertMsg{
+				BaseMsg: msgstream.BaseMsg{
+					BeginTimestamp: 11,
+				},
+				InsertRequest: msgpb.InsertRequest{
+					Base: &commonpb.MsgBase{
+						MsgType: commonpb.MsgType_Insert,
+					},
+					Timestamps: []uint64{11},
+				},
+			},
+			&msgstream.DeleteMsg{
+				BaseMsg: msgstream.BaseMsg{
+					BeginTimestamp: 11,
+				},
+				DeleteRequest: msgpb.DeleteRequest{
+					Base: &commonpb.MsgBase{
+						MsgType: commonpb.MsgType_Delete,
+					},
+					Timestamps: []uint64{11},
+				},
+			},
+		},
+	}
+	resetMsgPackTimestamp(pack, 100)
+	assert.EqualValues(t, 101, pack.BeginTs)
+	assert.EqualValues(t, 101, pack.EndTs)
+	assert.EqualValues(t, 101, pack.Msgs[0].BeginTs())
+	assert.Equal(t, commonpb.MsgType_Insert, pack.Msgs[0].Type())
+	assert.EqualValues(t, 101, pack.Msgs[1].BeginTs())
+
+	sort.Slice(pack.Msgs, func(i, j int) bool {
+		return pack.Msgs[i].BeginTs() < pack.Msgs[j].BeginTs() ||
+			(pack.Msgs[i].BeginTs() == pack.Msgs[j].BeginTs() && pack.Msgs[i].Type() == commonpb.MsgType_Delete)
+	})
+	assert.Equal(t, commonpb.MsgType_Delete, pack.Msgs[0].Type())
 }

@@ -14,7 +14,7 @@ pulsar:
 #kafka:
 #  address: 10.104.34.53:9092
 collectionID: 0
-dataKey: 1
+data: 1
 pkFieldName: pk
 taskPositionMode: false
 decodePositionType: 1
