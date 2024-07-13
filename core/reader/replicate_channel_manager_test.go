@@ -856,7 +856,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 				&msgstream.DeleteMsg{
 					BaseMsg: msgstream.BaseMsg{
 						BeginTimestamp: 1,
-						EndTimestamp:   2,
+						EndTimestamp:   1,
 						HashValues:     []uint32{0},
 					},
 					DeleteRequest: msgpb.DeleteRequest{
@@ -869,7 +869,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 				},
 				&msgstream.DeleteMsg{
 					BaseMsg: msgstream.BaseMsg{
-						BeginTimestamp: 1,
+						BeginTimestamp: 2,
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
