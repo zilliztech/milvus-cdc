@@ -1372,8 +1372,8 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				r.forwardMsgFunc(info.PChannel, &msgstream.MsgPack{
 					BeginTs:        msg.BeginTs(),
 					EndTs:          msg.EndTs(),
-					StartPositions: []*msgpb.MsgPosition{msg.Position()},
-					EndPositions:   []*msgpb.MsgPosition{msg.Position()},
+					StartPositions: []*msgpb.MsgPosition{typeutil.Clone(msg.Position())},
+					EndPositions:   []*msgpb.MsgPosition{typeutil.Clone(msg.Position())},
 					Msgs: []msgstream.TsMsg{
 						msg,
 					},
@@ -1415,14 +1415,12 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		return util.EmptyMsgPack
 	}
 
-	var resetTS2 bool
-	if GetTSManager().GetLastMsgTS(r.pChannelName) > newPack.BeginTs {
+	if GetTSManager().GetLastMsgTS(r.pChannelName) >= newPack.BeginTs {
 		maxTS, _ = GetTSManager().GetMaxTS(r.pChannelName)
-		resetTS2 = resetMsgPackTimestamp(newPack, maxTS)
-	}
-
-	if resetTS2 {
-		GetTSManager().CollectTS(r.pChannelName, newPack.EndTs)
+		resetTS2 := resetMsgPackTimestamp(newPack, maxTS)
+		if resetTS2 {
+			GetTSManager().CollectTS(r.pChannelName, newPack.EndTs)
+		}
 	}
 
 	resetLastTs := needTsMsg
@@ -1460,7 +1458,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 
 func resetMsgPackTimestamp(pack *msgstream.MsgPack, newTimestamp uint64) bool {
 	beginTs := pack.BeginTs
-	if beginTs >= newTimestamp || len(pack.Msgs) == 0 {
+	if beginTs > newTimestamp || len(pack.Msgs) == 0 {
 		return false
 	}
 	deltas := make([]uint64, len(pack.Msgs))
