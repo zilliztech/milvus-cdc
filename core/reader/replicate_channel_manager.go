@@ -1362,13 +1362,14 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			})
 			logFields := []zap.Field{
 				zap.String("msg", msg.Type().String()),
+				zap.String("collection_name", info.CollectionName),
 			}
 			if dataLen != 0 {
 				logFields = append(logFields, zap.Int("data_len", dataLen))
 			}
-			log.Info("receive msg", logFields...)
 			if pChannel != info.PChannel {
-				log.Info("forward the msg", zap.Any("msg_type", msg.Type().String()), zap.String("pChannel", pChannel), zap.String("info_pChannel", info.PChannel))
+				logFields = append(logFields, zap.String("pChannel", pChannel), zap.String("info_pChannel", info.PChannel))
+				log.Info("forward the msg", logFields...)
 				r.forwardMsgFunc(info.PChannel, &msgstream.MsgPack{
 					BeginTs:        msg.BeginTs(),
 					EndTs:          msg.EndTs(),
@@ -1380,6 +1381,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				})
 				continue
 			}
+			log.Info("receive msg", logFields...)
 			newPack.Msgs = append(newPack.Msgs, msg)
 		} else {
 			log.Warn("not support msg type", zap.Any("msg", msg))
