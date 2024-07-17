@@ -16,42 +16,33 @@
  * limitations under the License.
  */
 
-package main
+package maintenance
 
 import (
-	"os"
+	"fmt"
 
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"sigs.k8s.io/yaml"
-
-	pkglog "github.com/milvus-io/milvus/pkg/log"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
-	"github.com/zilliztech/milvus-cdc/core/util"
-	"github.com/zilliztech/milvus-cdc/server"
-	"github.com/zilliztech/milvus-cdc/server/tag"
+	"github.com/zilliztech/milvus-cdc/server/model/request"
 )
 
-func main() {
-	pkglog.ReplaceGlobals(log.L(), log.Prop())
-	util.InitMilvusPkgParam()
-	tag.LogInfo()
-
-	s := &server.CDCServer{}
-
-	// parse config file
-	fileContent, _ := os.ReadFile("./configs/cdc.yaml")
-	var serverConfig server.CDCServerConfig
-	err := yaml.Unmarshal(fileContent, &serverConfig)
-	if err != nil {
-		log.Panic("Failed to parse config file", zap.Error(err))
+func SetLogLevel(req *request.MaintenanceRequest) (*request.MaintenanceResponse, error) {
+	level, ok := req.Params["log_level"]
+	if !ok {
+		return &request.MaintenanceResponse{
+			State: "log_level is required",
+		}, nil
 	}
-	logLevel, err := zapcore.ParseLevel(serverConfig.LogLevel)
+	levelStr := fmt.Sprintf("%v", level)
+	levelObj, err := zapcore.ParseLevel(levelStr)
 	if err != nil {
-		log.Warn("Failed to parse log level, use the default log level [info]", zap.Error(err))
-		logLevel = zap.InfoLevel
+		return &request.MaintenanceResponse{
+			State: fmt.Sprintf("parse log level failed: %s", err.Error()),
+		}, nil
 	}
-	log.SetLevel(logLevel)
-	s.Run(&serverConfig)
+	log.SetLevel(levelObj)
+	return &request.MaintenanceResponse{
+		State: fmt.Sprintf("set log level to %s", levelStr),
+	}, nil
 }

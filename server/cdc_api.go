@@ -32,6 +32,7 @@ type CDCService interface {
 	Get(request *request.GetRequest) (*request.GetResponse, error)
 	GetPosition(req *request.GetPositionRequest) (*request.GetPositionResponse, error)
 	List(request *request.ListRequest) (*request.ListResponse, error)
+	Maintenance(request *request.MaintenanceRequest) (*request.MaintenanceResponse, error)
 }
 
 type BaseCDC struct{}
@@ -76,6 +77,11 @@ func (b *BaseCDC) GetPosition(req *request.GetPositionRequest) (*request.GetPosi
 
 func (b *BaseCDC) List(request *request.ListRequest) (*request.ListResponse, error) {
 	log.Warn("List is not implemented, please check it")
+	return nil, nil
+}
+
+func (b *BaseCDC) Maintenance(request *request.MaintenanceRequest) (*request.MaintenanceResponse, error) {
+	log.Warn("Maintenance is not implemented, please check it")
 	return nil, nil
 }
 

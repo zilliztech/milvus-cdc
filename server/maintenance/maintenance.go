@@ -16,41 +16,21 @@
  * limitations under the License.
  */
 
-package log
+package maintenance
 
 import (
-	"time"
+	"fmt"
 
-	"go.uber.org/zap"
-	"golang.org/x/time/rate"
+	"github.com/zilliztech/milvus-cdc/server/model/request"
 )
 
-type RateLog struct {
-	l        rate.Limiter
-	log      *zap.Logger
-	lastTime time.Time
-}
-
-func NewRateLog(ratePerSecond float64, log *zap.Logger) *RateLog {
-	bucketCnt := int(2 * ratePerSecond)
-	if bucketCnt < 2 {
-		bucketCnt = 2
-	}
-	return &RateLog{
-		l:        *rate.NewLimiter(rate.Limit(ratePerSecond), bucketCnt),
-		log:      log,
-		lastTime: time.Now(),
-	}
-}
-
-func (r *RateLog) Info(msg string, fields ...zap.Field) {
-	if r.l.Allow() {
-		r.log.Info(msg, fields...)
-	}
-}
-
-func (r *RateLog) Debug(msg string, fields ...zap.Field) {
-	if r.l.Allow() {
-		r.log.Debug(msg, fields...)
+func Handle(req *request.MaintenanceRequest) (*request.MaintenanceResponse, error) {
+	switch req.Operation {
+	case "set_log_level":
+		return SetLogLevel(req)
+	default:
+		return &request.MaintenanceResponse{
+			State: fmt.Sprintf("unsupported operation: %s", req.Operation),
+		}, nil
 	}
 }

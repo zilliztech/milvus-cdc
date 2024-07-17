@@ -16,41 +16,13 @@
  * limitations under the License.
  */
 
-package log
+package request
 
-import (
-	"time"
-
-	"go.uber.org/zap"
-	"golang.org/x/time/rate"
-)
-
-type RateLog struct {
-	l        rate.Limiter
-	log      *zap.Logger
-	lastTime time.Time
+type MaintenanceRequest struct {
+	Operation string                 `json:"operation"`
+	Params    map[string]interface{} `json:"params"`
 }
 
-func NewRateLog(ratePerSecond float64, log *zap.Logger) *RateLog {
-	bucketCnt := int(2 * ratePerSecond)
-	if bucketCnt < 2 {
-		bucketCnt = 2
-	}
-	return &RateLog{
-		l:        *rate.NewLimiter(rate.Limit(ratePerSecond), bucketCnt),
-		log:      log,
-		lastTime: time.Now(),
-	}
-}
-
-func (r *RateLog) Info(msg string, fields ...zap.Field) {
-	if r.l.Allow() {
-		r.log.Info(msg, fields...)
-	}
-}
-
-func (r *RateLog) Debug(msg string, fields ...zap.Field) {
-	if r.l.Allow() {
-		r.log.Debug(msg, fields...)
-	}
+type MaintenanceResponse struct {
+	State string `json:"state"`
 }
