@@ -1369,7 +1369,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			}
 			if pChannel != info.PChannel {
 				logFields = append(logFields, zap.String("pChannel", pChannel), zap.String("info_pChannel", info.PChannel))
-				log.Info("forward the msg", logFields...)
+				log.Debug("forward the msg", logFields...)
 				r.forwardMsgFunc(info.PChannel, &msgstream.MsgPack{
 					BeginTs:        msg.BeginTs(),
 					EndTs:          msg.EndTs(),
@@ -1381,7 +1381,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				})
 				continue
 			}
-			log.Info("receive msg", logFields...)
+			log.Debug("receive msg", logFields...)
 			newPack.Msgs = append(newPack.Msgs, msg)
 		} else {
 			log.Warn("not support msg type", zap.Any("msg", msg))
@@ -1454,7 +1454,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	if resetLastTs {
 		r.lastSendTTTime = r.lastSendTTTime.Add(-r.ttPeriod)
 	}
-	r.ttRateLog.Info("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", maxTS))
+	r.ttRateLog.Debug("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", maxTS))
 	return newPack
 }
 

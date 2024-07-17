@@ -42,3 +42,4 @@ sourceConfig:
 #  kafka:
 #    address: 127.0.0.1:9092
 maxNameLength: 256
+logLevel: info

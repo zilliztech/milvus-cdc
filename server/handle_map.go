@@ -117,5 +117,17 @@ func init() {
 				return api.List(listRequest)
 			},
 		},
+		modelrequest.Maintenance: {
+			generateModel: func() any {
+				return &modelrequest.MaintenanceRequest{}
+			},
+			handle: func(api CDCService, request any) (any, error) {
+				maintenanceRequest, ok := request.(*modelrequest.MaintenanceRequest)
+				if !ok {
+					return nil, errors.New("fail to cast the request to the maintenance model")
+				}
+				return api.Maintenance(maintenanceRequest)
+			},
+		},
 	}
 }

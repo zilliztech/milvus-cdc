@@ -47,6 +47,7 @@ import (
 	cdcwriter "github.com/zilliztech/milvus-cdc/core/writer"
 	serverapi "github.com/zilliztech/milvus-cdc/server/api"
 	servererror "github.com/zilliztech/milvus-cdc/server/error"
+	"github.com/zilliztech/milvus-cdc/server/maintenance"
 	"github.com/zilliztech/milvus-cdc/server/metrics"
 	"github.com/zilliztech/milvus-cdc/server/model"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
@@ -1004,6 +1005,10 @@ func (e *MetaCDC) List(req *request.ListRequest) (*request.ListResponse, error) 
 			return request.GetTask(t)
 		}),
 	}, nil
+}
+
+func (e *MetaCDC) Maintenance(req *request.MaintenanceRequest) (*request.MaintenanceResponse, error) {
+	return maintenance.Handle(req)
 }
 
 func GetMilvusAddress(param model.MilvusConnectParam) string {

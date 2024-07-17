@@ -142,29 +142,29 @@ func (c *ChannelWriter) HandleReplicateMessage(ctx context.Context, channelName 
 	}
 	msgBytesArr := make([][]byte, 0)
 	for _, msg := range msgPack.Msgs {
-		logFields := []zap.Field{
-			zap.String("channel", channelName),
-			zap.String("type", msg.Type().String()),
-		}
-		if msg.Type() == commonpb.MsgType_Insert {
-			insertMsg := msg.(*msgstream.InsertMsg)
-			logFields = append(logFields,
-				zap.String("collection", insertMsg.GetCollectionName()),
-				zap.String("partition", insertMsg.GetPartitionName()),
-				zap.Uint64("insert_data_len", insertMsg.GetNumRows()),
-			)
-		}
-		if msg.Type() == commonpb.MsgType_Delete {
-			deleteMsg := msg.(*msgstream.DeleteMsg)
-			logFields = append(logFields,
-				zap.String("collection", deleteMsg.GetCollectionName()),
-				zap.String("partition", deleteMsg.GetPartitionName()),
-				zap.Int64("delete_data_len", deleteMsg.GetNumRows()),
-			)
-		}
-
 		if msg.Type() != commonpb.MsgType_TimeTick {
-			log.Info("replicate msg", logFields...)
+			logFields := []zap.Field{
+				zap.String("channel", channelName),
+				zap.String("type", msg.Type().String()),
+			}
+			if msg.Type() == commonpb.MsgType_Insert {
+				insertMsg := msg.(*msgstream.InsertMsg)
+				logFields = append(logFields,
+					zap.String("collection", insertMsg.GetCollectionName()),
+					zap.String("partition", insertMsg.GetPartitionName()),
+					zap.Uint64("insert_data_len", insertMsg.GetNumRows()),
+				)
+			}
+			if msg.Type() == commonpb.MsgType_Delete {
+				deleteMsg := msg.(*msgstream.DeleteMsg)
+				logFields = append(logFields,
+					zap.String("collection", deleteMsg.GetCollectionName()),
+					zap.String("partition", deleteMsg.GetPartitionName()),
+					zap.Int64("delete_data_len", deleteMsg.GetNumRows()),
+				)
+			}
+
+			log.Debug("replicate msg", logFields...)
 		}
 		msgBytes, err := msg.Marshal(msg)
 		if err != nil {

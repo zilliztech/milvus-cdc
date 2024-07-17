@@ -31,6 +31,8 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+
+	"github.com/zilliztech/milvus-cdc/core/log"
 )
 
 func TestStringAndByte(t *testing.T) {
@@ -249,4 +251,22 @@ func TestChan(t *testing.T) {
 	var a []string
 	err = json.Unmarshal(sByte, &a)
 	assert.NoError(t, err)
+}
+
+func TestLogLevel(t *testing.T) {
+	log.Debug("debug info")
+	log.Info("info info")
+	log.Warn("warn info")
+
+	log.Warn("-------------")
+	log.SetLevel(1)
+	log.Debug("debug info")
+	log.Info("info info")
+	log.Warn("warn info")
+
+	log.Warn("-------------")
+	log.SetLevel(-1)
+	log.Debug("debug info")
+	log.Info("info info")
+	log.Warn("warn info")
 }

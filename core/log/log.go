@@ -23,6 +23,7 @@ import (
 	"sync/atomic"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/milvus-io/milvus/pkg/log"
 )
@@ -60,6 +61,10 @@ func L() *zap.Logger {
 
 func Prop() *log.ZapProperties {
 	return _p.Load().(*log.ZapProperties)
+}
+
+func SetLevel(level zapcore.Level) {
+	_p.Load().(*log.ZapProperties).Level.SetLevel(level)
 }
 
 func Debug(msg string, fields ...zap.Field) {

@@ -31,6 +31,7 @@ const (
 	Get         = "get"
 	GetPosition = "position"
 	List        = "list"
+	Maintenance = "maintenance"
 )
 
 type CDCRequest struct {
