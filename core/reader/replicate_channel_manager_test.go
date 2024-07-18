@@ -429,7 +429,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			&model.TargetCollectionInfo{PChannel: "test_p"}, api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		assert.NoError(t, err)
 		noRetry(handler)
-		time.Sleep(100 * time.Microsecond)
+		time.Sleep(100 * time.Millisecond)
 		handler.Close()
 	})
 
