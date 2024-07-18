@@ -497,6 +497,9 @@ func TestDataHandler(t *testing.T) {
 	})
 
 	t.Run("create database", func(t *testing.T) {
+		milvusService.EXPECT().ListDatabases(mock.Anything, mock.Anything).Return(&milvuspb.ListDatabasesResponse{Status: &commonpb.Status{
+			ErrorCode: commonpb.ErrorCode_Success,
+		}, DbNames: []string{}}, nil).Once()
 		milvusService.EXPECT().CreateDatabase(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.CreateDatabase(ctx, &api.CreateDatabaseParam{
 			CreateDatabaseRequest: milvuspb.CreateDatabaseRequest{

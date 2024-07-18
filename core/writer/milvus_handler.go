@@ -245,6 +245,17 @@ func (m *MilvusDataHandler) Flush(ctx context.Context, param *api.FlushParam) er
 
 func (m *MilvusDataHandler) CreateDatabase(ctx context.Context, param *api.CreateDatabaseParam) error {
 	return m.milvusOp(ctx, "", func(milvus client.Client) error {
+		databases, err := milvus.ListDatabases(ctx)
+		if err != nil {
+			return err
+		}
+		for _, database := range databases {
+			if database.Name == param.DbName {
+				log.Info("skip to create database, because it's has existed", zap.String("database", param.DbName))
+				return nil
+			}
+		}
+
 		return milvus.CreateDatabase(ctx, param.DbName,
 			client.WithCreateDatabaseMsgBase(param.GetBase()),
 		)
