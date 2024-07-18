@@ -31,6 +31,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/mq/msgdispatcher"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/funcutil"
+	"github.com/milvus-io/milvus/pkg/util/typeutil"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
 )
@@ -121,6 +122,7 @@ func (dcsc *DisptachClientStreamCreator) GetStreamChan(ctx context.Context,
 	if seekPosition == nil {
 		subPositionType = common.SubscriptionPositionLatest
 	}
+	seekPosition = typeutil.Clone(seekPosition)
 	// make the position channel is v channel
 	if seekPosition != nil {
 		seekPosition.ChannelName = CheckAndFixVirtualChannel(seekPosition.ChannelName)
