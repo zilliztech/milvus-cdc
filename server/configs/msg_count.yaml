@@ -14,12 +14,19 @@ pulsar:
 #kafka:
 #  address: 10.104.34.53:9092
 collectionID: 0
-data: 1
+data: 0
 pkFieldName: pk
 taskPositionMode: false
 decodePositionType: 1
 
 enableCSV: false
+
+fetchTaskPosition: false
+dbID: 1
+milvusEtcdConfig:
+  address:
+    - localhost:2379
+  rootPath: by-dev
 
 taskPositions:
   - name: by-dev-rootcoord-dml_0

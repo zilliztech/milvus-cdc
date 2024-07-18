@@ -43,10 +43,12 @@ import (
 	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/common"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/util/funcutil"
 	"github.com/milvus-io/milvus/pkg/util/paramtable"
 	"github.com/milvus-io/milvus/pkg/util/tsoutil"
 
 	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/pb"
 	"github.com/zilliztech/milvus-cdc/core/reader"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/model"
@@ -80,6 +82,10 @@ type PositionConfig struct {
 	Data         string
 
 	EnableCSV bool
+
+	FetchTaskPosition bool
+	DbID              int64
+	MilvusEtcdConfig  config.EtcdServerConfig
 }
 
 func main() {
@@ -119,18 +125,19 @@ func main() {
 		}()
 	}
 
-	if positionConfig.TaskPositionMode {
+	if GlobalConfig.TaskPositionMode {
 		markPrintln("task position mode")
-		timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), time.Duration(positionConfig.Timeout)*time.Second)
+		timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), time.Duration(GlobalConfig.Timeout)*time.Second)
 		defer cancelFunc()
+		fetchCollectionStartPosition()
 
-		for _, position := range positionConfig.TaskPositions {
+		for _, position := range GlobalConfig.TaskPositions {
 			kd, err := decodePosition(position.Name, position.Position)
 			if err != nil {
 				panic(err)
 			}
 
-			GetMQMessageDetail(timeoutCtx, positionConfig, position.Name, kd)
+			GetMQMessageDetail(timeoutCtx, GlobalConfig, position.Name, kd)
 		}
 		return
 	}
@@ -152,13 +159,13 @@ func main() {
 		panic(err)
 	}
 
-	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), time.Duration(positionConfig.Timeout)*time.Second)
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), time.Duration(GlobalConfig.Timeout)*time.Second)
 	defer cancelFunc()
 	var getResp *clientv3.GetResponse
-	if positionConfig.TaskPositionKey != "" {
-		getResp, err = client.Get(timeoutCtx, fmt.Sprintf("%s/%s", positionConfig.TaskPositionPrefix, positionConfig.TaskPositionKey))
+	if GlobalConfig.TaskPositionKey != "" {
+		getResp, err = client.Get(timeoutCtx, fmt.Sprintf("%s/%s", GlobalConfig.TaskPositionPrefix, GlobalConfig.TaskPositionKey))
 	} else {
-		getResp, err = client.Get(timeoutCtx, positionConfig.TaskPositionPrefix, clientv3.WithPrefix())
+		getResp, err = client.Get(timeoutCtx, GlobalConfig.TaskPositionPrefix, clientv3.WithPrefix())
 	}
 	if err != nil {
 		panic(err)
@@ -167,9 +174,54 @@ func main() {
 		panic("task position not exist")
 	}
 	for _, kv := range getResp.Kvs {
-		GetCollectionPositionDetail(timeoutCtx, positionConfig, kv.Value)
+		GetCollectionPositionDetail(timeoutCtx, GlobalConfig, kv.Value)
 		markPrintln("++++++++++++++++++++++++++")
 	}
+}
+
+func fetchCollectionStartPosition() {
+	if !GlobalConfig.FetchTaskPosition {
+		return
+	}
+	etcdConfig, err := util.GetEtcdConfig(GlobalConfig.MilvusEtcdConfig)
+	if err != nil {
+		panic(err)
+	}
+	etcdClient, _ := clientv3.New(etcdConfig)
+	getResp, err := etcdClient.Get(context.Background(),
+		fmt.Sprintf("%s/meta/root-coord/database/collection-info/%d/%d",
+			GlobalConfig.MilvusEtcdConfig.RootPath, GlobalConfig.DbID, GlobalConfig.CollectionID))
+	if err != nil {
+		panic(err)
+	}
+	bytesData := getResp.Kvs[0].Value
+	collectionInfo := &pb.CollectionInfo{}
+	err = proto.Unmarshal(bytesData, collectionInfo)
+	if err != nil {
+		panic(err)
+	}
+	GlobalConfig.DecodePositionType = 1
+	GlobalConfig.TaskPositions = make([]model.ChannelInfo, 0)
+	for _, position := range collectionInfo.StartPositions {
+		codePosition := base64.StdEncoding.EncodeToString(position.Data)
+		channelName := position.Key
+		markPrintln("fetch task position, channel name: ", channelName, " position: ", codePosition)
+		if IsVirtualChannel(channelName) {
+			channelName = funcutil.ToPhysicalChannel(channelName)
+		}
+		GlobalConfig.TaskPositions = append(GlobalConfig.TaskPositions, model.ChannelInfo{
+			Name:     channelName,
+			Position: codePosition,
+		})
+	}
+}
+
+func IsVirtualChannel(vchannel string) bool {
+	i := strings.LastIndex(vchannel, "_")
+	if i == -1 {
+		return false
+	}
+	return strings.Contains(vchannel[i+1:], "v")
 }
 
 func decodePosition(pchannel, position string) (*commonpb.KeyDataPair, error) {
