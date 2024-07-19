@@ -30,6 +30,7 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/util/funcutil"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -58,7 +59,7 @@ type CollectionReader struct {
 	id                     string
 	channelManager         api.ChannelManager
 	metaOp                 api.MetaOp
-	channelSeekPositions   map[string]*msgpb.MsgPosition
+	channelSeekPositions   map[int64]map[string]*msgpb.MsgPosition
 	replicateCollectionMap util.Map[int64, *pb.CollectionInfo]
 	replicateChannelMap    util.Map[string, struct{}]
 	errChan                chan error
@@ -71,7 +72,7 @@ type CollectionReader struct {
 
 func NewCollectionReader(id string,
 	channelManager api.ChannelManager, metaOp api.MetaOp,
-	seekPosition map[string]*msgpb.MsgPosition,
+	seekPosition map[int64]map[string]*msgpb.MsgPosition,
 	shouldReadFunc ShouldReadFunc,
 	readerConfig config.ReaderConfig,
 ) (api.Reader, error) {
@@ -83,6 +84,15 @@ func NewCollectionReader(id string,
 		shouldReadFunc:       shouldReadFunc,
 		errChan:              make(chan error),
 		retryOptions:         util.GetRetryOptions(readerConfig.Retry),
+	}
+	for _, collectionPositions := range seekPosition {
+		for channel, msgPosition := range collectionPositions {
+			pchannel := channel
+			if IsVirtualChannel(pchannel) {
+				pchannel = funcutil.ToPhysicalChannel(pchannel)
+			}
+			GetTSManager().CollectTS(pchannel, msgPosition.GetTimestamp())
+		}
 	}
 	return reader, nil
 }
@@ -212,7 +222,6 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 		// TODO: it may be different the `metaOp.GetAllDroppedObj()`
 		reader.channelManager.AddDroppedCollection(lo.Keys(repeatedCollectionID))
 
-		seekPositions := lo.Values(reader.channelSeekPositions)
 		for _, info := range existedCollectionInfos {
 			if _, ok := repeatedCollectionID[info.ID]; ok {
 				readerLog.Info("skip to start to read collection", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
@@ -221,6 +230,20 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			if !reader.shouldReadFunc(info) {
 				readerLog.Info("the collection is not in the watch list", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
 				continue
+			}
+			collectionSeekPositionMap := reader.channelSeekPositions[info.ID]
+			seekPositions := make([]*msgpb.MsgPosition, 0)
+			if collectionSeekPositionMap != nil {
+				seekPositions = lo.Values(collectionSeekPositionMap)
+			} else {
+				log.Warn("the seek position of the existed collection is not found, use the collection start position.", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
+				for _, v := range info.StartPositions {
+					seekPositions = append(seekPositions, &msgstream.MsgPosition{
+						ChannelName: v.GetKey(),
+						MsgID:       v.GetData(),
+						Timestamp:   info.CreateTime,
+					})
+				}
 			}
 			readerLog.Info("exist collection",
 				zap.String("name", info.Schema.Name),

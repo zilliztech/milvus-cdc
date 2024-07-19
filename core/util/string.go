@@ -22,6 +22,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"unsafe"
 
@@ -29,6 +31,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/util/merr"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
 )
@@ -131,4 +134,42 @@ func GetDBInfoKeys(dbName string) (string, string) {
 		dbName = DefaultDbName
 	}
 	return GetCreateInfoKey(dbName), GetDropInfoKey(dbName)
+}
+
+type ChannelInfo struct {
+	PChannelName string
+	CollectionID int64
+	ShardIndex   int
+}
+
+const (
+	rgnPhysicalName = `PhysicalName`
+	rgnCollectionID = `CollectionID`
+	rgnShardIdx     = `ShardIdx`
+)
+
+var channelNameFormat = regexp.MustCompile(fmt.Sprintf(`^(?P<%s>.*)_(?P<%s>\d+)v(?P<%s>\d+)$`, rgnPhysicalName, rgnCollectionID, rgnShardIdx))
+
+func ParseVChannel(virtualName string) (ChannelInfo, error) {
+	if !channelNameFormat.MatchString(virtualName) {
+		return ChannelInfo{}, merr.WrapErrParameterInvalidMsg("virtual channel name(%s) is not valid", virtualName)
+	}
+	matches := channelNameFormat.FindStringSubmatch(virtualName)
+
+	physicalName := matches[channelNameFormat.SubexpIndex(rgnPhysicalName)]
+	collectionIDRaw := matches[channelNameFormat.SubexpIndex(rgnCollectionID)]
+	shardIdxRaw := matches[channelNameFormat.SubexpIndex(rgnShardIdx)]
+	collectionID, err := strconv.ParseInt(collectionIDRaw, 10, 64)
+	if err != nil {
+		return ChannelInfo{}, err
+	}
+	shardIdx, err := strconv.ParseInt(shardIdxRaw, 10, 64)
+	if err != nil {
+		return ChannelInfo{}, err
+	}
+	return ChannelInfo{
+		PChannelName: physicalName,
+		CollectionID: collectionID,
+		ShardIndex:   int(shardIdx),
+	}, nil
 }

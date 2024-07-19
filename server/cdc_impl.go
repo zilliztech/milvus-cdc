@@ -249,38 +249,75 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		WriterCacheConfig:     req.BufferConfig,
 		State:                 meta.TaskStateInitial,
 	}
-	if len(req.Positions) != 0 {
-		positions := make(map[string]*meta.PositionInfo, len(req.Positions))
-		for s, s2 := range req.Positions {
-			positionDataBytes, err := base64.StdEncoding.DecodeString(s2)
+	for _, collectionInfo := range req.CollectionInfos {
+		positions := make(map[string]*meta.PositionInfo, len(collectionInfo.Positions))
+		collectionID := int64(-1)
+		for vchannel, collectionPosition := range collectionInfo.Positions {
+			channelInfo, err := util.ParseVChannel(vchannel)
+			if err != nil {
+				revertCollectionNames()
+				return nil, servererror.NewClientError(fmt.Sprintf("the vchannel is invalid, %s, err: %s", vchannel, err.Error()))
+			}
+			positionDataBytes, err := base64.StdEncoding.DecodeString(collectionPosition)
 			if err != nil {
 				return nil, servererror.NewServerError(errors.WithMessage(err, "fail to decode the position data"))
 			}
 			p := &meta.PositionInfo{
 				DataPair: &commonpb.KeyDataPair{
-					Key:  s,
+					Key:  channelInfo.PChannelName,
 					Data: positionDataBytes,
 				},
 			}
-			positions[s] = p
+			positions[channelInfo.PChannelName] = p
+			if collectionID == -1 {
+				collectionID = channelInfo.CollectionID
+			}
+			if collectionID != channelInfo.CollectionID {
+				revertCollectionNames()
+				return nil, servererror.NewClientError("the channel position info should be in the same collection")
+			}
 		}
-		// TODO it will break when support multiple collections in a task
-		collectionName := req.CollectionInfos[0].Name
+		collectionName := collectionInfo.Name
 		metaPosition := &meta.TaskCollectionPosition{
-			TaskID: info.TaskID,
-			// TODO how to get the collection id
-			// CollectionID:    TmpCollectionID,
-			// CollectionName:  TmpCollectionName,
-			CollectionID:    model.TmpCollectionID,
-			CollectionName:  collectionName,
-			Positions:       positions,
-			TargetPositions: positions,
+			TaskID:         info.TaskID,
+			CollectionID:   collectionID,
+			CollectionName: collectionName,
+			Positions:      positions,
 		}
 		err = e.metaStoreFactory.GetTaskCollectionPositionMetaStore(ctx).Put(ctx, metaPosition, nil)
 		if err != nil {
 			return nil, servererror.NewServerError(errors.WithMessage(err, "fail to put the task collection position to etcd"))
 		}
+
+		collectionInfo.Positions = make(map[string]string)
 	}
+
+	if req.RPCChannelInfo.Position != "" {
+		positionDataBytes, err := base64.StdEncoding.DecodeString(req.RPCChannelInfo.Position)
+		if err != nil {
+			return nil, servererror.NewServerError(errors.WithMessage(err, "fail to decode the rpc position data"))
+		}
+
+		metaPosition := &meta.TaskCollectionPosition{
+			TaskID:         info.TaskID,
+			CollectionID:   model.ReplicateCollectionID,
+			CollectionName: model.ReplicateCollectionName,
+			Positions: map[string]*meta.PositionInfo{
+				req.RPCChannelInfo.Name: {
+					DataPair: &commonpb.KeyDataPair{
+						Key:  req.RPCChannelInfo.Name,
+						Data: positionDataBytes,
+					},
+				},
+			},
+		}
+		err = e.metaStoreFactory.GetTaskCollectionPositionMetaStore(ctx).Put(ctx, metaPosition, nil)
+		if err != nil {
+			return nil, servererror.NewServerError(errors.WithMessage(err, "fail to put the task rpc position to etcd"))
+		}
+		req.RPCChannelInfo.Position = ""
+	}
+
 	err = e.metaStoreFactory.GetTaskInfoMetaStore(ctx).Put(ctx, info, nil)
 	if err != nil {
 		revertCollectionNames()
@@ -372,8 +409,17 @@ func (e *MetaCDC) checkCollectionInfos(infos []model.CollectionInfo) error {
 					return t.Name
 				})))
 		}
+		if info.Name == cdcreader.AllCollection && len(info.Positions) > 0 {
+			// because the position info can't include the collection name when the collection name is `*`
+			return servererror.NewClientError("the collection name is `*`, the positions should be empty")
+		}
 		if len(info.Name) > e.config.MaxNameLength {
 			longNames = append(longNames, info.Name)
+		}
+		for positionChannel := range info.Positions {
+			if !cdcreader.IsVirtualChannel(positionChannel) {
+				return servererror.NewClientError(fmt.Sprintf("the position channel name is not virtual channel, %s", positionChannel))
+			}
 		}
 	}
 	if !emptyName && len(longNames) == 0 {
@@ -416,39 +462,25 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 		taskLog.Warn("fail to get the task collection position", zap.Error(err))
 		return servererror.NewServerError(errors.WithMessage(err, "fail to get the task collection position"))
 	}
-	// TODO it will break when support multiple collections in a task
-	// if the last position and request position are existed, it should use the last position
-	var taskPosition *meta.TaskCollectionPosition
-	channelSeekPosition := make(map[string]*msgpb.MsgPosition)
-	if len(taskPositions) > 1 {
-		if len(taskPositions) == 2 {
-			if taskPositions[0].CollectionID == model.TmpCollectionID &&
-				taskPositions[1].CollectionID != model.TmpCollectionID {
-				taskPosition = taskPositions[1]
-			} else if taskPositions[0].CollectionID != model.TmpCollectionID &&
-				taskPositions[1].CollectionID == model.TmpCollectionID {
-				taskPosition = taskPositions[0]
+
+	channelSeekPosition := make(map[int64]map[string]*msgpb.MsgPosition)
+	for _, taskPosition := range taskPositions {
+		collectionSeekPosition := make(map[string]*msgpb.MsgPosition)
+		// the positionChannel is pchannel name
+		for positionChannel, positionInfo := range taskPosition.Positions {
+			positionTs := uint64(0)
+			if positionInfo.Time > 0 {
+				positionTs = tsoutil.ComposeTS(positionInfo.Time+1, 0)
+			}
+			collectionSeekPosition[positionChannel] = &msgpb.MsgPosition{
+				ChannelName: positionChannel,
+				MsgID:       positionInfo.DataPair.Data,
+				Timestamp:   positionTs,
 			}
 		}
-		if taskPosition == nil {
-			taskLog.Warn("the task collection position is invalid", zap.Any("task_id", info.TaskID))
-			return servererror.NewServerError(errors.New("the task collection position is invalid"))
-		}
+		channelSeekPosition[taskPosition.CollectionID] = collectionSeekPosition
 	}
-	if len(taskPositions) == 1 {
-		taskPosition = taskPositions[0]
-	}
-	if taskPosition != nil {
-		taskLog.Info("task seek position", zap.Any("position", taskPosition.Positions))
-		for _, p := range taskPosition.Positions {
-			dataPair := p.DataPair
-			channelSeekPosition[dataPair.GetKey()] = &msgpb.MsgPosition{
-				ChannelName: dataPair.GetKey(),
-				MsgID:       dataPair.GetData(),
-				Timestamp:   tsoutil.ComposeTS(p.Time+1, 0),
-			}
-		}
-	}
+
 	collectionReader, err := cdcreader.NewCollectionReader(info.TaskID,
 		replicateEntity.channelManager, replicateEntity.metaOp,
 		channelSeekPosition, GetShouldReadFunc(info),
@@ -469,8 +501,11 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 	}()
 	rpcRequestChannelName := info.RPCRequestChannelInfo.Name
 	rpcRequestPosition := info.RPCRequestChannelInfo.Position
-	if rpcRequestPosition == "" && channelSeekPosition[rpcRequestChannelName] != nil {
-		rpcRequestPosition = base64.StdEncoding.EncodeToString(channelSeekPosition[rpcRequestChannelName].MsgID)
+	if rpcRequestPosition == "" && channelSeekPosition[model.ReplicateCollectionID] != nil {
+		replicateSeekPosition := channelSeekPosition[model.ReplicateCollectionID][rpcRequestChannelName]
+		if replicateSeekPosition != nil {
+			rpcRequestPosition = base64.StdEncoding.EncodeToString(replicateSeekPosition.MsgID)
+		}
 	}
 	channelReader, err := e.getChannelReader(info, replicateEntity, rpcRequestChannelName, rpcRequestPosition)
 	if err != nil {
@@ -667,8 +702,6 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, info *meta.
 	go func() {
 		taskLog := log.With(zap.String("task_id", info.TaskID))
 		writeCallback := NewWriteCallback(e.metaStoreFactory, e.rootPath, info.TaskID)
-		collectionName := info.CollectionNames()[0]
-		isAnyCollection := collectionName == cdcreader.AllCollection
 
 		msgChan := entity.channelManager.GetMsgChan(channelName)
 		if msgChan == nil {
@@ -680,17 +713,24 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, info *meta.
 			case <-replicateCtx.Done():
 				log.Warn("msg chan, the replicate context has closed")
 				return
-			case msgPack, ok := <-msgChan:
+			case replicateMsg, ok := <-msgChan:
 				if !ok {
 					taskLog.Warn("the data channel has closed")
 					return
 				}
 				if !e.isRunningTask(info.TaskID) {
-					taskLog.Warn("not running task", zap.Any("pack", msgPack))
+					taskLog.Warn("not running task", zap.Any("pack", replicateMsg))
 					return
 				}
+				msgPack := replicateMsg.MsgPack
 				if msgPack == nil {
 					log.Warn("the message pack is nil, the task may be stopping")
+					return
+				}
+				if replicateMsg.CollectionName == "" || replicateMsg.CollectionID == 0 {
+					taskLog.Warn("fail to handle the replicate message",
+						zap.String("collection_name", replicateMsg.CollectionName), zap.Int64("collection_id", replicateMsg.CollectionID))
+					_ = e.pauseTaskWithReason(info.TaskID, "fail to handle replicate message, invalid collection name or id", []meta.TaskState{})
 					return
 				}
 				pChannel := msgPack.EndPositions[0].GetChannelName()
@@ -723,12 +763,8 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, info *meta.
 					},
 				}
 				if position != nil {
-					msgCollectionName := collectionName
-					msgCollectionID := model.TmpCollectionID
-					if !isAnyCollection {
-						msgCollectionName = util.GetCollectionNameFromMsgPack(msgPack)
-						msgCollectionID = util.GetCollectionIDFromMsgPack(msgPack)
-					}
+					msgCollectionName := replicateMsg.CollectionName
+					msgCollectionID := replicateMsg.CollectionID
 					err = writeCallback.UpdateTaskCollectionPosition(msgCollectionID, msgCollectionName, channelName,
 						metaPosition, metaOpPosition, metaTargetPosition)
 					if err != nil {
@@ -798,16 +834,16 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 			Set(float64(msgTime))
 		metrics.APIExecuteCountVec.WithLabelValues(info.TaskID, pack.Msgs[0].Type().String()).Inc()
 
-		channelName := info.RPCRequestChannelInfo.Name
+		rpcChannelName := info.RPCRequestChannelInfo.Name
 		metaPosition := &meta.PositionInfo{
 			Time: msgTime,
 			DataPair: &commonpb.KeyDataPair{
-				Key:  channelName,
+				Key:  rpcChannelName,
 				Data: positionBytes,
 			},
 		}
 		writeCallback := NewWriteCallback(e.metaStoreFactory, e.rootPath, info.TaskID)
-		err = writeCallback.UpdateTaskCollectionPosition(0, collectionName, channelName,
+		err = writeCallback.UpdateTaskCollectionPosition(model.ReplicateCollectionID, model.ReplicateCollectionName, channelName,
 			metaPosition, metaPosition, nil)
 		if err != nil {
 			log.Warn("fail to update the collection position", zap.Any("pack", pack), zap.Error(err))

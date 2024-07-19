@@ -26,7 +26,6 @@ import (
 )
 
 var (
-	EmptyMsgPack            = &msgstream.MsgPack{}
 	SuffixSnapshotTombstone = []byte{0xE2, 0x9B, 0xBC} // base64 value: "4pu8"
 )
 

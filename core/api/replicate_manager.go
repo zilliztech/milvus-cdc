@@ -23,7 +23,6 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/model"
@@ -41,7 +40,7 @@ type ChannelManager interface {
 	AddPartition(ctx context.Context, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo) error
 
 	GetChannelChan() <-chan string
-	GetMsgChan(pChannel string) <-chan *msgstream.MsgPack
+	GetMsgChan(pChannel string) <-chan *ReplicateMsg
 	GetEventChan() <-chan *ReplicateAPIEvent
 }
 
@@ -122,7 +121,7 @@ func (d *DefaultChannelManager) GetChannelChan() <-chan string {
 	return nil
 }
 
-func (d *DefaultChannelManager) GetMsgChan(pChannel string) <-chan *msgstream.MsgPack {
+func (d *DefaultChannelManager) GetMsgChan(pChannel string) <-chan *ReplicateMsg {
 	log.Warn("GetMsgChan is not implemented, please check it")
 	return nil
 }
