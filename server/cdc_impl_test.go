@@ -499,13 +499,13 @@ func TestCreateRequest(t *testing.T) {
 				CollectionInfos: []model.CollectionInfo{
 					{
 						Name: "*",
+						Positions: map[string]string{
+							"ch1_v0": base64.StdEncoding.EncodeToString([]byte("ch1-position")),
+						},
 					},
 				},
 				RPCChannelInfo: model.ChannelInfo{
 					Name: "foo",
-				},
-				Positions: map[string]string{
-					"ch1_v0": base64.StdEncoding.EncodeToString([]byte("ch1-position")),
 				},
 			})
 			assert.NoError(t, err)

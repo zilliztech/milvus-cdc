@@ -34,7 +34,8 @@ type MilvusConnectParam struct {
 }
 
 type CollectionInfo struct {
-	Name string `json:"name" mapstructure:"name"`
+	Name      string            `json:"name" mapstructure:"name"`
+	Positions map[string]string `json:"positions" mapstructure:"positions"`
 }
 
 type ChannelInfo struct {
@@ -52,4 +53,7 @@ const (
 	TmpCollectionID int64 = -1
 	// TmpCollectionName TODO if replicate the rbac info, the collection id will be set it
 	TmpCollectionName = "-1"
+
+	ReplicateCollectionID   int64 = -10
+	ReplicateCollectionName       = "-10"
 )
