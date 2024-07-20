@@ -1203,7 +1203,10 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		}
 		// the condition can't be satisfied because using the msg dispatch client
 		if sourceCollectionID != msgCollectionID {
-			log.Warn("not support multiple collection in one pack", zap.Int64("source_collection_id", sourceCollectionID), zap.Int64("msg_collection_id", msgCollectionID))
+			// server warn
+			log.Warn("server warn: not support multiple collection in one pack",
+				zap.String("msg_type", msg.Type().String()),
+				zap.Int64("source_collection_id", sourceCollectionID), zap.Int64("msg_collection_id", msgCollectionID))
 			continue
 		}
 		info, err := r.getCollectionTargetInfo(sourceCollectionID)
@@ -1358,7 +1361,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		} else {
 			log.Debug("receive msg", logFields...)
 			if forwardChannel != "" {
-				log.Warn("the pack exist forward and not forward msg", zap.String("forward_channel", forwardChannel), zap.String("info_pChannel", info.PChannel))
+				log.Warn("server warn: the pack exist forward and not forward msg", zap.String("forward_channel", forwardChannel), zap.String("info_pChannel", info.PChannel))
 				continue
 			}
 		}
