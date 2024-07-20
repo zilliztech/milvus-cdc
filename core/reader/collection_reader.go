@@ -236,7 +236,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			if collectionSeekPositionMap != nil {
 				seekPositions = lo.Values(collectionSeekPositionMap)
 			} else {
-				log.Warn("the seek position of the existed collection is not found, use the collection start position.", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
+				log.Warn("server warn: the seek position of the existed collection is not found, use the collection start position.", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
 				for _, v := range info.StartPositions {
 					seekPositions = append(seekPositions, &msgstream.MsgPosition{
 						ChannelName: v.GetKey(),
