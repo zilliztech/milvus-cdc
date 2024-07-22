@@ -25,9 +25,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 )
 
-var (
-	SuffixSnapshotTombstone = []byte{0xE2, 0x9B, 0xBC} // base64 value: "4pu8"
-)
+var SuffixSnapshotTombstone = []byte{0xE2, 0x9B, 0xBC} // base64 value: "4pu8"
 
 type OnceWriteChan[T any] struct {
 	once sync.Once

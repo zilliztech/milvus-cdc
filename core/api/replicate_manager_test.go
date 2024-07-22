@@ -24,7 +24,6 @@ import (
 	"testing"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 
 	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
@@ -104,7 +103,7 @@ func TestDefaultChannelManager_GetMsgChan(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want <-chan *msgstream.MsgPack
+		want <-chan *ReplicateMsg
 	}{
 		{
 			name: "TestDefaultChannelManager_GetMsgChan",

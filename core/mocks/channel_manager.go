@@ -11,8 +11,6 @@ import (
 
 	msgpb "github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 
-	msgstream "github.com/milvus-io/milvus/pkg/mq/msgstream"
-
 	pb "github.com/zilliztech/milvus-cdc/core/pb"
 )
 
@@ -226,15 +224,15 @@ func (_c *ChannelManager_GetEventChan_Call) RunAndReturn(run func() <-chan *api.
 }
 
 // GetMsgChan provides a mock function with given fields: pChannel
-func (_m *ChannelManager) GetMsgChan(pChannel string) <-chan *msgstream.MsgPack {
+func (_m *ChannelManager) GetMsgChan(pChannel string) <-chan *api.ReplicateMsg {
 	ret := _m.Called(pChannel)
 
-	var r0 <-chan *msgstream.MsgPack
-	if rf, ok := ret.Get(0).(func(string) <-chan *msgstream.MsgPack); ok {
+	var r0 <-chan *api.ReplicateMsg
+	if rf, ok := ret.Get(0).(func(string) <-chan *api.ReplicateMsg); ok {
 		r0 = rf(pChannel)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(<-chan *msgstream.MsgPack)
+			r0 = ret.Get(0).(<-chan *api.ReplicateMsg)
 		}
 	}
 
@@ -259,12 +257,12 @@ func (_c *ChannelManager_GetMsgChan_Call) Run(run func(pChannel string)) *Channe
 	return _c
 }
 
-func (_c *ChannelManager_GetMsgChan_Call) Return(_a0 <-chan *msgstream.MsgPack) *ChannelManager_GetMsgChan_Call {
+func (_c *ChannelManager_GetMsgChan_Call) Return(_a0 <-chan *api.ReplicateMsg) *ChannelManager_GetMsgChan_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *ChannelManager_GetMsgChan_Call) RunAndReturn(run func(string) <-chan *msgstream.MsgPack) *ChannelManager_GetMsgChan_Call {
+func (_c *ChannelManager_GetMsgChan_Call) RunAndReturn(run func(string) <-chan *api.ReplicateMsg) *ChannelManager_GetMsgChan_Call {
 	_c.Call.Return(run)
 	return _c
 }

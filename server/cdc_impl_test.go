@@ -458,7 +458,7 @@ func TestCreateRequest(t *testing.T) {
 					"ch1_v0": {
 						Time: 1,
 						DataPair: &commonpb.KeyDataPair{
-							Key:  "ch1_v0",
+							Key:  "rootcoord-dml-channel_1_123v0",
 							Data: []byte("ch1-position"),
 						},
 					},
@@ -498,9 +498,9 @@ func TestCreateRequest(t *testing.T) {
 				},
 				CollectionInfos: []model.CollectionInfo{
 					{
-						Name: "*",
+						Name: "hello_milvus",
 						Positions: map[string]string{
-							"ch1_v0": base64.StdEncoding.EncodeToString([]byte("ch1-position")),
+							"rootcoord-dml-channel_1_123v0": base64.StdEncoding.EncodeToString([]byte("ch1-position")),
 						},
 					},
 				},

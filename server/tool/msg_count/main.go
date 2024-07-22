@@ -109,12 +109,12 @@ func main() {
 	GlobalConfig = positionConfig
 
 	if GlobalConfig.EnableCSV {
-		InsertCSVFile, err = os.OpenFile("insert.csv", os.O_CREATE|os.O_WRONLY, 0644)
+		InsertCSVFile, err = os.OpenFile("insert.csv", os.O_CREATE|os.O_WRONLY, 0o644)
 		if err != nil {
 			panic(err)
 		}
 		InsertCSVFile.Write([]byte("row_id,timestamp,pk\n"))
-		DeleteCSVFile, err = os.OpenFile("delete.csv", os.O_CREATE|os.O_WRONLY, 0644)
+		DeleteCSVFile, err = os.OpenFile("delete.csv", os.O_CREATE|os.O_WRONLY, 0o644)
 		if err != nil {
 			panic(err)
 		}

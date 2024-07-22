@@ -43,7 +43,7 @@ func TestOnceChan(t *testing.T) {
 
 func TestGetCollectionNameFromMsgPack(t *testing.T) {
 	t.Run("empty pack", func(t *testing.T) {
-		assert.Equal(t, "", GetCollectionNameFromMsgPack(EmptyMsgPack))
+		assert.Equal(t, "", GetCollectionNameFromMsgPack(&msgstream.MsgPack{}))
 	})
 
 	t.Run("success", func(t *testing.T) {
