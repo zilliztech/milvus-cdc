@@ -290,6 +290,60 @@ func (_c *CDCService_List_Call) RunAndReturn(run func(*request.ListRequest) (*re
 	return _c
 }
 
+// Maintenance provides a mock function with given fields: _a0
+func (_m *CDCService) Maintenance(_a0 *request.MaintenanceRequest) (*request.MaintenanceResponse, error) {
+	ret := _m.Called(_a0)
+
+	var r0 *request.MaintenanceResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(*request.MaintenanceRequest) (*request.MaintenanceResponse, error)); ok {
+		return rf(_a0)
+	}
+	if rf, ok := ret.Get(0).(func(*request.MaintenanceRequest) *request.MaintenanceResponse); ok {
+		r0 = rf(_a0)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*request.MaintenanceResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(*request.MaintenanceRequest) error); ok {
+		r1 = rf(_a0)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CDCService_Maintenance_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Maintenance'
+type CDCService_Maintenance_Call struct {
+	*mock.Call
+}
+
+// Maintenance is a helper method to define mock.On call
+//  - _a0 *request.MaintenanceRequest
+func (_e *CDCService_Expecter) Maintenance(_a0 interface{}) *CDCService_Maintenance_Call {
+	return &CDCService_Maintenance_Call{Call: _e.mock.On("Maintenance", _a0)}
+}
+
+func (_c *CDCService_Maintenance_Call) Run(run func(_a0 *request.MaintenanceRequest)) *CDCService_Maintenance_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*request.MaintenanceRequest))
+	})
+	return _c
+}
+
+func (_c *CDCService_Maintenance_Call) Return(_a0 *request.MaintenanceResponse, _a1 error) *CDCService_Maintenance_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CDCService_Maintenance_Call) RunAndReturn(run func(*request.MaintenanceRequest) (*request.MaintenanceResponse, error)) *CDCService_Maintenance_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Pause provides a mock function with given fields: _a0
 func (_m *CDCService) Pause(_a0 *request.PauseRequest) (*request.PauseResponse, error) {
 	ret := _m.Called(_a0)

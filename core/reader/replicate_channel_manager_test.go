@@ -620,7 +620,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 			defer close(done)
 			{
 				// timetick pack
-				pack := <-handler.msgPackChan
+				replicateMsg := <-handler.msgPackChan
+				pack := replicateMsg.MsgPack
 				// assert pack
 				assert.NotNil(t, pack)
 				assert.EqualValues(t, 1, pack.BeginTs)
@@ -631,7 +632,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 			}
 			{
 				// insert msg
-				pack := <-handler.msgPackChan
+				replicateMsg := <-handler.msgPackChan
+				pack := replicateMsg.MsgPack
 				assert.Len(t, pack.Msgs, 1)
 				insertMsg := pack.Msgs[0].(*msgstream.InsertMsg)
 				assert.EqualValues(t, 100, insertMsg.CollectionID)
@@ -641,7 +643,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 
 			{
 				// delete msg
-				pack := <-handler.msgPackChan
+				replicateMsg := <-handler.msgPackChan
+				pack := replicateMsg.MsgPack
 				assert.Len(t, pack.Msgs, 2)
 				{
 					deleteMsg := pack.Msgs[0].(*msgstream.DeleteMsg)
@@ -659,7 +662,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 
 			{
 				// drop partition msg
-				pack := <-handler.msgPackChan
+				replicateMsg := <-handler.msgPackChan
+				pack := replicateMsg.MsgPack
 				assert.Len(t, pack.Msgs, 1)
 				dropMsg := pack.Msgs[0].(*msgstream.DropPartitionMsg)
 				assert.EqualValues(t, 100, dropMsg.CollectionID)
@@ -669,7 +673,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 
 			{
 				// drop collection msg
-				pack := <-handler.msgPackChan
+				replicateMsg := <-handler.msgPackChan
+				pack := replicateMsg.MsgPack
 				assert.Len(t, pack.Msgs, 2)
 				dropMsg := pack.Msgs[0].(*msgstream.DropCollectionMsg)
 				assert.EqualValues(t, 100, dropMsg.CollectionID)
