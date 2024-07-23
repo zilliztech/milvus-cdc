@@ -788,6 +788,7 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 	}()
 	r.recordLock.Unlock()
 	log.Info("add collection to channel handler",
+		zap.String("channel_name", sourceInfo.VChannelName),
 		zap.Int64("collection_id", collectionID), zap.String("collection_name", targetInfo.CollectionName))
 
 	if targetInfo.Dropped {

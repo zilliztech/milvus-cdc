@@ -568,7 +568,9 @@ func (e *EtcdOp) internalGetAllCollection(ctx context.Context, fillField bool, f
 		info := &pb.CollectionInfo{}
 		err = proto.Unmarshal(kv.Value, info)
 		if err != nil {
-			log.Info("fail to unmarshal collection info, maybe it's a deleted collection", zap.String("key", util.ToString(kv.Key)), zap.String("value", util.Base64Encode(kv.Value)), zap.Error(err))
+			if !util.IsTombstone(kv.Value) {
+				log.Info("fail to unmarshal collection info", zap.String("key", util.ToString(kv.Key)), zap.String("value", util.Base64Encode(kv.Value)), zap.Error(err))
+			}
 			continue
 		}
 		hasFilter := false
