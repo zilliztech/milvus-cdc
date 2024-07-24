@@ -29,5 +29,5 @@ func InitMilvusPkgParam() {
 	innerParam := paramtable.Get()
 	_ = innerParam.Save(innerParam.MQCfg.MaxTolerantLag.Key, "5")
 	_ = innerParam.Save(innerParam.MQCfg.MergeCheckInterval.Key, "2")
-	_ = innerParam.Save(innerParam.MQCfg.TargetBufSize.Key, "16")
+	_ = innerParam.Save(innerParam.MQCfg.TargetBufSize.Key, "4")
 }
