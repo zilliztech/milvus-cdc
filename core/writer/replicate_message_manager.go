@@ -23,8 +23,10 @@ import (
 	"sync"
 
 	"github.com/cockroachdb/errors"
+	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
@@ -105,5 +107,6 @@ func newReplicateMessageHandler(channelName string, messageBufferSize int, handl
 		stopChan:    make(chan struct{}),
 	}
 	replicateHandler.startHandleMessageLoop()
+	log.Info("new replicate message handler", zap.String("channelName", channelName))
 	return replicateHandler
 }
