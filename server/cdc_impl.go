@@ -36,6 +36,7 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/mq/msgdispatcher"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/util/funcutil"
 	"github.com/milvus-io/milvus/pkg/util/tsoutil"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -734,6 +735,9 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, info *meta.
 					return
 				}
 				pChannel := msgPack.EndPositions[0].GetChannelName()
+				if cdcreader.IsVirtualChannel(pChannel) {
+					pChannel = funcutil.ToPhysicalChannel(pChannel)
+				}
 				position, targetPosition, err := entity.writerObj.HandleReplicateMessage(replicateCtx, pChannel, msgPack)
 				if err != nil {
 					taskLog.Warn("fail to handle the replicate message", zap.Any("pack", msgPack), zap.Error(err))
