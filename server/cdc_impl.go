@@ -584,6 +584,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	msgTTDispatcherClient, _ := cdcreader.GetMsgDispatcherClient(e.mqFactoryCreator, mqConfig, true)
 	streamFactory, _ := cdcreader.GetStreamFactory(e.mqFactoryCreator, mqConfig, false)
 
+	// default value: 10
 	bufferSize := e.config.SourceConfig.ReadChanLen
 	ttInterval := e.config.SourceConfig.TimeTickInterval
 	channelManager, err := cdcreader.NewReplicateChannelManagerWithDispatchClient(
