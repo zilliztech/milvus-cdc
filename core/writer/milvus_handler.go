@@ -24,9 +24,12 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
+	"github.com/milvus-io/milvus/pkg/util/resource"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -76,11 +79,22 @@ func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*Milvus
 }
 
 func (m *MilvusDataHandler) milvusOp(ctx context.Context, database string, f func(milvus client.Client) error) error {
-	retryMilvusFunc := func(c client.Client) error {
+	retryMilvusFunc := func() error {
 		// TODO Retryable and non-retryable errors should be distinguished
 		var err error
+		var c client.Client
 		retryErr := retry.Do(ctx, func() error {
+			c, err = util.GetMilvusClientManager().GetMilvusClient(ctx, m.address, util.GetAPIKey(m.username, m.password), database, m.enableTLS, m.dialConfig)
+			if err != nil {
+				log.Warn("fail to get milvus client", zap.Error(err))
+				return err
+			}
 			err = f(c)
+			if status.Code(err) == codes.Canceled {
+				util.GetMilvusClientManager().DeleteMilvusClient(m.address, database)
+				log.Warn("grpc: the client connection is closing, waiting...", zap.Error(err))
+				time.Sleep(resource.DefaultExpiration)
+			}
 			return err
 		}, m.retryOptions...)
 		if retryErr != nil && err != nil {
@@ -92,12 +106,7 @@ func (m *MilvusDataHandler) milvusOp(ctx context.Context, database string, f fun
 		return nil
 	}
 
-	milvusClient, err := util.GetMilvusClientManager().GetMilvusClient(ctx, m.address, util.GetAPIKey(m.username, m.password), database, m.enableTLS, m.dialConfig)
-	if err != nil {
-		log.Warn("fail to get milvus client", zap.Error(err))
-		return err
-	}
-	return retryMilvusFunc(milvusClient)
+	return retryMilvusFunc()
 }
 
 func (m *MilvusDataHandler) CreateCollection(ctx context.Context, param *api.CreateCollectionParam) error {

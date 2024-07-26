@@ -223,7 +223,15 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 	}
 	msgBase := &commonpb.MsgBase{ReplicateInfo: &commonpb.ReplicateInfo{IsReplicate: true, MsgTimestamp: endTs}}
 	for _, msg := range msgPack.Msgs {
-		log.Info("receive msg", zap.String("type", msg.Type().String()))
+		logFields := []zap.Field{
+			zap.String("type", msg.Type().String()),
+		}
+		collectionName, _ := util.GetCollectionNameFromRequest(msg)
+		if collectionName != "" {
+			logFields = append(logFields, zap.String("collection", collectionName))
+		}
+
+		log.Info("receive msg", logFields...)
 		f, ok := c.opMessageFuncs[msg.Type()]
 		if !ok {
 			log.Warn("unknown msg type", zap.Any("msg", msg))
@@ -232,14 +240,6 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 		err := f(ctx, msgBase, msg)
 		if err != nil {
 			return nil, err
-		}
-
-		logFields := []zap.Field{
-			zap.String("type", msg.Type().String()),
-		}
-		collectionName, _ := util.GetCollectionNameFromRequest(msg)
-		if collectionName != "" {
-			logFields = append(logFields, zap.String("collection", collectionName))
 		}
 		log.Info("finish to handle msg", logFields...)
 	}

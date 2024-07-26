@@ -108,6 +108,10 @@ func (m *MilvusClientResourceManager) GetMilvusClient(ctx context.Context, addre
 	return nil, errors.New("invalid resource object")
 }
 
+func (m *MilvusClientResourceManager) DeleteMilvusClient(address, database string) {
+	_ = m.manager.Delete(MilvusClientResourceTyp, getMilvusClientResourceName(address, database))
+}
+
 func getMilvusClientResourceName(address, database string) string {
 	return fmt.Sprintf("%s:%s", address, database)
 }
