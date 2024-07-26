@@ -27,32 +27,48 @@ import (
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/log"
-	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 // replicateMessageManager For the same channel, it is unsafe in concurrent situations
 type replicateMessageManager struct {
 	handler           api.DataHandler
-	messageHandlerMap util.Map[string, *replicateMessageHandler]
 	messageBufferSize int
+	messageHandlerMap map[string]*replicateMessageHandler
+	lock              sync.RWMutex
 }
 
 func NewReplicateMessageManager(handler api.DataHandler, messageBufferSize int) api.MessageManager {
 	manager := &replicateMessageManager{
 		handler:           handler,
 		messageBufferSize: messageBufferSize,
+		messageHandlerMap: make(map[string]*replicateMessageHandler),
 	}
 	return manager
 }
 
 func (r *replicateMessageManager) ReplicateMessage(message *api.ReplicateMessage) {
 	channelName := message.Param.ChannelName
-	handler, _ := r.messageHandlerMap.LoadOrStore(channelName, newReplicateMessageHandler(channelName, r.messageBufferSize, r.handler))
+	r.lock.RLock()
+	handler, ok := r.messageHandlerMap[channelName]
+	if ok {
+		r.lock.RUnlock()
+		handler.handleMessage(message)
+		return
+	}
+	r.lock.RUnlock()
+	r.lock.Lock()
+	handler, ok = r.messageHandlerMap[channelName]
+	if !ok {
+		handler = newReplicateMessageHandler(channelName, r.messageBufferSize, r.handler)
+		r.messageHandlerMap[channelName] = handler
+	}
+	r.lock.Unlock()
+
 	handler.handleMessage(message)
 }
 
 func (r *replicateMessageManager) Close(channelName string) {
-	if handler, ok := r.messageHandlerMap.Load(channelName); ok {
+	if handler, ok := r.messageHandlerMap[channelName]; ok {
 		handler.close()
 	}
 }
