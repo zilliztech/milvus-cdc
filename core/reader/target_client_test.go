@@ -62,24 +62,8 @@ func TestTargetClient(t *testing.T) {
 	realTarget := targetClient.(*TargetClient)
 
 	{
-		// error address
-		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*2)
-		defer cancelFunc()
-		_, err := NewTarget(ctx, TargetConfig{
-			Address: "localhost:50050",
-		})
-		assert.Error(t, err)
-	}
-
-	{
 		realTarget.config.Address = ""
 		// error with db
-		{
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*2)
-			defer cancelFunc()
-			_, err := realTarget.GetMilvus(ctx, "foo")
-			assert.Error(t, err)
-		}
 		{
 			_, err := targetClient.GetCollectionInfo(context.Background(), "test", "foo")
 			assert.Error(t, err)

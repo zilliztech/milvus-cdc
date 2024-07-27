@@ -132,11 +132,16 @@ func main() {
 		fetchCollectionStartPosition()
 
 		for _, position := range GlobalConfig.TaskPositions {
-			kd, err := decodePosition(position.Name, position.Position)
-			if err != nil {
-				panic(err)
+			var kd *commonpb.KeyDataPair
+			var err error
+			if strings.Contains(position.Name, "replicate-msg") && position.Position == "" {
+				markPrintln("replicate-msg can be empty")
+			} else {
+				kd, err = decodePosition(position.Name, position.Position)
+				if err != nil {
+					panic(err)
+				}
 			}
-
 			GetMQMessageDetail(timeoutCtx, GlobalConfig, position.Name, kd)
 		}
 		return
@@ -276,6 +281,9 @@ func GetMQMessageDetail(ctx context.Context, config PositionConfig, pchannel str
 
 	consumeSubName := pchannel + strconv.Itoa(rand.Int())
 	initialPosition := common.SubscriptionPositionUnknown
+	if kd == nil {
+		initialPosition = common.SubscriptionPositionEarliest
+	}
 	// initialPosition := mqwrapper.SubscriptionPositionEarliest
 	err := msgStream.AsConsumer(ctx, []string{pchannel}, consumeSubName, initialPosition)
 	if err != nil {
@@ -283,16 +291,18 @@ func GetMQMessageDetail(ctx context.Context, config PositionConfig, pchannel str
 		panic(err)
 	}
 
-	// not including the current msg in this position
-	err = msgStream.Seek(ctx, []*msgstream.MsgPosition{
-		{
-			ChannelName: pchannel,
-			MsgID:       kd.GetData(),
-		},
-	}, false)
-	if err != nil {
-		msgStream.Close()
-		panic(err)
+	if kd != nil {
+		// not including the current msg in this position
+		err = msgStream.Seek(ctx, []*msgstream.MsgPosition{
+			{
+				ChannelName: pchannel,
+				MsgID:       kd.GetData(),
+			},
+		}, false)
+		if err != nil {
+			msgStream.Close()
+			panic(err)
+		}
 	}
 
 	select {
@@ -526,6 +536,16 @@ func MsgCount(msgpack *msgstream.MsgPack, msgCount map[string]int, detail int, p
 			if detail > 1 && detail != 3 {
 				timeTickMsg := msg.(*msgstream.TimeTickMsg)
 				markPrintln("time tick msg info, ts:", tsoutil.PhysicalTime(timeTickMsg.EndTimestamp))
+			}
+		} else if msg.Type() == commonpb.MsgType_CreateDatabase {
+			if detail > 1 && detail != 3 {
+				createDatabaseMsg := msg.(*msgstream.CreateDatabaseMsg)
+				markPrintln("create database msg info, db name:", createDatabaseMsg.GetDbName())
+			}
+		} else if msg.Type() == commonpb.MsgType_DropDatabase {
+			if detail > 1 && detail != 3 {
+				dropDatabaseMsg := msg.(*msgstream.DropDatabaseMsg)
+				markPrintln("drop database msg info, db name:", dropDatabaseMsg.GetDbName())
 			}
 		}
 	}
