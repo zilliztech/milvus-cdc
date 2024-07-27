@@ -29,6 +29,7 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/util/requestutil"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -226,9 +227,17 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 		logFields := []zap.Field{
 			zap.String("type", msg.Type().String()),
 		}
-		collectionName, _ := util.GetCollectionNameFromRequest(msg)
+		collectionName, _ := requestutil.GetCollectionNameFromRequest(msg)
 		if collectionName != "" {
-			logFields = append(logFields, zap.String("collection", collectionName))
+			logFields = append(logFields, zap.Any("collection", collectionName))
+		}
+		partitionName, _ := requestutil.GetPartitionNameFromRequest(msg)
+		if partitionName != "" {
+			logFields = append(logFields, zap.Any("partition", partitionName))
+		}
+		dbName, _ := requestutil.GetDbNameFromRequest(msg)
+		if dbName != "" {
+			logFields = append(logFields, zap.Any("database", dbName))
 		}
 
 		log.Info("receive msg", logFields...)
