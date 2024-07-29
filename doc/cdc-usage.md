@@ -12,7 +12,7 @@
 - Load/Release Partitions
 - Create/Drop Database
 
-    **Anything not mentioned is not supported;**
+**Anything not mentioned is not supported;**
 
 3. Milvus cdc only supports synchronized data. If you need active and backup disaster recovery functions, please contact us;
 
@@ -43,8 +43,16 @@ metaStoreConfig:
   # the metastore type, available value: etcd, mysql
   storeType: etcd
   # etcd address
-  etcdEndpoints:
-    - localhost:2379
+  etcd:
+    address:
+      - http://127.0.0.1:2379
+    enableAuth: false
+    username: root
+    password: root123456
+    enableTLS: false
+    tlsCertPath: deployment/cert/client.pem # path to your cert file
+    tlsKeyPath: deployment/cert/client.key # path to your key file
+    tlsCACertPath: deployment/cert/ca.pem # path to your CACert file
   # mysql connection address
   mysqlSourceUrl: root:root@tcp(127.0.0.1:3306)/milvus-cdc?charset=utf8
   # meta data prefix, if multiple cdc services use the same store service, you can set different rootPaths to achieve multi-tenancy
@@ -53,8 +61,19 @@ metaStoreConfig:
 # milvus-source config, these settings are basically the same as the corresponding configuration of milvus.yaml in milvus source.
 sourceConfig:
   # etcd config
-  etcdAddress:
-    - localhost:2379
+  etcd:
+    address:
+      - http://127.0.0.1:2379
+    rootPath: by-dev
+    metaSubPath: meta
+    enableAuth: false
+    username: root
+    password: root123456
+    enableTLS: false
+    tlsCertPath: deployment/cert/client.pem # path to your cert file
+    tlsKeyPath: deployment/cert/client.key # path to your key file
+    tlsCACertPath: deployment/cert/ca.pem # path to your CACert file
+    tlsMinVersion: 1.3
   etcdRootPath: by-dev
   etcdMetaSubPath: meta
   # default partition name

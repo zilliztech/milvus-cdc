@@ -105,6 +105,21 @@ func Base64MsgPosition(position *msgstream.MsgPosition) string {
 	return base64.StdEncoding.EncodeToString(positionByte)
 }
 
+func Base64DecodeMsgPosition(position string) (*msgstream.MsgPosition, error) {
+	decodeBytes, err := base64.StdEncoding.DecodeString(position)
+	if err != nil {
+		log.Warn("fail to decode the position", zap.Error(err))
+		return nil, err
+	}
+	msgPosition := &msgstream.MsgPosition{}
+	err = proto.Unmarshal(decodeBytes, msgPosition)
+	if err != nil {
+		log.Warn("fail to unmarshal the position", zap.Error(err))
+		return nil, err
+	}
+	return msgPosition, nil
+}
+
 func GetCreateInfoKey(key string) string {
 	return fmt.Sprintf("%s_c", key)
 }

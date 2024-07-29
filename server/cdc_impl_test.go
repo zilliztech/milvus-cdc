@@ -500,7 +500,10 @@ func TestCreateRequest(t *testing.T) {
 					{
 						Name: "hello_milvus",
 						Positions: map[string]string{
-							"rootcoord-dml-channel_1_123v0": base64.StdEncoding.EncodeToString([]byte("ch1-position")),
+							"rootcoord-dml-channel_1_123v0": util.Base64MsgPosition(&msgstream.MsgPosition{
+								ChannelName: "rootcoord-dml-channel_1_123v0",
+								MsgID:       []byte("123v0"),
+							}),
 						},
 					},
 				},

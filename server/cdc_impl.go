@@ -259,14 +259,14 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 				revertCollectionNames()
 				return nil, servererror.NewClientError(fmt.Sprintf("the vchannel is invalid, %s, err: %s", vchannel, err.Error()))
 			}
-			positionDataBytes, err := base64.StdEncoding.DecodeString(collectionPosition)
+			decodePosition, err := util.Base64DecodeMsgPosition(collectionPosition)
 			if err != nil {
 				return nil, servererror.NewServerError(errors.WithMessage(err, "fail to decode the position data"))
 			}
 			p := &meta.PositionInfo{
 				DataPair: &commonpb.KeyDataPair{
 					Key:  channelInfo.PChannelName,
-					Data: positionDataBytes,
+					Data: decodePosition.MsgID,
 				},
 			}
 			positions[channelInfo.PChannelName] = p
@@ -294,7 +294,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	}
 
 	if req.RPCChannelInfo.Position != "" {
-		positionDataBytes, err := base64.StdEncoding.DecodeString(req.RPCChannelInfo.Position)
+		decodePosition, err := util.Base64DecodeMsgPosition(req.RPCChannelInfo.Position)
 		if err != nil {
 			return nil, servererror.NewServerError(errors.WithMessage(err, "fail to decode the rpc position data"))
 		}
@@ -307,7 +307,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 				req.RPCChannelInfo.Name: {
 					DataPair: &commonpb.KeyDataPair{
 						Key:  req.RPCChannelInfo.Name,
-						Data: positionDataBytes,
+						Data: decodePosition.MsgID,
 					},
 				},
 			},
