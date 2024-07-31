@@ -238,6 +238,7 @@ jobs:
         working-directory: server
         shell: bash
         run: |
+          cp ../deployment/docker/cdc.yaml configs/cdc.yaml
           ./milvus-cdc > server.log 2>&1 &
           sleep 20s
 

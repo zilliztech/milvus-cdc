@@ -41,18 +41,18 @@ maxNameLength: 256
 # cdc meta data config
 metaStoreConfig:
   # the metastore type, available value: etcd, mysql
-  storeType: etcd
+  storeType: mysql
   # etcd address
-  etcd:
-    address:
-      - http://127.0.0.1:2379
-    enableAuth: false
-    username: root
-    password: root123456
-    enableTLS: false
-    tlsCertPath: deployment/cert/client.pem # path to your cert file
-    tlsKeyPath: deployment/cert/client.key # path to your key file
-    tlsCACertPath: deployment/cert/ca.pem # path to your CACert file
+#  etcd:
+#    address:
+#      - http://127.0.0.1:2379
+#    enableAuth: false
+#    username: root
+#    password: root123456
+#    enableTLS: false
+#    tlsCertPath: deployment/cert/client.pem # path to your cert file
+#    tlsKeyPath: deployment/cert/client.key # path to your key file
+#    tlsCACertPath: deployment/cert/ca.pem # path to your CACert file
   # mysql connection address
   mysqlSourceUrl: root:root@tcp(127.0.0.1:3306)/milvus-cdc?charset=utf8
   # meta data prefix, if multiple cdc services use the same store service, you can set different rootPaths to achieve multi-tenancy

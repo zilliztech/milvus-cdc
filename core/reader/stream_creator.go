@@ -38,7 +38,8 @@ import (
 
 type StreamCreator interface {
 	GetStreamChan(ctx context.Context, vchannel string, seekPosition *msgstream.MsgPosition) (<-chan *msgstream.MsgPack, io.Closer, error)
-	CheckConnection(vchannel string, seekPosition *msgstream.MsgPosition) error
+	CheckConnection(ctx context.Context, vchannel string, seekPosition *msgstream.MsgPosition) error
+	GetChannelLatestMsgID(ctx context.Context, channelName string) ([]byte, error)
 }
 
 type FactoryStreamCreator struct {
@@ -58,13 +59,17 @@ func (fsc *FactoryStreamCreator) GetStreamChan(ctx context.Context,
 	}), nil
 }
 
-func (fsc *FactoryStreamCreator) CheckConnection(vchannel string, seekPosition *msgstream.MsgPosition) error {
-	stream, err := getStream(context.Background(), fsc.factory, vchannel, seekPosition)
+func (fsc *FactoryStreamCreator) CheckConnection(ctx context.Context, vchannel string, seekPosition *msgstream.MsgPosition) error {
+	stream, err := getStream(ctx, fsc.factory, vchannel, seekPosition)
 	if err != nil {
 		return err
 	}
 	stream.Close()
 	return nil
+}
+
+func (fsc *FactoryStreamCreator) GetChannelLatestMsgID(ctx context.Context, channelName string) ([]byte, error) {
+	return msgstream.GetChannelLatestMsgID(ctx, fsc.factory, channelName)
 }
 
 func getStream(ctx context.Context,
@@ -140,13 +145,17 @@ func (dcsc *DisptachClientStreamCreator) GetStreamChan(ctx context.Context,
 	}), nil
 }
 
-func (dcsc *DisptachClientStreamCreator) CheckConnection(vchannel string, seekPosition *msgstream.MsgPosition) error {
-	stream, err := getStream(context.Background(), dcsc.factory, vchannel, seekPosition)
+func (dcsc *DisptachClientStreamCreator) CheckConnection(ctx context.Context, vchannel string, seekPosition *msgstream.MsgPosition) error {
+	stream, err := getStream(ctx, dcsc.factory, vchannel, seekPosition)
 	if err != nil {
 		return err
 	}
 	stream.Close()
 	return nil
+}
+
+func (dcsc *DisptachClientStreamCreator) GetChannelLatestMsgID(ctx context.Context, channelName string) ([]byte, error) {
+	return msgstream.GetChannelLatestMsgID(ctx, dcsc.factory, channelName)
 }
 
 type StreamCloser func()

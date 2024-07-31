@@ -197,6 +197,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 
 		recordCreateCollectionTime := make(map[string]*pb.CollectionInfo)
 		repeatedCollectionID := make(map[int64]struct{})
+		repeatedCollectionName := make(map[string]struct{})
 		for _, info := range existedCollectionInfos {
 			collectionName := info.Schema.GetName()
 			createTime := info.CreateTime
@@ -208,6 +209,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				} else {
 					repeatedCollectionID[info.ID] = struct{}{}
 				}
+				repeatedCollectionName[collectionName] = struct{}{}
 			} else {
 				recordCreateCollectionTime[collectionName] = info
 			}
@@ -235,8 +237,8 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			seekPositions := make([]*msgpb.MsgPosition, 0)
 			if collectionSeekPositionMap != nil {
 				seekPositions = lo.Values(collectionSeekPositionMap)
-			} else {
-				log.Warn("server warn: the seek position of the existed collection is not found, use the collection start position.", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
+			} else if _, ok := repeatedCollectionName[info.Schema.Name]; ok {
+				log.Warn("server warn: find the repeated collection, the latest collection will use the collection start position.", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
 				for _, v := range info.StartPositions {
 					seekPositions = append(seekPositions, &msgstream.MsgPosition{
 						ChannelName: v.GetKey(),

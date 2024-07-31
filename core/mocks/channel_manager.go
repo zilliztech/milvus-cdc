@@ -180,6 +180,61 @@ func (_c *ChannelManager_GetChannelChan_Call) RunAndReturn(run func() <-chan str
 	return _c
 }
 
+// GetChannelLatestMsgID provides a mock function with given fields: ctx, channelName
+func (_m *ChannelManager) GetChannelLatestMsgID(ctx context.Context, channelName string) ([]byte, error) {
+	ret := _m.Called(ctx, channelName)
+
+	var r0 []byte
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]byte, error)); ok {
+		return rf(ctx, channelName)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []byte); ok {
+		r0 = rf(ctx, channelName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, channelName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ChannelManager_GetChannelLatestMsgID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetChannelLatestMsgID'
+type ChannelManager_GetChannelLatestMsgID_Call struct {
+	*mock.Call
+}
+
+// GetChannelLatestMsgID is a helper method to define mock.On call
+//  - ctx context.Context
+//  - channelName string
+func (_e *ChannelManager_Expecter) GetChannelLatestMsgID(ctx interface{}, channelName interface{}) *ChannelManager_GetChannelLatestMsgID_Call {
+	return &ChannelManager_GetChannelLatestMsgID_Call{Call: _e.mock.On("GetChannelLatestMsgID", ctx, channelName)}
+}
+
+func (_c *ChannelManager_GetChannelLatestMsgID_Call) Run(run func(ctx context.Context, channelName string)) *ChannelManager_GetChannelLatestMsgID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *ChannelManager_GetChannelLatestMsgID_Call) Return(_a0 []byte, _a1 error) *ChannelManager_GetChannelLatestMsgID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *ChannelManager_GetChannelLatestMsgID_Call) RunAndReturn(run func(context.Context, string) ([]byte, error)) *ChannelManager_GetChannelLatestMsgID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetEventChan provides a mock function with given fields:
 func (_m *ChannelManager) GetEventChan() <-chan *api.ReplicateAPIEvent {
 	ret := _m.Called()

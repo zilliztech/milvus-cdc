@@ -42,6 +42,8 @@ type ChannelManager interface {
 	GetChannelChan() <-chan string
 	GetMsgChan(pChannel string) <-chan *ReplicateMsg
 	GetEventChan() <-chan *ReplicateAPIEvent
+
+	GetChannelLatestMsgID(ctx context.Context, channelName string) ([]byte, error)
 }
 
 type TargetAPI interface {
@@ -129,6 +131,11 @@ func (d *DefaultChannelManager) GetMsgChan(pChannel string) <-chan *ReplicateMsg
 func (d *DefaultChannelManager) GetEventChan() <-chan *ReplicateAPIEvent {
 	log.Warn("GetEventChan is not implemented, please check it")
 	return nil
+}
+
+func (d *DefaultChannelManager) GetChannelLatestMsgID(ctx context.Context, channelName string) ([]byte, error) {
+	log.Warn("GetChannelLatestMsgID is not implemented, please check it")
+	return nil, nil
 }
 
 type DefaultTargetAPI struct{}
