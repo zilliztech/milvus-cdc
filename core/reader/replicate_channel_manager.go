@@ -531,6 +531,10 @@ func (r *replicateChannelManager) GetEventChan() <-chan *api.ReplicateAPIEvent {
 	return r.apiEventChan
 }
 
+func (r *replicateChannelManager) GetChannelLatestMsgID(ctx context.Context, channelName string) ([]byte, error) {
+	return r.streamCreator.GetChannelLatestMsgID(ctx, channelName)
+}
+
 // startReadChannel start read channel
 // pChannelName: source milvus channel name, collectionID: source milvus collection id, startPosition: start position of the source milvus collection
 // targetInfo: target collection info, it will be used to replace the message info in the source milvus channel
@@ -1571,7 +1575,7 @@ func initReplicateChannelHandler(ctx context.Context,
 	targetClient api.TargetAPI, metaOp api.MetaOp, apiEventChan chan *api.ReplicateAPIEvent,
 	opts *model.HandlerOpts, streamCreator StreamCreator,
 ) (*replicateChannelHandler, error) {
-	err := streamCreator.CheckConnection(sourceInfo.VChannelName, sourceInfo.SeekPosition)
+	err := streamCreator.CheckConnection(ctx, sourceInfo.VChannelName, sourceInfo.SeekPosition)
 	if err != nil {
 		log.Warn("fail to connect the mq stream",
 			zap.String("channel_name", sourceInfo.VChannelName),
