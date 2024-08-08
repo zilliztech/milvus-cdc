@@ -230,7 +230,8 @@ func TestReload(t *testing.T) {
 		metaCDC.replicateEntityMap.Lock()
 		metaCDC.replicateEntityMap.data = map[string]*ReplicateEntity{
 			"127.0.0.1:19530": {
-				quitFunc: func() {},
+				entityQuitFunc: func() {},
+				taskQuitFuncs:  typeutil.NewConcurrentMap[string, func()](),
 			},
 		}
 		metaCDC.replicateEntityMap.Unlock()
@@ -1071,7 +1072,8 @@ func TestDelete(t *testing.T) {
 		metaCDC.cdcTasks.Unlock()
 		metaCDC.replicateEntityMap.Lock()
 		metaCDC.replicateEntityMap.data["127.0.0.1:6666"] = &ReplicateEntity{
-			quitFunc: func() {},
+			entityQuitFunc: func() {},
+			taskQuitFuncs:  typeutil.NewConcurrentMap[string, func()](),
 		}
 		metaCDC.replicateEntityMap.Unlock()
 
@@ -1162,10 +1164,13 @@ func TestPauseTask(t *testing.T) {
 		var isQuit util.Value[bool]
 		isQuit.Store(false)
 		m.replicateEntityMap.Lock()
+		cm := typeutil.NewConcurrentMap[string, func()]()
+		cm.Insert("task1", func() {
+			isQuit.Store(true)
+		})
 		m.replicateEntityMap.data["127.0.0.1:19530"] = &ReplicateEntity{
-			quitFunc: func() {
-				isQuit.Store(true)
-			},
+			entityQuitFunc: func() {},
+			taskQuitFuncs:  cm,
 		}
 		m.replicateEntityMap.Unlock()
 		err := m.pauseTaskWithReason("task1", "foo", []meta.TaskState{})
