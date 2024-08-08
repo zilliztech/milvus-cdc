@@ -30,6 +30,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
@@ -38,6 +39,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/funcutil"
 	"github.com/milvus-io/milvus/pkg/util/tsoutil"
+	"github.com/milvus-io/milvus/pkg/util/typeutil"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -60,11 +62,12 @@ type ReplicateEntity struct {
 	channelManager api.ChannelManager
 	targetClient   api.TargetAPI
 	metaOp         api.MetaOp
-	readerObj      api.Reader // TODO the reader's counter may be more than one
 	writerObj      api.Writer
 	mqDispatcher   msgdispatcher.Client
 	mqTTDispatcher msgdispatcher.Client
-	quitFunc       func()
+	entityQuitFunc func()
+	taskQuitFuncs  *typeutil.ConcurrentMap[string, func()]
+	refCnt         atomic.Int32
 }
 
 type MetaCDC struct {
@@ -331,6 +334,11 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	e.cdcTasks.Unlock()
 	err = e.startInternal(info, false)
 	if err != nil {
+		deleteErr := e.delete(info.TaskID)
+		if deleteErr != nil {
+			log.Warn("fail to delete the task", zap.String("task_id", info.TaskID), zap.Error(deleteErr))
+			return nil, servererror.NewServerError(deleteErr)
+		}
 		return nil, err
 	}
 
@@ -513,17 +521,12 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 		return err
 	}
 	readCtx, cancelReadFunc := context.WithCancel(log.WithTraceID(context.Background(), info.TaskID))
-	e.replicateEntityMap.Lock()
-	originQuitFunc := replicateEntity.quitFunc
-	replicateEntity.quitFunc = func() {
+	replicateEntity.taskQuitFuncs.Insert(info.TaskID, func() {
 		collectionReader.QuitRead(readCtx)
 		channelReader.QuitRead(readCtx)
 		cancelReadFunc()
-		if originQuitFunc != nil {
-			originQuitFunc()
-		}
-	}
-	e.replicateEntityMap.Unlock()
+	})
+	replicateEntity.refCnt.Inc()
 
 	if !ignoreUpdateState {
 		err = store.UpdateTaskState(e.metaStoreFactory.GetTaskInfoMetaStore(ctx), info.TaskID, meta.TaskStateRunning, []meta.TaskState{meta.TaskStateInitial, meta.TaskStatePaused}, "")
@@ -619,7 +622,6 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 		MessageBufferSize: bufferSize,
 		Retry:             e.config.Retry,
 	}, metaOp.GetAllDroppedObj())
-
 	e.replicateEntityMap.Lock()
 	defer e.replicateEntityMap.Unlock()
 	entity, ok := e.replicateEntityMap.data[milvusAddress]
@@ -631,9 +633,10 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 			channelManager: channelManager,
 			metaOp:         metaOp,
 			writerObj:      writerObj,
-			quitFunc:       cancelReplicateFunc,
+			entityQuitFunc: cancelReplicateFunc,
 			mqDispatcher:   msgDispatcherClient,
 			mqTTDispatcher: msgTTDispatcherClient,
+			taskQuitFuncs:  typeutil.NewConcurrentMap[string, func()](),
 		}
 		e.replicateEntityMap.data[milvusAddress] = entity
 		e.startReplicateAPIEvent(replicateCtx, info, entity)
@@ -900,7 +903,9 @@ func (e *MetaCDC) pauseTaskWithReason(taskID, reason string, currentStates []met
 	milvusAddress := GetMilvusAddress(cdcTask.MilvusConnectParam)
 	e.replicateEntityMap.Lock()
 	if replicateEntity, ok := e.replicateEntityMap.data[milvusAddress]; ok {
-		replicateEntity.quitFunc()
+		if quitFunc, ok := replicateEntity.taskQuitFuncs.GetAndRemove(taskID); ok {
+			quitFunc()
+		}
 	}
 	delete(e.replicateEntityMap.data, milvusAddress)
 	e.replicateEntityMap.Unlock()
@@ -915,12 +920,27 @@ func (e *MetaCDC) Delete(req *request.DeleteRequest) (*request.DeleteResponse, e
 		return nil, servererror.NewClientError("not found the task, task_id: " + req.TaskID)
 	}
 
-	var err error
-
-	var info *meta.TaskInfo
-	info, err = store.DeleteTask(e.metaStoreFactory, req.TaskID)
+	err := e.delete(req.TaskID)
 	if err != nil {
-		return nil, servererror.NewServerError(errors.WithMessage(err, "fail to delete the task meta, task_id: "+req.TaskID))
+		return nil, servererror.NewServerError(err)
+	}
+	return &request.DeleteResponse{}, nil
+}
+
+func (e *MetaCDC) delete(taskID string) error {
+	e.cdcTasks.RLock()
+	_, ok := e.cdcTasks.data[taskID]
+	e.cdcTasks.RUnlock()
+	if !ok {
+		return errors.Errorf("not found the task, task_id: " + taskID)
+	}
+
+	var err error
+	var info *meta.TaskInfo
+
+	info, err = store.DeleteTask(e.metaStoreFactory, taskID)
+	if err != nil {
+		return errors.WithMessage(err, "fail to delete the task meta, task_id: "+taskID)
 	}
 	milvusAddress := fmt.Sprintf("%s:%d", info.MilvusConnectParam.Host, info.MilvusConnectParam.Port)
 	collectionNames := info.CollectionNames()
@@ -932,17 +952,23 @@ func (e *MetaCDC) Delete(req *request.DeleteRequest) (*request.DeleteResponse, e
 	e.collectionNames.Unlock()
 
 	e.cdcTasks.Lock()
-	delete(e.cdcTasks.data, req.TaskID)
+	delete(e.cdcTasks.data, taskID)
 	e.cdcTasks.Unlock()
 
 	e.replicateEntityMap.Lock()
 	if replicateEntity, ok := e.replicateEntityMap.data[milvusAddress]; ok {
-		replicateEntity.quitFunc()
+		if quitFunc, ok := replicateEntity.taskQuitFuncs.GetAndRemove(taskID); ok {
+			quitFunc()
+			replicateEntity.refCnt.Dec()
+		}
+		if replicateEntity.refCnt.Load() == 0 {
+			replicateEntity.entityQuitFunc()
+		}
 	}
 	delete(e.replicateEntityMap.data, milvusAddress)
 	e.replicateEntityMap.Unlock()
 
-	return &request.DeleteResponse{}, err
+	return err
 }
 
 func (e *MetaCDC) Pause(req *request.PauseRequest) (*request.PauseResponse, error) {
