@@ -50,9 +50,9 @@ jobs:
         shell: bash
         working-directory: tests/deployment/upstream/
         run: |
-          docker-compose up -d
+          docker compose up -d
           bash ../../../scripts/check_healthy.sh
-          docker-compose ps -a
+          docker compose ps -a
 
       - name: Deploy Downstream Milvus
         timeout-minutes: 15
@@ -72,9 +72,9 @@ jobs:
         working-directory: deployment/docker
         shell: bash
         run: |
-          docker-compose up -d
+          docker compose up -d
           sleep 20s
-          docker-compose ps
+          docker compose ps
 
       - name: Create CDC task
         timeout-minutes: 15
@@ -123,7 +123,7 @@ jobs:
         working-directory: deployment/docker
         shell: bash
         run: | 
-          docker-compose logs
+          docker compose logs
           curl --location '127.0.0.1:8444/cdc' \
           --header 'Content-Type: application/json' \
           --data '{
@@ -144,16 +144,16 @@ jobs:
         timeout-minutes: 5
         working-directory: deployment/docker
         run: |
-          docker-compose ps -a
+          docker compose ps -a
           docker stats --no-stream
-          docker-compose logs > server.log
+          docker compose logs > server.log
 
       - name: Export upstream milvus logs
         if: ${{ always() }}
         timeout-minutes: 5
         working-directory: tests/deployment/upstream
         run: |
-          docker-compose ps -a
+          docker compose ps -a
           docker stats --no-stream
           bash ../../../scripts/export_log_docker.sh 
       - name: Export downstream milvus logs
@@ -216,9 +216,9 @@ jobs:
         shell: bash
         working-directory: tests/deployment/upstream/
         run: |
-          docker-compose up -d
+          docker compose up -d
           bash ../../../scripts/check_healthy.sh
-          docker-compose ps -a
+          docker compose ps -a
 
       - name: Deploy Downstream Milvus
         timeout-minutes: 15
@@ -295,7 +295,7 @@ jobs:
         timeout-minutes: 5
         working-directory: tests/deployment/upstream
         run: |
-          docker-compose ps -a
+          docker compose ps -a
           docker stats --no-stream
           bash ../../../scripts/export_log_docker.sh 
       - name: Export downstream milvus logs
