@@ -10,7 +10,7 @@ require (
 	github.com/milvus-io/milvus/pkg v0.0.2-0.20240712081735-d8e68cbb973d
 	github.com/prometheus/client_golang v1.14.0
 	github.com/samber/lo v1.27.0
-	github.com/sasha-s/go-deadlock v0.3.1
+	github.com/sasha-s/go-deadlock v0.3.2-0.20240530143741-ed6f7f6d979c
 	github.com/stretchr/testify v1.8.4
 	go.etcd.io/etcd/client/v3 v3.5.5
 	go.uber.org/zap v1.21.0

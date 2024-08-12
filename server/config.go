@@ -34,6 +34,7 @@ type CDCServerConfig struct {
 	MaxNameLength   int
 	Retry           config.RetrySettings
 	LogLevel        string
+	DetectDeadLock  bool
 }
 
 type CDCMetaStoreConfig struct {

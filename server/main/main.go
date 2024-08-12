@@ -21,6 +21,7 @@ package main
 import (
 	"os"
 
+	"github.com/sasha-s/go-deadlock"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/yaml"
@@ -53,5 +54,6 @@ func main() {
 		logLevel = zap.InfoLevel
 	}
 	log.SetLevel(logLevel)
+	deadlock.Opts.Disable = !serverConfig.DetectDeadLock
 	s.Run(&serverConfig)
 }
