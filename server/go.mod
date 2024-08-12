@@ -15,9 +15,11 @@ require (
 	github.com/pingcap/log v1.1.1-0.20221015072633-39906604fb81
 	github.com/prometheus/client_golang v1.14.0
 	github.com/samber/lo v1.27.0
+	github.com/sasha-s/go-deadlock v0.3.2-0.20240530143741-ed6f7f6d979c
 	github.com/stretchr/testify v1.8.4
 	github.com/zilliztech/milvus-cdc/core v0.0.1
 	go.etcd.io/etcd/client/v3 v3.5.5
+	go.uber.org/atomic v1.10.0
 	go.uber.org/zap v1.21.0
 	google.golang.org/grpc v1.57.1
 	sigs.k8s.io/yaml v1.3.0
@@ -96,7 +98,6 @@ require (
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
-	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	github.com/shirou/gopsutil/v3 v3.22.9 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
@@ -136,7 +137,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.13.0 // indirect
 	go.opentelemetry.io/otel/trace v1.13.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
-	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/automaxprocs v1.5.3 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
 	golang.org/x/crypto v0.22.0 // indirect
