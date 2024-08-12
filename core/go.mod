@@ -5,8 +5,8 @@ go 1.21
 require (
 	github.com/cockroachdb/errors v1.9.1
 	github.com/golang/protobuf v1.5.4
-	github.com/milvus-io/milvus-proto/go-api/v2 v2.3.4-0.20240708102203-5e0455265c53
-	github.com/milvus-io/milvus-sdk-go/v2 v2.4.1-0.20240604033341-0f2b1f29bf47
+	github.com/milvus-io/milvus-proto/go-api/v2 v2.4.6
+	github.com/milvus-io/milvus-sdk-go/v2 v2.4.2-0.20240807062021-93f6e5c51641
 	github.com/milvus-io/milvus/pkg v0.0.2-0.20240712081735-d8e68cbb973d
 	github.com/prometheus/client_golang v1.14.0
 	github.com/samber/lo v1.27.0

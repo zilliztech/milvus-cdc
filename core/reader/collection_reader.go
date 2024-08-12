@@ -199,6 +199,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 		repeatedCollectionID := make(map[int64]struct{})
 		repeatedCollectionName := make(map[string]struct{})
 		for _, info := range existedCollectionInfos {
+			// TODO should consider the same collection name in different db
 			collectionName := info.Schema.GetName()
 			createTime := info.CreateTime
 			lastCollectionInfo, recordOK := recordCreateCollectionTime[collectionName]
