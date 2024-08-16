@@ -17,3 +17,43 @@
  */
 
 package writer
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/milvus-io/milvus-sdk-go/v2/entity"
+
+	"github.com/zilliztech/milvus-cdc/core/api"
+)
+
+func TestFormat(t *testing.T) {
+	kafkaFormatter := &KafkaDataFormatter{}
+
+	t.Run("unsupport data format", func(t *testing.T) {
+		data := "test"
+		_, err := kafkaFormatter.Format(data)
+		assert.Error(t, err)
+	})
+
+	t.Run("format insert param", func(t *testing.T) {
+		data := &api.InsertParam{
+			CollectionName: "foo",
+			Columns: []entity.Column{
+				entity.NewColumnInt64("age", []int64{10}),
+			},
+		}
+		_, err := kafkaFormatter.Format(data)
+		assert.NoError(t, err)
+	})
+
+	t.Run("format delete param", func(t *testing.T) {
+		data := &api.DeleteParam{
+			CollectionName: "foo",
+			Column:         entity.NewColumnInt64("age", []int64{10}),
+		}
+		_, err := kafkaFormatter.Format(data)
+		assert.NoError(t, err)
+	})
+}

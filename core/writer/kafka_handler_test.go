@@ -48,6 +48,7 @@ func TestKafkaDataHandler(t *testing.T) {
 		KafkaTopicOption("test2"),
 		KafkaAddressOption("localhost:9092"),
 	)
+	formatter := NewKafkaFormatter()
 	assert.NoError(t, err)
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancelFunc()
@@ -109,7 +110,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.Insert(ctx, insertParam, nil)
+		err := handler.Insert(ctx, insertParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -119,7 +120,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			Column:         entity.NewColumnInt64("age", []int64{10}),
 		}
 
-		err := handler.Delete(ctx, deleteParam, nil)
+		err := handler.Delete(ctx, deleteParam, formatter)
 		assert.NoError(t, err)
 	})
 

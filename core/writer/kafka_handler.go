@@ -284,17 +284,20 @@ func (k *KafkaDataHandler) DropDatabase(ctx context.Context, param *api.DropData
 	})
 }
 
-func (k *KafkaDataHandler) Insert(ctx context.Context, param *api.InsertParam, formatter api.DataFormatter) error {
+func (k *KafkaDataHandler) Insert(ctx context.Context, param *api.InsertParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
+		val, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
 		msg := &kafka.Message{
 			TopicPartition: kafka.TopicPartition{
 				Topic:     &k.topic,
 				Partition: kafka.PartitionAny,
 			},
-			// TODO format data
-			Value: []byte("insert entity"),
+			Value: val,
 		}
-		err := p.Produce(msg, dc)
+		err = p.Produce(msg, dc)
 		if err != nil {
 			log.Warn("fail to produce msg", zap.Error(err))
 			return err
@@ -314,17 +317,20 @@ func (k *KafkaDataHandler) Insert(ctx context.Context, param *api.InsertParam, f
 	})
 }
 
-func (k *KafkaDataHandler) Delete(ctx context.Context, param *api.DeleteParam, fomatter api.DataFormatter) error {
+func (k *KafkaDataHandler) Delete(ctx context.Context, param *api.DeleteParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
+		val, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
 		msg := &kafka.Message{
 			TopicPartition: kafka.TopicPartition{
 				Topic:     &k.topic,
 				Partition: kafka.PartitionAny,
 			},
-			// TODO format data
-			Value: []byte("delete column"),
+			Value: val,
 		}
-		err := p.Produce(msg, dc)
+		err = p.Produce(msg, dc)
 		if err != nil {
 			log.Warn("fail to produce msg", zap.Error(err))
 			return err

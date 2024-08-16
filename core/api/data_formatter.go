@@ -21,14 +21,14 @@ package api
 import "github.com/zilliztech/milvus-cdc/core/log"
 
 type DataFormatter interface {
-	Format(data any) error
+	Format(data any) ([]byte, error)
 }
 
 type DefaultDataFormatter struct{}
 
 var _ DataFormatter = (*DefaultDataFormatter)(nil)
 
-func (*DefaultDataFormatter) Format(data any) error {
+func (*DefaultDataFormatter) Format(data any) ([]byte, error) {
 	log.Warn("Format is not implemented, please check it")
-	return nil
+	return nil, nil
 }
