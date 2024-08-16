@@ -47,21 +47,22 @@ type CDCResponse struct {
 
 // Task some info can be showed about the task
 type Task struct {
-	TaskID          string                 `json:"task_id" mapstructure:"task_id"`
-	ConnectParam    model.ConnectParam     `json:"connect_param" mapstructure:"connect_param"`
-	CollectionInfos []model.CollectionInfo `json:"collection_infos" mapstructure:"collection_infos"`
-	State           string                 `json:"state" mapstructure:"state"`
-	LastPauseReason string                 `json:"reason,omitempty" mapstructure:"reason,omitempty"`
+	TaskID             string                   `json:"task_id" mapstructure:"task_id"`
+	MilvusConnectParam model.MilvusConnectParam `json:"milvus_connect_param" mapstructure:"milvus_connect_param"`
+	KafkaConnectParam  model.KafkaConnectParam  `json:"kafka_connect_param" mapstructure:"kafka_connect_param"`
+	CollectionInfos    []model.CollectionInfo   `json:"collection_infos" mapstructure:"collection_infos"`
+	State              string                   `json:"state" mapstructure:"state"`
+	LastPauseReason    string                   `json:"reason,omitempty" mapstructure:"reason,omitempty"`
 }
 
 func GetTask(taskInfo *meta.TaskInfo) Task {
-	taskInfo.ConnectParam.Milvus.Username = ""
-	taskInfo.ConnectParam.Milvus.Password = ""
+	taskInfo.MilvusConnectParam.Username = ""
+	taskInfo.MilvusConnectParam.Password = ""
 	return Task{
-		TaskID:          taskInfo.TaskID,
-		ConnectParam:    taskInfo.ConnectParam,
-		CollectionInfos: taskInfo.CollectionInfos,
-		State:           taskInfo.State.String(),
-		LastPauseReason: taskInfo.Reason,
+		TaskID:             taskInfo.TaskID,
+		MilvusConnectParam: taskInfo.MilvusConnectParam,
+		CollectionInfos:    taskInfo.CollectionInfos,
+		State:              taskInfo.State.String(),
+		LastPauseReason:    taskInfo.Reason,
 	}
 }

@@ -20,11 +20,7 @@ package model
 
 import "github.com/zilliztech/milvus-cdc/core/util"
 
-type ConnectParam struct {
-	Milvus MilvusConnectParam `json:"milvus,omitempty" mapstructure:"milvus,omitempty"`
-	Kafka  KafkaConnectParam  `json:"kafka,omitempty" mapstructure:"kafka,omitempty"`
-}
-
+//go:generate easytags $GOFILE json,mapstructure
 type KafkaConnectParam struct {
 	Address          string `json:"address" mapstructure:"address"`
 	Topic            string `json:"topic" mapstructure:"topic"`

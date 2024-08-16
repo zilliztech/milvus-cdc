@@ -66,11 +66,9 @@ var (
 	}
 	collectionName = "coll"
 	createRequest  = &request.CreateRequest{
-		ConnectParam: model.ConnectParam{
-			Milvus: model.MilvusConnectParam{
-				Host: "localhost",
-				Port: 19530,
-			},
+		MilvusConnectParam: model.MilvusConnectParam{
+			Host: "localhost",
+			Port: 19530,
 		},
 		CollectionInfos: []model.CollectionInfo{
 			{
@@ -79,11 +77,9 @@ var (
 		},
 	}
 	starRequest = &request.CreateRequest{
-		ConnectParam: model.ConnectParam{
-			Milvus: model.MilvusConnectParam{
-				Host: "localhost",
-				Port: 19530,
-			},
+		MilvusConnectParam: model.MilvusConnectParam{
+			Host: "localhost",
+			Port: 19530,
 		},
 		CollectionInfos: []model.CollectionInfo{
 			{
@@ -218,11 +214,9 @@ func TestReload(t *testing.T) {
 			{
 				TaskID: "1234",
 				State:  meta.TaskStateRunning,
-				ConnectParam: model.ConnectParam{
-					Milvus: model.MilvusConnectParam{
-						Host: "127.0.0.1",
-						Port: 19530,
-					},
+				MilvusConnectParam: model.MilvusConnectParam{
+					Host: "127.0.0.1",
+					Port: 19530,
 				},
 				CollectionInfos: []model.CollectionInfo{
 					{
@@ -257,54 +251,44 @@ func TestValidCreateRequest(t *testing.T) {
 	}
 	t.Run("empty host", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{},
-			},
+			MilvusConnectParam: model.MilvusConnectParam{},
 		})
 		assert.Error(t, err)
 	})
 	t.Run("empty port", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host: "localhost",
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host: "localhost",
 			},
 		})
 		assert.Error(t, err)
 	})
 	t.Run("empty username and default password", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host:     "localhost",
-					Port:     19530,
-					Password: "xxx",
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host:     "localhost",
+				Port:     19530,
+				Password: "xxx",
 			},
 		})
 		assert.Error(t, err)
 	})
 	t.Run("invalid connect time", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host:           "localhost",
-					Port:           19530,
-					ConnectTimeout: -1,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host:           "localhost",
+				Port:           19530,
+				ConnectTimeout: -1,
 			},
 		})
 		assert.Error(t, err)
 	})
 	t.Run("invalid buffer period", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host:           "localhost",
-					Port:           19530,
-					ConnectTimeout: 10,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host:           "localhost",
+				Port:           19530,
+				ConnectTimeout: 10,
 			},
 			BufferConfig: model.BufferConfig{
 				Period: -1,
@@ -314,12 +298,10 @@ func TestValidCreateRequest(t *testing.T) {
 	})
 	t.Run("invalid buffer size", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host:           "localhost",
-					Port:           19530,
-					ConnectTimeout: 10,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host:           "localhost",
+				Port:           19530,
+				ConnectTimeout: 10,
 			},
 			BufferConfig: model.BufferConfig{
 				Period: 10,
@@ -330,12 +312,10 @@ func TestValidCreateRequest(t *testing.T) {
 	})
 	t.Run("empty collection info", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host:           "localhost",
-					Port:           19530,
-					ConnectTimeout: 10,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host:           "localhost",
+				Port:           19530,
+				ConnectTimeout: 10,
 			},
 			BufferConfig: model.BufferConfig{
 				Period: 10,
@@ -347,12 +327,10 @@ func TestValidCreateRequest(t *testing.T) {
 	})
 	t.Run("not star collection", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host:           "localhost",
-					Port:           19530,
-					ConnectTimeout: 10,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host:           "localhost",
+				Port:           19530,
+				ConnectTimeout: 10,
 			},
 			BufferConfig: model.BufferConfig{
 				Period: 10,
@@ -368,12 +346,10 @@ func TestValidCreateRequest(t *testing.T) {
 	})
 	t.Run("empty rpc channel", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host:           "localhost",
-					Port:           19530,
-					ConnectTimeout: 10,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host:           "localhost",
+				Port:           19530,
+				ConnectTimeout: 10,
 			},
 			BufferConfig: model.BufferConfig{
 				Period: 10,
@@ -389,12 +365,10 @@ func TestValidCreateRequest(t *testing.T) {
 	})
 	t.Run("fail to connect target", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host:           "localhost",
-					Port:           19530,
-					ConnectTimeout: 3,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host:           "localhost",
+				Port:           19530,
+				ConnectTimeout: 3,
 			},
 			BufferConfig: model.BufferConfig{
 				Period: 10,
@@ -416,12 +390,10 @@ func TestValidCreateRequest(t *testing.T) {
 		defer closeFunc()
 
 		err := metaCDC.validCreateRequest(&request.CreateRequest{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host:           "localhost",
-					Port:           50051,
-					ConnectTimeout: 5,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host:           "localhost",
+				Port:           50051,
+				ConnectTimeout: 5,
 			},
 			BufferConfig: model.BufferConfig{
 				Period: 10,
@@ -518,12 +490,10 @@ func TestCreateRequest(t *testing.T) {
 
 		{
 			_, err := metaCDC.Create(&request.CreateRequest{
-				ConnectParam: model.ConnectParam{
-					Milvus: model.MilvusConnectParam{
-						Host:           "localhost",
-						Port:           50051,
-						ConnectTimeout: 5,
-					},
+				MilvusConnectParam: model.MilvusConnectParam{
+					Host:           "localhost",
+					Port:           50051,
+					ConnectTimeout: 5,
 				},
 				BufferConfig: model.BufferConfig{
 					Period: 10,
@@ -864,12 +834,10 @@ func TestResume(t *testing.T) {
 			metaCDC.cdcTasks.data["1"] = &meta.TaskInfo{
 				TaskID: "1",
 				State:  meta.TaskStatePaused,
-				ConnectParam: model.ConnectParam{
-					Milvus: model.MilvusConnectParam{
-						Host:           "localhost",
-						Port:           50051,
-						ConnectTimeout: 5,
-					},
+				MilvusConnectParam: model.MilvusConnectParam{
+					Host:           "localhost",
+					Port:           50051,
+					ConnectTimeout: 5,
 				},
 				CollectionInfos: []model.CollectionInfo{
 					{
@@ -966,12 +934,10 @@ func TestResume(t *testing.T) {
 			metaCDC.cdcTasks.data["1"] = &meta.TaskInfo{
 				TaskID: "1",
 				State:  meta.TaskStatePaused,
-				ConnectParam: model.ConnectParam{
-					Milvus: model.MilvusConnectParam{
-						Host:           "localhost",
-						Port:           50051,
-						ConnectTimeout: 5,
-					},
+				MilvusConnectParam: model.MilvusConnectParam{
+					Host:           "localhost",
+					Port:           50051,
+					ConnectTimeout: 5,
 				},
 				CollectionInfos: []model.CollectionInfo{
 					{
@@ -1011,11 +977,9 @@ func TestPause(t *testing.T) {
 		initMetaCDCMap(metaCDC)
 		metaCDC.cdcTasks.Lock()
 		metaCDC.cdcTasks.data["1"] = &meta.TaskInfo{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host: "127.0.0.1",
-					Port: 6666,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host: "127.0.0.1",
+				Port: 6666,
 			},
 		}
 		metaCDC.cdcTasks.Unlock()
@@ -1036,11 +1000,9 @@ func TestPause(t *testing.T) {
 		initMetaCDCMap(metaCDC)
 		metaCDC.cdcTasks.Lock()
 		metaCDC.cdcTasks.data["1"] = &meta.TaskInfo{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host: "127.0.0.1",
-					Port: 6666,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host: "127.0.0.1",
+				Port: 6666,
 			},
 		}
 		metaCDC.cdcTasks.Unlock()
@@ -1080,11 +1042,9 @@ func TestDelete(t *testing.T) {
 		initMetaCDCMap(metaCDC)
 		metaCDC.cdcTasks.Lock()
 		metaCDC.cdcTasks.data["1"] = &meta.TaskInfo{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host: "127.0.0.1",
-					Port: 6666,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host: "127.0.0.1",
+				Port: 6666,
 			},
 		}
 		metaCDC.cdcTasks.Unlock()
@@ -1106,11 +1066,9 @@ func TestDelete(t *testing.T) {
 		initMetaCDCMap(metaCDC)
 		metaCDC.cdcTasks.Lock()
 		metaCDC.cdcTasks.data["1"] = &meta.TaskInfo{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host: "127.0.0.1",
-					Port: 6666,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host: "127.0.0.1",
+				Port: 6666,
 			},
 		}
 		metaCDC.cdcTasks.Unlock()
@@ -1124,11 +1082,9 @@ func TestDelete(t *testing.T) {
 		metaStore.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{
 			{
 				TaskID: "1",
-				ConnectParam: model.ConnectParam{
-					Milvus: model.MilvusConnectParam{
-						Host: "127.0.0.1",
-						Port: 6666,
-					},
+				MilvusConnectParam: model.MilvusConnectParam{
+					Host: "127.0.0.1",
+					Port: 6666,
 				},
 				CollectionInfos: []model.CollectionInfo{
 					{Name: "*"},
@@ -1201,11 +1157,9 @@ func TestPauseTask(t *testing.T) {
 		store.EXPECT().Put(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 		m.cdcTasks.Lock()
 		m.cdcTasks.data["task1"] = &meta.TaskInfo{
-			ConnectParam: model.ConnectParam{
-				Milvus: model.MilvusConnectParam{
-					Host: "127.0.0.1",
-					Port: 19530,
-				},
+			MilvusConnectParam: model.MilvusConnectParam{
+				Host: "127.0.0.1",
+				Port: 19530,
 			},
 		}
 		m.cdcTasks.Unlock()

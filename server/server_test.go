@@ -234,11 +234,9 @@ func TestDecodeStruct(t *testing.T) {
 			Tasks: []request.Task{
 				{
 					TaskID: "123",
-					ConnectParam: model.ConnectParam{
-						Milvus: model.MilvusConnectParam{
-							Host: "localhost",
-							Port: 19530,
-						},
+					MilvusConnectParam: model.MilvusConnectParam{
+						Host: "localhost",
+						Port: 19530,
 					},
 					CollectionInfos: []model.CollectionInfo{
 						{
