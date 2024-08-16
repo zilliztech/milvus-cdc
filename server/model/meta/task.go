@@ -60,7 +60,7 @@ func (t TaskState) String() string {
 
 type TaskInfo struct {
 	TaskID                string
-	MilvusConnectParam    model.MilvusConnectParam
+	ConnectParam          model.ConnectParam
 	WriterCacheConfig     model.BufferConfig
 	CollectionInfos       []model.CollectionInfo
 	RPCRequestChannelInfo model.ChannelInfo

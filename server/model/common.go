@@ -20,6 +20,21 @@ package model
 
 import "github.com/zilliztech/milvus-cdc/core/util"
 
+type ConnectParam struct {
+	Milvus MilvusConnectParam `json:"milvus,omitempty" mapstructure:"milvus,omitempty"`
+	Kafka  KafkaConnectParam  `json:"kafka,omitempty" mapstructure:"kafka,omitempty"`
+}
+
+type KafkaConnectParam struct {
+	Address          string `json:"address" mapstructure:"address"`
+	Topic            string `json:"topic" mapstructure:"topic"`
+	EnableSASL       bool   `json:"enable_sasl" mapstructure:"enable_sasl"`
+	SASLUsername     string `json:"sasl_username,omitempty" mapstructure:"sasl_username,omitempty"`
+	SASLPassword     string `json:"sasl_password,omitempty" mapstructure:"sasl_password,omitempty"`
+	SASLMechanisms   string `json:"sasl_mechanisms,omitempty" mapstructure:"sasl_mechanisms,omitempty"`
+	SecurityProtocol string `json:"security_protocol,omitempty" mapstructure:"security_protocol,omitempty"`
+}
+
 //go:generate easytags $GOFILE json,mapstructure
 type MilvusConnectParam struct {
 	Host            string          `json:"host" mapstructure:"host"`

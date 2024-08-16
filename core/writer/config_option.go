@@ -61,3 +61,40 @@ func DialConfigOption(dialConfig util.DialConfig) config.Option[*MilvusDataHandl
 		object.dialConfig = dialConfig
 	})
 }
+
+func KafkaAddressOption(address string) config.Option[*KafkaDataHandler] {
+	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
+		object.address = address
+	})
+}
+
+func KafkaTopicOption(topic string) config.Option[*KafkaDataHandler] {
+	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
+		object.topic = topic
+	})
+}
+
+func KafkaEnableSASLOption(enableSASL bool) config.Option[*KafkaDataHandler] {
+	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
+		object.enableSASL = enableSASL
+	})
+}
+
+func KafkaSASLOption(saslUsername string, saslPassword string) config.Option[*KafkaDataHandler] {
+	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
+		object.saslUsername = saslUsername
+		object.saslPassword = saslPassword
+	})
+}
+
+func KafkaSASLMechanismsOption(saslMechanisms string) config.Option[*KafkaDataHandler] {
+	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
+		object.saslMechanisms = saslMechanisms
+	})
+}
+
+func KafkaSecurityProtocolOption(securityProtocol string) config.Option[*KafkaDataHandler] {
+	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
+		object.securityProtocol = securityProtocol
+	})
+}

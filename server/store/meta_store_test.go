@@ -110,9 +110,11 @@ func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory api.M
 	{
 		err := taskInfoStore.Put(ctx, &meta.TaskInfo{
 			TaskID: "bdef5f5c-08e2-4261-a2a3-ff28380230e4",
-			MilvusConnectParam: model.MilvusConnectParam{
-				Host: "localhost",
-				Port: 19530,
+			ConnectParam: model.ConnectParam{
+				Milvus: model.MilvusConnectParam{
+					Host: "localhost",
+					Port: 19530,
+				},
 			},
 			State: meta.TaskStateInitial,
 		}, nilTxn)
@@ -121,9 +123,11 @@ func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory api.M
 	{
 		err := taskInfoStore.Put(ctx, &meta.TaskInfo{
 			TaskID: "45692f04-0103-48c9-87f7-c61c9a62f176",
-			MilvusConnectParam: model.MilvusConnectParam{
-				Host: "127.0.0.1",
-				Port: 19530,
+			ConnectParam: model.ConnectParam{
+				Milvus: model.MilvusConnectParam{
+					Host: "127.0.0.1",
+					Port: 19530,
+				},
 			},
 			State: meta.TaskStateRunning,
 		}, nilTxn)
@@ -165,9 +169,11 @@ func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory api.M
 		{
 			err := taskInfoStore.Put(ctx, &meta.TaskInfo{
 				TaskID: "bdef5f5c-08e2-4261-a2a3-ff28380230e4",
-				MilvusConnectParam: model.MilvusConnectParam{
-					Host: "localhost",
-					Port: 19530,
+				ConnectParam: model.ConnectParam{
+					Milvus: model.MilvusConnectParam{
+						Host: "localhost",
+						Port: 19530,
+					},
 				},
 				State: meta.TaskStateInitial,
 			}, txn)
@@ -176,9 +182,11 @@ func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory api.M
 		{
 			err := taskInfoStore.Put(ctx, &meta.TaskInfo{
 				TaskID: "45692f04-0103-48c9-87f7-c61c9a62f176",
-				MilvusConnectParam: model.MilvusConnectParam{
-					Host: "127.0.0.1",
-					Port: 19530,
+				ConnectParam: model.ConnectParam{
+					Milvus: model.MilvusConnectParam{
+						Host: "127.0.0.1",
+						Port: 19530,
+					},
 				},
 				State: meta.TaskStateRunning,
 			}, txn)
@@ -216,9 +224,11 @@ func testTaskInfoMetaStore(ctx context.Context, t *testing.T, storeFactory api.M
 		{
 			err := taskInfoStore.Put(ctx, &meta.TaskInfo{
 				TaskID: "45692f04-0103-48c9-87f7-c61c9a62f176",
-				MilvusConnectParam: model.MilvusConnectParam{
-					Host: "127.0.0.1",
-					Port: 19530,
+				ConnectParam: model.ConnectParam{
+					Milvus: model.MilvusConnectParam{
+						Host: "127.0.0.1",
+						Port: 19530,
+					},
 				},
 				State: meta.TaskStateRunning,
 			}, 1)

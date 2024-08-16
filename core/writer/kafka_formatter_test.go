@@ -16,19 +16,4 @@
  * limitations under the License.
  */
 
-package request
-
-import "github.com/zilliztech/milvus-cdc/server/model"
-
-//go:generate easytags $GOFILE json,mapstructure
-type CreateRequest struct {
-	ConnectParam    model.ConnectParam     `json:"connect_param" mapstructure:"connect_param"`
-	CollectionInfos []model.CollectionInfo `json:"collection_infos" mapstructure:"collection_infos"`
-	RPCChannelInfo  model.ChannelInfo      `json:"rpc_channel_info" mapstructure:"rpc_channel_info"`
-	BufferConfig    model.BufferConfig     `json:"buffer_config" mapstructure:"buffer_config"`
-	Positions       map[string]string      `json:"positions" mapstructure:"positions"`
-}
-
-type CreateResponse struct {
-	TaskID string `json:"task_id" mapstructure:"task_id"`
-}
+package writer

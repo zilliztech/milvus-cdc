@@ -16,19 +16,33 @@
  * limitations under the License.
  */
 
-package request
+package api
 
-import "github.com/zilliztech/milvus-cdc/server/model"
+import (
+	"testing"
+)
 
-//go:generate easytags $GOFILE json,mapstructure
-type CreateRequest struct {
-	ConnectParam    model.ConnectParam     `json:"connect_param" mapstructure:"connect_param"`
-	CollectionInfos []model.CollectionInfo `json:"collection_infos" mapstructure:"collection_infos"`
-	RPCChannelInfo  model.ChannelInfo      `json:"rpc_channel_info" mapstructure:"rpc_channel_info"`
-	BufferConfig    model.BufferConfig     `json:"buffer_config" mapstructure:"buffer_config"`
-	Positions       map[string]string      `json:"positions" mapstructure:"positions"`
-}
-
-type CreateResponse struct {
-	TaskID string `json:"task_id" mapstructure:"task_id"`
+func TestDefaultDataFormatter_Format(t *testing.T) {
+	type args struct {
+		param *InsertParam
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "TestDefaultDataFormatter_Format",
+			args:    args{},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &DefaultDataFormatter{}
+			if err := d.Format(tt.args.param); (err != nil) != tt.wantErr {
+				t.Errorf("Format() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
 }

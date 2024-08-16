@@ -155,7 +155,7 @@ func (e *MetaCDC) ReloadTask() {
 	}
 
 	for _, taskInfo := range taskInfos {
-		milvusAddress := fmt.Sprintf("%s:%d", taskInfo.MilvusConnectParam.Host, taskInfo.MilvusConnectParam.Port)
+		milvusAddress := fmt.Sprintf("%s:%d", taskInfo.ConnectParam.Milvus.Host, taskInfo.ConnectParam.Milvus.Port)
 		newCollectionNames := lo.Map(taskInfo.CollectionInfos, func(t model.CollectionInfo, _ int) string {
 			return t.Name
 		})
@@ -184,7 +184,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	if err = e.validCreateRequest(req); err != nil {
 		return nil, err
 	}
-	milvusAddress := fmt.Sprintf("%s:%d", req.MilvusConnectParam.Host, req.MilvusConnectParam.Port)
+	milvusAddress := fmt.Sprintf("%s:%d", req.ConnectParam.Milvus.Host, req.ConnectParam.Milvus.Port)
 	newCollectionNames := lo.Map(req.CollectionInfos, func(t model.CollectionInfo, _ int) string {
 		return t.Name
 	})
@@ -246,7 +246,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 
 	info := &meta.TaskInfo{
 		TaskID:                e.getUUID(),
-		MilvusConnectParam:    req.MilvusConnectParam,
+		ConnectParam:          req.ConnectParam,
 		CollectionInfos:       req.CollectionInfos,
 		RPCRequestChannelInfo: req.RPCChannelInfo,
 		ExcludeCollections:    excludeCollectionNames,
@@ -346,7 +346,8 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 }
 
 func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
-	connectParam := req.MilvusConnectParam
+	connectParam := req.ConnectParam.Milvus
+	// TODO: check the connect param
 	if connectParam.Host == "" {
 		return servererror.NewClientError("the milvus host is empty")
 	}
@@ -451,7 +452,7 @@ func (e *MetaCDC) getUUID() string {
 
 func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) error {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
-	milvusConnectParam := info.MilvusConnectParam
+	milvusConnectParam := info.ConnectParam.Milvus
 	milvusAddress := fmt.Sprintf("%s:%d", milvusConnectParam.Host, milvusConnectParam.Port)
 	e.replicateEntityMap.RLock()
 	replicateEntity, ok := e.replicateEntityMap.data[milvusAddress]
@@ -547,7 +548,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 
 func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, error) {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
-	milvusConnectParam := info.MilvusConnectParam
+	milvusConnectParam := info.ConnectParam.Milvus
 	milvusAddress := fmt.Sprintf("%s:%d", milvusConnectParam.Host, milvusConnectParam.Port)
 
 	ctx := context.TODO()
@@ -900,7 +901,7 @@ func (e *MetaCDC) pauseTaskWithReason(taskID, reason string, currentStates []met
 	cdcTask.Reason = reason
 	e.cdcTasks.Unlock()
 
-	milvusAddress := GetMilvusAddress(cdcTask.MilvusConnectParam)
+	milvusAddress := GetMilvusAddress(cdcTask.ConnectParam.Milvus)
 	e.replicateEntityMap.Lock()
 	if replicateEntity, ok := e.replicateEntityMap.data[milvusAddress]; ok {
 		if quitFunc, ok := replicateEntity.taskQuitFuncs.GetAndRemove(taskID); ok {
@@ -942,7 +943,7 @@ func (e *MetaCDC) delete(taskID string) error {
 	if err != nil {
 		return errors.WithMessage(err, "fail to delete the task meta, task_id: "+taskID)
 	}
-	milvusAddress := fmt.Sprintf("%s:%d", info.MilvusConnectParam.Host, info.MilvusConnectParam.Port)
+	milvusAddress := fmt.Sprintf("%s:%d", info.ConnectParam.Milvus.Host, info.ConnectParam.Milvus.Port)
 	collectionNames := info.CollectionNames()
 	e.collectionNames.Lock()
 	if collectionNames[0] == cdcreader.AllCollection {
