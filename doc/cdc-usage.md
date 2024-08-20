@@ -80,6 +80,8 @@ sourceConfig:
   defaultPartitionName: _default
   # read buffer length, mainly used for buffering if writing data to milvus-target is slow.
   readChanLen: 10
+  # milvus replicate channel name, which is `{msgChannel.chanNamePrefix.cluster}/{msgChannel.chanNamePrefix.replicateMsg}` in the milvus.yaml file
+  replicateChan: by-dev-replicate-msg
   # milvus-source mq config, which is pulsar or kafka
   pulsar:
     address: pulsar://localhost:6650
@@ -132,7 +134,6 @@ If the request fails, the code is not 200, and the error message will be display
 
 - milvus_connect_param, the connection params of the milvus-target server;
 - collection_infos, the collection information that needs to be synchronized, which currently only supports `*`;
-- rpc_channel_info, the corresponding name value is composed of the two values ​​of `common.chanNamePrefix.cluster` and `common.chanNamePrefix.replicateMsg` in **milvus-source**, connected by the symbol `-`
 
 ```http
 POST localhost:8444/cdc
@@ -154,10 +155,7 @@ body:
       {
         "name":"*"
       }
-    ],
-    "rpc_channel_info": {
-      "name": "by-dev-replicate-msg"
-    }
+    ]
   }
 }
 ```
@@ -207,10 +205,7 @@ body:
       {
         "name":"*"
       }
-    ],
-    "rpc_channel_info": {
-      "name": "by-dev-replicate-msg"
-    }
+    ]
   }
 }
 ```

@@ -31,6 +31,7 @@ sourceConfig:
     tlsMinVersion: 1.3
   readChanLen: 10
   defaultPartitionName: _default
+  replicateChan: by-dev-replicate-msg
   pulsar:
     address: pulsar://localhost:6650
     webAddress: localhost:80
