@@ -547,6 +547,12 @@ func MsgCount(msgpack *msgstream.MsgPack, msgCount map[string]int, detail int, p
 				dropDatabaseMsg := msg.(*msgstream.DropDatabaseMsg)
 				markPrintln("drop database msg info, db name:", dropDatabaseMsg.GetDbName())
 			}
+		} else if msg.Type() == commonpb.MsgType_DropCollection {
+			if detail > 1 && detail != 3 {
+				dropCollectionMsg := msg.(*msgstream.DropCollectionMsg)
+				markPrintln("drop collection msg info, collection name:", dropCollectionMsg.GetCollectionName(),
+					", collection id:", dropCollectionMsg.GetCollectionID())
+			}
 		}
 	}
 	if detail > 1 && detail != 3 {

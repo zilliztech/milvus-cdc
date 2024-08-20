@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
+	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"go.uber.org/atomic"
@@ -117,6 +118,10 @@ func NewMetaCDC(serverConfig *CDCServerConfig) *MetaCDC {
 		}
 	default:
 		log.Panic("not support the meta store type, valid type: [mysql, etcd]", zap.String("type", serverConfig.MetaStoreConfig.StoreType))
+	}
+
+	if serverConfig.SourceConfig.ReplicateChan == "" {
+		log.Panic("the replicate channel in the source config is empty")
 	}
 
 	_, err = util.GetEtcdClient(GetEtcdServerConfigFromSourceConfig(serverConfig.SourceConfig))
@@ -301,15 +306,19 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		if err != nil {
 			return nil, servererror.NewServerError(errors.WithMessage(err, "fail to decode the rpc position data"))
 		}
+		rpcChannel := req.RPCChannelInfo.Name
+		if rpcChannel == "" {
+			rpcChannel = e.config.SourceConfig.ReplicateChan
+		}
 
 		metaPosition := &meta.TaskCollectionPosition{
 			TaskID:         info.TaskID,
 			CollectionID:   model.ReplicateCollectionID,
 			CollectionName: model.ReplicateCollectionName,
 			Positions: map[string]*meta.PositionInfo{
-				req.RPCChannelInfo.Name: {
+				rpcChannel: {
 					DataPair: &commonpb.KeyDataPair{
-						Key:  req.RPCChannelInfo.Name,
+						Key:  rpcChannel,
 						Data: decodePosition.MsgID,
 					},
 				},
@@ -371,8 +380,8 @@ func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 	if err := e.checkCollectionInfos(req.CollectionInfos); err != nil {
 		return err
 	}
-	if req.RPCChannelInfo.Name == "" {
-		return servererror.NewClientError("the rpc channel name is empty")
+	if req.RPCChannelInfo.Name != "" && req.RPCChannelInfo.Name != e.config.SourceConfig.ReplicateChan {
+		return servererror.NewClientError("the rpc channel is invalid, the channel name should be the same as the source config")
 	}
 
 	_, err := cdcwriter.NewMilvusDataHandler(
@@ -759,7 +768,7 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, info *meta.
 					},
 				}
 				var metaOpPosition *meta.PositionInfo
-				if msgPack.Msgs != nil && len(msgPack.Msgs) > 0 && msgPack.Msgs[0].Type() != commonpb.MsgType_TimeTick {
+				if len(msgPack.Msgs) > 0 && msgPack.Msgs[0].Type() != commonpb.MsgType_TimeTick {
 					metaOpPosition = metaPosition
 					metrics.APIExecuteCountVec.WithLabelValues(info.TaskID, "ReplicateMessage").Inc()
 				}
@@ -1036,30 +1045,54 @@ func (e *MetaCDC) GetPosition(req *request.GetPositionRequest) (*request.GetPosi
 		return nil, servererror.NewServerError(err)
 	}
 	resp := &request.GetPositionResponse{}
-	if len(positions) > 0 {
-		for s, info := range positions[0].Positions {
+	for _, position := range positions {
+		for s, info := range position.Positions {
+			msgID, err := EncodeMetaPosition(info)
+			if err != nil {
+				return nil, servererror.NewServerError(err)
+			}
 			resp.Positions = append(resp.Positions, request.Position{
 				ChannelName: s,
 				Time:        info.Time,
-				MsgID:       base64.StdEncoding.EncodeToString(info.DataPair.GetData()),
+				MsgID:       msgID,
 			})
 		}
-		for s, info := range positions[0].OpPositions {
+		for s, info := range position.OpPositions {
+			msgID, err := EncodeMetaPosition(info)
+			if err != nil {
+				return nil, servererror.NewServerError(err)
+			}
 			resp.OpPositions = append(resp.OpPositions, request.Position{
 				ChannelName: s,
 				Time:        info.Time,
-				MsgID:       base64.StdEncoding.EncodeToString(info.DataPair.GetData()),
+				MsgID:       msgID,
 			})
 		}
-		for s, info := range positions[0].TargetPositions {
+		for s, info := range position.TargetPositions {
+			msgID, err := EncodeMetaPosition(info)
+			if err != nil {
+				return nil, servererror.NewServerError(err)
+			}
 			resp.TargetPositions = append(resp.TargetPositions, request.Position{
 				ChannelName: s,
 				Time:        info.Time,
-				MsgID:       base64.StdEncoding.EncodeToString(info.DataPair.GetData()),
+				MsgID:       msgID,
 			})
 		}
 	}
 	return resp, nil
+}
+
+func EncodeMetaPosition(position *meta.PositionInfo) (string, error) {
+	msgPosition := &msgpb.MsgPosition{
+		ChannelName: position.DataPair.Key,
+		MsgID:       position.DataPair.Data,
+	}
+	positionBytes, err := proto.Marshal(msgPosition)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(positionBytes), nil
 }
 
 func (e *MetaCDC) List(req *request.ListRequest) (*request.ListResponse, error) {

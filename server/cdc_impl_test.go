@@ -20,7 +20,6 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
 	"log"
 	"net"
 	"testing"
@@ -110,6 +109,18 @@ func TestNewMetaCDC(t *testing.T) {
 			})
 		})
 
+		// empty replicate chan
+		assert.Panics(t, func() {
+			NewMetaCDC(&CDCServerConfig{
+				MetaStoreConfig: CDCMetaStoreConfig{
+					StoreType:     "etcd",
+					EtcdEndpoints: endpoints,
+					RootPath:      "cdc-test",
+				},
+				SourceConfig: MilvusSourceConfig{},
+			})
+		})
+
 		// invalid source etcd
 		assert.Panics(t, func() {
 			NewMetaCDC(&CDCServerConfig{
@@ -119,7 +130,8 @@ func TestNewMetaCDC(t *testing.T) {
 					RootPath:      "cdc-test",
 				},
 				SourceConfig: MilvusSourceConfig{
-					EtcdAddress: []string{"unknown"},
+					ReplicateChan: "by-dev-replicate-msg",
+					EtcdAddress:   []string{"unknown"},
 				},
 			})
 		})
@@ -133,7 +145,8 @@ func TestNewMetaCDC(t *testing.T) {
 					RootPath:      "cdc-test",
 				},
 				SourceConfig: MilvusSourceConfig{
-					EtcdAddress: endpoints,
+					ReplicateChan: "by-dev-replicate-msg",
+					EtcdAddress:   endpoints,
 				},
 			})
 		}
@@ -162,7 +175,8 @@ func TestNewMetaCDC(t *testing.T) {
 					RootPath:       "cdc-test",
 				},
 				SourceConfig: MilvusSourceConfig{
-					EtcdAddress: endpoints,
+					EtcdAddress:   endpoints,
+					ReplicateChan: "by-dev-replicate-msg",
 				},
 			})
 		}
@@ -247,6 +261,9 @@ func TestValidCreateRequest(t *testing.T) {
 	metaCDC := &MetaCDC{
 		config: &CDCServerConfig{
 			MaxNameLength: 6,
+			SourceConfig: MilvusSourceConfig{
+				ReplicateChan: "foo",
+			},
 		},
 	}
 	t.Run("empty host", func(t *testing.T) {
@@ -342,7 +359,7 @@ func TestValidCreateRequest(t *testing.T) {
 		})
 		assert.Error(t, err)
 	})
-	t.Run("empty rpc channel", func(t *testing.T) {
+	t.Run("invalid rpc channel", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
 			MilvusConnectParam: model.MilvusConnectParam{
 				Host:           "localhost",
@@ -357,6 +374,9 @@ func TestValidCreateRequest(t *testing.T) {
 				{
 					Name: "*",
 				},
+			},
+			RPCChannelInfo: model.ChannelInfo{
+				Name: "noo",
 			},
 		})
 		assert.Error(t, err)
@@ -425,6 +445,7 @@ func TestCreateRequest(t *testing.T) {
 					EtcdRootPath:         "source-cdc-test",
 					EtcdMetaSubPath:      "meta",
 					DefaultPartitionName: "_default",
+					ReplicateChan:        "foo",
 				},
 				MaxNameLength: 256,
 			},
@@ -722,17 +743,29 @@ func TestTaskPosition(t *testing.T) {
 		assert.Len(t, resp.Positions, 1)
 		assert.Equal(t, "ch1", resp.Positions[0].ChannelName)
 		assert.EqualValues(t, 1, resp.Positions[0].Time)
-		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("ch1-position")), resp.Positions[0].MsgID)
+		{
+			p, err := util.Base64DecodeMsgPosition(resp.Positions[0].MsgID)
+			assert.NoError(t, err)
+			assert.Equal(t, []byte("ch1-position"), p.MsgID)
+		}
 
 		assert.Len(t, resp.OpPositions, 1)
 		assert.Equal(t, "ch1", resp.OpPositions[0].ChannelName)
 		assert.EqualValues(t, 1, resp.OpPositions[0].Time)
-		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("ch2-position")), resp.OpPositions[0].MsgID)
+		{
+			p, err := util.Base64DecodeMsgPosition(resp.OpPositions[0].MsgID)
+			assert.NoError(t, err)
+			assert.Equal(t, []byte("ch2-position"), p.MsgID)
+		}
 
 		assert.Len(t, resp.TargetPositions, 1)
 		assert.Equal(t, "ch1-tar", resp.TargetPositions[0].ChannelName)
 		assert.EqualValues(t, 1, resp.TargetPositions[0].Time)
-		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("ch3-position")), resp.TargetPositions[0].MsgID)
+		{
+			p, err := util.Base64DecodeMsgPosition(resp.TargetPositions[0].MsgID)
+			assert.NoError(t, err)
+			assert.Equal(t, []byte("ch3-position"), p.MsgID)
+		}
 	})
 }
 

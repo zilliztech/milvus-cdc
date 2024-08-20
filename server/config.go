@@ -57,6 +57,7 @@ type MilvusSourceConfig struct {
 	ReadChanLen          int
 	TimeTickInterval     int
 	DefaultPartitionName string
+	ReplicateChan        string
 	Pulsar               config.PulsarConfig
 	Kafka                config.KafkaConfig
 }
