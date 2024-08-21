@@ -80,21 +80,8 @@ func KafkaEnableSASLOption(enableSASL bool) config.Option[*KafkaDataHandler] {
 	})
 }
 
-func KafkaSASLOption(saslUsername string, saslPassword string) config.Option[*KafkaDataHandler] {
+func KafkaSecurityOption(sasl KafkaSASLParam) config.Option[*KafkaDataHandler] {
 	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
-		object.saslUsername = saslUsername
-		object.saslPassword = saslPassword
-	})
-}
-
-func KafkaSASLMechanismsOption(saslMechanisms string) config.Option[*KafkaDataHandler] {
-	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
-		object.saslMechanisms = saslMechanisms
-	})
-}
-
-func KafkaSecurityProtocolOption(securityProtocol string) config.Option[*KafkaDataHandler] {
-	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
-		object.securityProtocol = securityProtocol
+		object.sasl = sasl
 	})
 }

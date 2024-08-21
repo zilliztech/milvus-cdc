@@ -37,14 +37,18 @@ type KafkaDataHandler struct {
 
 	address           string
 	topic             string
-	saslUsername      string
-	saslPassword      string
-	saslMechanisms    string
-	securityProtocol  string
 	enableSASL        bool
 	connectionTimeout int
 	producer          *kafka.Producer
 	deliveryChan      chan kafka.Event
+	sasl              KafkaSASLParam
+}
+
+type KafkaSASLParam struct {
+	username         string
+	password         string
+	mechanisms       string
+	securityProtocol string
 }
 
 // NewKafkaDataHandler returns a singleton KafkaDataHandler
@@ -70,10 +74,10 @@ func NewKafkaDataHandler(options ...config.Option[*KafkaDataHandler]) (*KafkaDat
 		"acks":              "all",
 	}
 	if handler.enableSASL {
-		conf["sasl.username"] = handler.saslUsername
-		conf["sasl.password"] = handler.saslPassword
-		conf["sasl.mechanisms"] = handler.saslMechanisms
-		conf["security.protocol"] = handler.securityProtocol
+		conf["sasl.username"] = handler.sasl.username
+		conf["sasl.password"] = handler.sasl.password
+		conf["sasl.mechanisms"] = handler.sasl.mechanisms
+		conf["security.protocol"] = handler.sasl.securityProtocol
 	}
 
 	producer, err := kafka.NewProducer(&conf)
@@ -105,182 +109,44 @@ func (k *KafkaDataHandler) KafkaOp(ctx context.Context, database string, f func(
 }
 
 func (k *KafkaDataHandler) CreateCollection(ctx context.Context, param *api.CreateCollectionParam) error {
-	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, deliverChan chan kafka.Event) error {
+	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("create collection %v", param.Schema.CollectionName)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, nil)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-deliverChan:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
 }
 
 func (k *KafkaDataHandler) DropCollection(ctx context.Context, param *api.DropCollectionParam) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("drop collection %v", param.CollectionName)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
 }
 
 func (k *KafkaDataHandler) CreatePartition(ctx context.Context, param *api.CreatePartitionParam) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("create partition %v in collection %v", param.PartitionName, param.CollectionName)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
 }
 
 func (k *KafkaDataHandler) DropPartition(ctx context.Context, param *api.DropPartitionParam) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("drop partition %v in collection %v", param.PartitionName, param.CollectionName)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
 }
 
 func (k *KafkaDataHandler) CreateDatabase(ctx context.Context, param *api.CreateDatabaseParam) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("create database %v", param.DbName)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
 }
 
 func (k *KafkaDataHandler) DropDatabase(ctx context.Context, param *api.DropDatabaseParam) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("drop database %v", param.DbName)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
 }
 
@@ -290,30 +156,7 @@ func (k *KafkaDataHandler) Insert(ctx context.Context, param *api.InsertParam, f
 		if err != nil {
 			log.Warn("fail to format data", zap.Error(err))
 		}
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: val,
-		}
-		err = p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, val, dc)
 	})
 }
 
@@ -323,239 +166,82 @@ func (k *KafkaDataHandler) Delete(ctx context.Context, param *api.DeleteParam, f
 		if err != nil {
 			log.Warn("fail to format data", zap.Error(err))
 		}
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: val,
-		}
-		err = p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, val, dc)
 	})
 }
 
 func (k *KafkaDataHandler) CreateIndex(ctx context.Context, param *api.CreateIndexParam) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("create index %v in collection %v field %v", param.IndexName, param.CollectionName, param.FieldName)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
 }
 
 func (k *KafkaDataHandler) DropIndex(ctx context.Context, param *api.DropIndexParam) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("drop index %v in collection %v field %v", param.IndexName, param.CollectionName, param.FieldName)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
 }
 
 func (k *KafkaDataHandler) LoadCollection(ctx context.Context, param *api.LoadCollectionParam) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("load collection %v", param.CollectionName)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
 }
 
 func (k *KafkaDataHandler) ReleaseCollection(ctx context.Context, param *api.ReleaseCollectionParam) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("release collection %v", param.CollectionName)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
 }
 
 func (k *KafkaDataHandler) LoadPartitions(ctx context.Context, param *api.LoadPartitionsParam) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("load partitions %v in collection %v", param.PartitionNames, param.CollectionName)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
 }
 
 func (k *KafkaDataHandler) ReleasePartitions(ctx context.Context, param *api.ReleasePartitionsParam) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("release partitions %v in collection %v", param.PartitionNames, param.CollectionName)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
 }
 
 func (k *KafkaDataHandler) Flush(ctx context.Context, param *api.FlushParam) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
 		val := fmt.Sprintf("flush collections %v", param.CollectionNames)
-		msg := &kafka.Message{
-			TopicPartition: kafka.TopicPartition{
-				Topic:     &k.topic,
-				Partition: kafka.PartitionAny,
-			},
-			Value: []byte(val),
-		}
-		err := p.Produce(msg, dc)
-		if err != nil {
-			log.Warn("fail to produce msg", zap.Error(err))
-			return err
-		}
-
-		select {
-		case e := <-dc:
-			ev := e.(*kafka.Message)
-			if ev.TopicPartition.Error != nil {
-				log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
-				return ev.TopicPartition.Error
-			}
-		case <-time.After(time.Second):
-			log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
-		}
-		return nil
+		return k.sendMessage(p, []byte(val), dc)
 	})
+}
+
+func (k *KafkaDataHandler) sendMessage(p *kafka.Producer, val []byte, dc chan kafka.Event) error {
+	msg := &kafka.Message{
+		TopicPartition: kafka.TopicPartition{
+			Topic:     &k.topic,
+			Partition: kafka.PartitionAny,
+		},
+		Value: val,
+	}
+	err := p.Produce(msg, dc)
+	if err != nil {
+		log.Warn("fail to produce msg", zap.Error(err))
+		return err
+	}
+
+	select {
+	case e := <-dc:
+		ev := e.(*kafka.Message)
+		if ev.TopicPartition.Error != nil {
+			log.Warn("fail to deliver msg", zap.Error(ev.TopicPartition.Error))
+			return ev.TopicPartition.Error
+		}
+	case <-time.After(time.Second):
+		log.Warn("deliver msg timeout", zap.Error(errors.New("timeout")))
+	}
+	return nil
 }

@@ -45,7 +45,7 @@ func TestKafkaDataHandler(t *testing.T) {
 	}
 
 	handler, err := NewKafkaDataHandler(
-		KafkaTopicOption("test2"),
+		KafkaTopicOption("test"),
 		KafkaAddressOption("localhost:9092"),
 	)
 	formatter := NewKafkaFormatter()

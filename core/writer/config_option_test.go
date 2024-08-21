@@ -50,13 +50,17 @@ func TestConfigOption(t *testing.T) {
 
 func TestKafkaConfigOption(t *testing.T) {
 	handler := &KafkaDataHandler{}
+	saslParam := KafkaSASLParam{
+		username:         "root",
+		password:         "123456",
+		mechanisms:       "PLAIN",
+		securityProtocol: "SASL_SSL",
+	}
 	opts := []config.Option[*KafkaDataHandler]{
 		KafkaAddressOption("localhost:9092"),
 		KafkaTopicOption("test"),
-		KafkaSASLOption("root", "123456"),
-		KafkaSASLMechanismsOption("PLAIN"),
-		KafkaSecurityProtocolOption("SASL_SSL"),
 		KafkaEnableSASLOption(true),
+		KafkaSecurityOption(saslParam),
 	}
 
 	for _, opt := range opts {
@@ -66,8 +70,8 @@ func TestKafkaConfigOption(t *testing.T) {
 	assert.Equal(t, "localhost:9092", handler.address)
 	assert.Equal(t, "test", handler.topic)
 	assert.True(t, handler.enableSASL)
-	assert.Equal(t, "root", handler.saslUsername)
-	assert.Equal(t, "123456", handler.saslPassword)
-	assert.Equal(t, "PLAIN", handler.saslMechanisms)
-	assert.Equal(t, "SASL_SSL", handler.securityProtocol)
+	assert.Equal(t, "root", handler.sasl.username)
+	assert.Equal(t, "123456", handler.sasl.password)
+	assert.Equal(t, "PLAIN", handler.sasl.mechanisms)
+	assert.Equal(t, "SASL_SSL", handler.sasl.securityProtocol)
 }
