@@ -278,7 +278,7 @@ class TestCDCSyncRequest(TestBase):
         # check collections in downstream
         connections.disconnect("default")
         connections.connect(host=downstream_host, port=downstream_port)
-        c_downstream = Collection(name=collection_name, using="downstream")
+        c_downstream = Collection(name=collection_name)
         timeout = 60
         t0 = time.time()
         while True and time.time() - t0 < timeout:
