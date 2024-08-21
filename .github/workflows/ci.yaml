@@ -72,9 +72,10 @@ jobs:
         working-directory: deployment/docker
         shell: bash
         run: |
-          docker compose up -d
+          docker compose --verbose up -d
           sleep 20s
           docker compose ps
+          docker compose logs || true
 
       - name: Create CDC task
         timeout-minutes: 15
