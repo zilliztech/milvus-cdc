@@ -277,9 +277,9 @@ class TestCDCSyncRequest(TestBase):
         assert len(res) == 0
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
-        c_downstream = Collection(name=collection_name)
-        timeout = 120
+        connections.connect('downstream', host=downstream_host, port=downstream_port)
+        c_downstream = Collection(name=collection_name, using="downstream")
+        timeout = 60
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if time.time() - t0 > timeout:
@@ -289,7 +289,6 @@ class TestCDCSyncRequest(TestBase):
             c_state = utility.load_state(collection_name)
             if c_state != LoadState.Loaded:
                 log.info(f"collection state in downstream: {str(c_state)}")
-                continue
             # get the number of entities in downstream
             res = c_downstream.query(f"int64 in {[i for i in range(100)]}", timeout=10)
             if len(res) != 100:
