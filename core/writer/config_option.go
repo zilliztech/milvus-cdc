@@ -23,22 +23,15 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
-func AddressOption(address string) config.Option[*MilvusDataHandler] {
+func TokenOption(token string) config.Option[*MilvusDataHandler] {
 	return config.OptionFunc[*MilvusDataHandler](func(object *MilvusDataHandler) {
-		object.address = address
+		object.token = token
 	})
 }
 
-func UserOption(username string, password string) config.Option[*MilvusDataHandler] {
+func URIOption(uri string) config.Option[*MilvusDataHandler] {
 	return config.OptionFunc[*MilvusDataHandler](func(object *MilvusDataHandler) {
-		object.username = username
-		object.password = password
-	})
-}
-
-func TLSOption(enable bool) config.Option[*MilvusDataHandler] {
-	return config.OptionFunc[*MilvusDataHandler](func(object *MilvusDataHandler) {
-		object.enableTLS = enable
+		object.uri = uri
 	})
 }
 

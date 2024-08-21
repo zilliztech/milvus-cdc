@@ -22,12 +22,19 @@ import "github.com/zilliztech/milvus-cdc/core/util"
 
 //go:generate easytags $GOFILE json,mapstructure
 type MilvusConnectParam struct {
-	Host            string          `json:"host" mapstructure:"host"`
-	Port            int             `json:"port" mapstructure:"port"`
-	Username        string          `json:"username,omitempty" mapstructure:"username,omitempty"`
+	// Deprecated: use uri instead
+	Host string `json:"host" mapstructure:"host"`
+	// Deprecated: use uri instead
+	Port int `json:"port" mapstructure:"port"`
+	// Deprecated: use uri instead
+	EnableTLS bool `json:"enable_tls" mapstructure:"enable_tls"`
+	// Deprecated: use token instead
+	Username string `json:"username,omitempty" mapstructure:"username,omitempty"`
+	// Deprecated: use token instead
 	Password        string          `json:"password,omitempty" mapstructure:"password,omitempty"`
-	EnableTLS       bool            `json:"enable_tls" mapstructure:"enable_tls"`
-	DialConfig      util.DialConfig `json:"dial_config" mapstructure:"dial_config"`
+	URI             string          `json:"uri" mapstructure:"uri"`
+	Token           string          `json:"token,omitempty" mapstructure:"token,omitempty"`
+	DialConfig      util.DialConfig `json:"dial_config,omitempty" mapstructure:"dial_config,omitempty"`
 	IgnorePartition bool            `json:"ignore_partition" mapstructure:"ignore_partition"`
 	// ConnectTimeout unit: s
 	ConnectTimeout int `json:"connect_timeout" mapstructure:"connect_timeout"`

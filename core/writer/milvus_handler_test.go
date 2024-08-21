@@ -82,7 +82,7 @@ func TestDataHandler(t *testing.T) {
 	time.Sleep(time.Second)
 	defer listen.Close()
 
-	dataHandler, err := NewMilvusDataHandler(AddressOption("localhost:50051"))
+	dataHandler, err := NewMilvusDataHandler(URIOption("localhost:50051"))
 	assert.NoError(t, err)
 	dataHandler.ignorePartition = true
 	dataHandler.retryOptions = util.GetRetryOptions(config.RetrySettings{
@@ -186,7 +186,7 @@ func TestDataHandler(t *testing.T) {
 		}
 
 		{
-			dataHandler.address = ""
+			dataHandler.uri = ""
 			err := dataHandler.DropCollection(ctx, &api.DropCollectionParam{
 				ReplicateParam: api.ReplicateParam{
 					Database: "foo",
@@ -194,7 +194,7 @@ func TestDataHandler(t *testing.T) {
 				CollectionName: "foo",
 			})
 			assert.Error(t, err)
-			dataHandler.address = "localhost:50051"
+			dataHandler.uri = "localhost:50051"
 		}
 	})
 

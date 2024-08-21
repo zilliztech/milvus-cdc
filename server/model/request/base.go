@@ -57,6 +57,7 @@ type Task struct {
 func GetTask(taskInfo *meta.TaskInfo) Task {
 	taskInfo.MilvusConnectParam.Username = ""
 	taskInfo.MilvusConnectParam.Password = ""
+	taskInfo.MilvusConnectParam.Token = ""
 	return Task{
 		TaskID:             taskInfo.TaskID,
 		MilvusConnectParam: taskInfo.MilvusConnectParam,

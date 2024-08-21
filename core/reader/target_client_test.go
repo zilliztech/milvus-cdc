@@ -56,13 +56,13 @@ func TestTargetClient(t *testing.T) {
 	time.Sleep(time.Second)
 	defer listen.Close()
 	targetClient, err := NewTarget(context.Background(), TargetConfig{
-		Address: "localhost:50052",
+		URI: "localhost:50052",
 	})
 	assert.NoError(t, err)
 	realTarget := targetClient.(*TargetClient)
 
 	{
-		realTarget.config.Address = ""
+		realTarget.config.URI = ""
 		// error with db
 		{
 			_, err := targetClient.GetCollectionInfo(context.Background(), "test", "foo")
@@ -73,7 +73,7 @@ func TestTargetClient(t *testing.T) {
 			assert.Error(t, err)
 		}
 
-		realTarget.config.Address = "localhost:50052"
+		realTarget.config.URI = "localhost:50052"
 	}
 
 	{

@@ -243,7 +243,7 @@ func TestReload(t *testing.T) {
 
 		metaCDC.replicateEntityMap.Lock()
 		metaCDC.replicateEntityMap.data = map[string]*ReplicateEntity{
-			"127.0.0.1:19530": {
+			"http://127.0.0.1:19530": {
 				entityQuitFunc: func() {},
 				taskQuitFuncs:  typeutil.NewConcurrentMap[string, func()](),
 			},
@@ -1104,7 +1104,7 @@ func TestDelete(t *testing.T) {
 		}
 		metaCDC.cdcTasks.Unlock()
 		metaCDC.replicateEntityMap.Lock()
-		metaCDC.replicateEntityMap.data["127.0.0.1:6666"] = &ReplicateEntity{
+		metaCDC.replicateEntityMap.data["http://127.0.0.1:6666"] = &ReplicateEntity{
 			entityQuitFunc: func() {},
 			taskQuitFuncs:  typeutil.NewConcurrentMap[string, func()](),
 		}
@@ -1201,7 +1201,7 @@ func TestPauseTask(t *testing.T) {
 		cm.Insert("task1", func() {
 			isQuit.Store(true)
 		})
-		m.replicateEntityMap.data["127.0.0.1:19530"] = &ReplicateEntity{
+		m.replicateEntityMap.data["http://127.0.0.1:19530"] = &ReplicateEntity{
 			entityQuitFunc: func() {},
 			taskQuitFuncs:  cm,
 		}
