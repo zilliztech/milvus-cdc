@@ -143,16 +143,6 @@ func NewMetaCDC(serverConfig *CDCServerConfig) *MetaCDC {
 }
 
 func (e *MetaCDC) ReloadTask() {
-	reverse := e.config.EnableReverse
-	reverseConfig := e.config.ReverseMilvus
-	currentConfig := e.config.CurrentMilvus
-	if reverse && (reverseConfig.Host == "" ||
-		reverseConfig.Port <= 0 ||
-		currentConfig.Host == "" ||
-		currentConfig.Port <= 0) {
-		log.Panic("the reverse milvus config is invalid, the host or port of reverse and current param should be set", zap.Any("config", reverseConfig))
-	}
-
 	ctx := context.Background()
 	taskInfos, err := e.metaStoreFactory.GetTaskInfoMetaStore(ctx).Get(ctx, &meta.TaskInfo{}, nil)
 	if err != nil {
@@ -160,12 +150,12 @@ func (e *MetaCDC) ReloadTask() {
 	}
 
 	for _, taskInfo := range taskInfos {
-		milvusAddress := fmt.Sprintf("%s:%d", taskInfo.MilvusConnectParam.Host, taskInfo.MilvusConnectParam.Port)
+		milvusURI := GetMilvusURI(taskInfo.MilvusConnectParam)
 		newCollectionNames := lo.Map(taskInfo.CollectionInfos, func(t model.CollectionInfo, _ int) string {
 			return t.Name
 		})
-		e.collectionNames.data[milvusAddress] = append(e.collectionNames.data[milvusAddress], newCollectionNames...)
-		e.collectionNames.excludeData[milvusAddress] = append(e.collectionNames.excludeData[milvusAddress], taskInfo.ExcludeCollections...)
+		e.collectionNames.data[milvusURI] = append(e.collectionNames.data[milvusURI], newCollectionNames...)
+		e.collectionNames.excludeData[milvusURI] = append(e.collectionNames.excludeData[milvusURI], taskInfo.ExcludeCollections...)
 		e.cdcTasks.Lock()
 		e.cdcTasks.data[taskInfo.TaskID] = taskInfo
 		e.cdcTasks.Unlock()
@@ -179,6 +169,20 @@ func (e *MetaCDC) ReloadTask() {
 	}
 }
 
+func GetMilvusURI(milvusConnectParam model.MilvusConnectParam) string {
+	if milvusConnectParam.URI != "" {
+		return milvusConnectParam.URI
+	}
+	return util.GetURI(milvusConnectParam.Host, milvusConnectParam.Port, milvusConnectParam.EnableTLS)
+}
+
+func GetMilvusToken(milvusConnectParam model.MilvusConnectParam) string {
+	if milvusConnectParam.Token != "" {
+		return milvusConnectParam.Token
+	}
+	return util.GetToken(milvusConnectParam.Username, milvusConnectParam.Password)
+}
+
 func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateResponse, err error) {
 	defer func() {
 		log.Info("create request done")
@@ -189,12 +193,12 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	if err = e.validCreateRequest(req); err != nil {
 		return nil, err
 	}
-	milvusAddress := fmt.Sprintf("%s:%d", req.MilvusConnectParam.Host, req.MilvusConnectParam.Port)
+	milvusURI := GetMilvusURI(req.MilvusConnectParam)
 	newCollectionNames := lo.Map(req.CollectionInfos, func(t model.CollectionInfo, _ int) string {
 		return t.Name
 	})
 	e.collectionNames.Lock()
-	if names, ok := e.collectionNames.data[milvusAddress]; ok {
+	if names, ok := e.collectionNames.data[milvusURI]; ok {
 		existAll := lo.Contains(names, cdcreader.AllCollection)
 		duplicateCollections := lo.Filter(req.CollectionInfos, func(info model.CollectionInfo, _ int) bool {
 			return (!existAll && lo.Contains(names, info.Name)) || (existAll && info.Name == cdcreader.AllCollection)
@@ -206,7 +210,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 			})))
 		}
 		if existAll {
-			excludeCollectionNames := lo.Filter(e.collectionNames.excludeData[milvusAddress], func(s string, _ int) bool {
+			excludeCollectionNames := lo.Filter(e.collectionNames.excludeData[milvusURI], func(s string, _ int) bool {
 				return !lo.Contains(names, s)
 			})
 			duplicateCollections = lo.Filter(req.CollectionInfos, func(info model.CollectionInfo, _ int) bool {
@@ -223,21 +227,21 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	// release lock early to accept other requests
 	var excludeCollectionNames []string
 	if newCollectionNames[0] == cdcreader.AllCollection {
-		existCollectionNames := e.collectionNames.data[milvusAddress]
+		existCollectionNames := e.collectionNames.data[milvusURI]
 		excludeCollectionNames = make([]string, len(existCollectionNames))
 		copy(excludeCollectionNames, existCollectionNames)
-		e.collectionNames.excludeData[milvusAddress] = excludeCollectionNames
+		e.collectionNames.excludeData[milvusURI] = excludeCollectionNames
 	}
-	e.collectionNames.data[milvusAddress] = append(e.collectionNames.data[milvusAddress], newCollectionNames...)
+	e.collectionNames.data[milvusURI] = append(e.collectionNames.data[milvusURI], newCollectionNames...)
 	e.collectionNames.Unlock()
 
 	revertCollectionNames := func() {
 		e.collectionNames.Lock()
 		defer e.collectionNames.Unlock()
 		if newCollectionNames[0] == cdcreader.AllCollection {
-			e.collectionNames.excludeData[milvusAddress] = []string{}
+			e.collectionNames.excludeData[milvusURI] = []string{}
 		}
-		e.collectionNames.data[milvusAddress] = lo.Without(e.collectionNames.data[milvusAddress], newCollectionNames...)
+		e.collectionNames.data[milvusURI] = lo.Without(e.collectionNames.data[milvusURI], newCollectionNames...)
 	}
 
 	ctx := context.Background()
@@ -360,12 +364,19 @@ func (e *MetaCDC) getRPCChannelName(channelInfo model.ChannelInfo) string {
 
 func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 	connectParam := req.MilvusConnectParam
-	if connectParam.Host == "" {
-		return servererror.NewClientError("the milvus host is empty")
+	if connectParam.URI == "" && connectParam.Host == "" && connectParam.Port <= 0 {
+		return servererror.NewClientError("the milvus uri is empty")
 	}
-	if connectParam.Port <= 0 {
-		return servererror.NewClientError("the milvus port is less or equal zero")
+
+	if connectParam.URI == "" {
+		if connectParam.Host == "" {
+			return servererror.NewClientError("the milvus host is empty")
+		}
+		if connectParam.Port <= 0 {
+			return servererror.NewClientError("the milvus port is less or equal zero")
+		}
 	}
+
 	if (connectParam.Username != "" && connectParam.Password == "") ||
 		(connectParam.Username == "" && connectParam.Password != "") {
 		return servererror.NewClientError("cannot set only one of the milvus username and password")
@@ -387,11 +398,12 @@ func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 	if req.RPCChannelInfo.Name != "" && req.RPCChannelInfo.Name != e.config.SourceConfig.ReplicateChan {
 		return servererror.NewClientError("the rpc channel is invalid, the channel name should be the same as the source config")
 	}
+	connectParam.Token = GetMilvusToken(connectParam)
+	connectParam.URI = GetMilvusURI(connectParam)
 
 	_, err := cdcwriter.NewMilvusDataHandler(
-		cdcwriter.AddressOption(fmt.Sprintf("%s:%d", connectParam.Host, connectParam.Port)),
-		cdcwriter.UserOption(connectParam.Username, connectParam.Password),
-		cdcwriter.TLSOption(connectParam.EnableTLS),
+		cdcwriter.URIOption(connectParam.URI),
+		cdcwriter.TokenOption(connectParam.Token),
 		cdcwriter.IgnorePartitionOption(connectParam.IgnorePartition),
 		cdcwriter.ConnectTimeoutOption(connectParam.ConnectTimeout),
 		cdcwriter.DialConfigOption(connectParam.DialConfig),
@@ -464,10 +476,9 @@ func (e *MetaCDC) getUUID() string {
 
 func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) error {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
-	milvusConnectParam := info.MilvusConnectParam
-	milvusAddress := fmt.Sprintf("%s:%d", milvusConnectParam.Host, milvusConnectParam.Port)
+	milvusURI := GetMilvusURI(info.MilvusConnectParam)
 	e.replicateEntityMap.RLock()
-	replicateEntity, ok := e.replicateEntityMap.data[milvusAddress]
+	replicateEntity, ok := e.replicateEntityMap.data[milvusURI]
 	e.replicateEntityMap.RUnlock()
 
 	if !ok {
@@ -561,15 +572,15 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, error) {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
 	milvusConnectParam := info.MilvusConnectParam
-	milvusAddress := fmt.Sprintf("%s:%d", milvusConnectParam.Host, milvusConnectParam.Port)
 
 	ctx := context.TODO()
 	timeoutCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(milvusConnectParam.ConnectTimeout)*time.Second)
+	milvusConnectParam.Token = GetMilvusToken(milvusConnectParam)
+	milvusConnectParam.URI = GetMilvusURI(milvusConnectParam)
+	milvusAddress := milvusConnectParam.URI
 	milvusClient, err := cdcreader.NewTarget(timeoutCtx, cdcreader.TargetConfig{
-		Address:    milvusAddress,
-		Username:   milvusConnectParam.Username,
-		Password:   milvusConnectParam.Password,
-		EnableTLS:  milvusConnectParam.EnableTLS,
+		URI:        milvusAddress,
+		Token:      milvusConnectParam.Token,
 		DialConfig: milvusConnectParam.DialConfig,
 	})
 	cancelFunc()
@@ -620,9 +631,8 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	}
 	targetConfig := milvusConnectParam
 	dataHandler, err := cdcwriter.NewMilvusDataHandler(
-		cdcwriter.AddressOption(fmt.Sprintf("%s:%d", targetConfig.Host, targetConfig.Port)),
-		cdcwriter.UserOption(targetConfig.Username, targetConfig.Password),
-		cdcwriter.TLSOption(targetConfig.EnableTLS),
+		cdcwriter.URIOption(targetConfig.URI),
+		cdcwriter.TokenOption(targetConfig.Token),
 		cdcwriter.IgnorePartitionOption(targetConfig.IgnorePartition),
 		cdcwriter.ConnectTimeoutOption(targetConfig.ConnectTimeout),
 		cdcwriter.DialConfigOption(targetConfig.DialConfig),
@@ -913,14 +923,14 @@ func (e *MetaCDC) pauseTaskWithReason(taskID, reason string, currentStates []met
 	cdcTask.Reason = reason
 	e.cdcTasks.Unlock()
 
-	milvusAddress := GetMilvusAddress(cdcTask.MilvusConnectParam)
+	milvusURI := GetMilvusURI(cdcTask.MilvusConnectParam)
 	e.replicateEntityMap.Lock()
-	if replicateEntity, ok := e.replicateEntityMap.data[milvusAddress]; ok {
+	if replicateEntity, ok := e.replicateEntityMap.data[milvusURI]; ok {
 		if quitFunc, ok := replicateEntity.taskQuitFuncs.GetAndRemove(taskID); ok {
 			quitFunc()
 		}
 	}
-	delete(e.replicateEntityMap.data, milvusAddress)
+	delete(e.replicateEntityMap.data, milvusURI)
 	e.replicateEntityMap.Unlock()
 	return err
 }
@@ -955,13 +965,13 @@ func (e *MetaCDC) delete(taskID string) error {
 	if err != nil {
 		return errors.WithMessage(err, "fail to delete the task meta, task_id: "+taskID)
 	}
-	milvusAddress := fmt.Sprintf("%s:%d", info.MilvusConnectParam.Host, info.MilvusConnectParam.Port)
+	milvusURI := GetMilvusURI(info.MilvusConnectParam)
 	collectionNames := info.CollectionNames()
 	e.collectionNames.Lock()
 	if collectionNames[0] == cdcreader.AllCollection {
-		e.collectionNames.excludeData[milvusAddress] = []string{}
+		e.collectionNames.excludeData[milvusURI] = []string{}
 	}
-	e.collectionNames.data[milvusAddress] = lo.Without(e.collectionNames.data[milvusAddress], collectionNames...)
+	e.collectionNames.data[milvusURI] = lo.Without(e.collectionNames.data[milvusURI], collectionNames...)
 	e.collectionNames.Unlock()
 
 	e.cdcTasks.Lock()
@@ -969,7 +979,7 @@ func (e *MetaCDC) delete(taskID string) error {
 	e.cdcTasks.Unlock()
 
 	e.replicateEntityMap.Lock()
-	if replicateEntity, ok := e.replicateEntityMap.data[milvusAddress]; ok {
+	if replicateEntity, ok := e.replicateEntityMap.data[milvusURI]; ok {
 		if quitFunc, ok := replicateEntity.taskQuitFuncs.GetAndRemove(taskID); ok {
 			quitFunc()
 			replicateEntity.refCnt.Dec()
@@ -978,7 +988,7 @@ func (e *MetaCDC) delete(taskID string) error {
 			replicateEntity.entityQuitFunc()
 		}
 	}
-	delete(e.replicateEntityMap.data, milvusAddress)
+	delete(e.replicateEntityMap.data, milvusURI)
 	e.replicateEntityMap.Unlock()
 
 	return err
@@ -1113,10 +1123,6 @@ func (e *MetaCDC) List(req *request.ListRequest) (*request.ListResponse, error) 
 
 func (e *MetaCDC) Maintenance(req *request.MaintenanceRequest) (*request.MaintenanceResponse, error) {
 	return maintenance.Handle(req)
-}
-
-func GetMilvusAddress(param model.MilvusConnectParam) string {
-	return fmt.Sprintf("%s:%d", param.Host, param.Port)
 }
 
 func GetShouldReadFunc(taskInfo *meta.TaskInfo) cdcreader.ShouldReadFunc {

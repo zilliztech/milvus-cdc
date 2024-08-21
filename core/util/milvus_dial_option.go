@@ -32,11 +32,11 @@ import (
 )
 
 type DialConfig struct {
-	ServerName    string `json:"server_name" mapstructure:"server_name"`
-	ServerPemPath string `json:"server_pem_path" mapstructure:"server_pem_path"`
-	CaPemPath     string `json:"ca_pem_path" mapstructure:"ca_pem_path"`
-	ClientPemPath string `json:"client_pem_path" mapstructure:"client_pem_path"`
-	ClientKeyPath string `json:"client_key_path" mapstructure:"client_key_path"`
+	ServerName    string `json:"server_name,omitempty" mapstructure:"server_name,omitempty"`
+	ServerPemPath string `json:"server_pem_path,omitempty" mapstructure:"server_pem_path,omitempty"`
+	CaPemPath     string `json:"ca_pem_path,omitempty" mapstructure:"ca_pem_path,omitempty"`
+	ClientPemPath string `json:"client_pem_path,omitempty" mapstructure:"client_pem_path,omitempty"`
+	ClientKeyPath string `json:"client_key_path,omitempty" mapstructure:"client_key_path,omitempty"`
 }
 
 func GetDialOptions(config DialConfig) ([]grpc.DialOption, error) {

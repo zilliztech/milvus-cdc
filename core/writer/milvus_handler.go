@@ -41,9 +41,8 @@ import (
 type MilvusDataHandler struct {
 	api.DataHandler
 
-	address         string
-	username        string
-	password        string
+	uri             string
+	token           string
 	enableTLS       bool
 	ignorePartition bool // sometimes the has partition api is a deny api
 	connectTimeout  int
@@ -51,7 +50,6 @@ type MilvusDataHandler struct {
 	dialConfig      util.DialConfig
 }
 
-// NewMilvusDataHandler options must include AddressOption
 func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*MilvusDataHandler, error) {
 	handler := &MilvusDataHandler{
 		connectTimeout: 5,
@@ -59,8 +57,8 @@ func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*Milvus
 	for _, option := range options {
 		option.Apply(handler)
 	}
-	if handler.address == "" {
-		return nil, errors.New("empty milvus address")
+	if handler.uri == "" {
+		return nil, errors.New("empty milvus connect uri")
 	}
 
 	var err error
@@ -84,14 +82,14 @@ func (m *MilvusDataHandler) milvusOp(ctx context.Context, database string, f fun
 		var err error
 		var c client.Client
 		retryErr := retry.Do(ctx, func() error {
-			c, err = util.GetMilvusClientManager().GetMilvusClient(ctx, m.address, util.GetAPIKey(m.username, m.password), database, m.enableTLS, m.dialConfig)
+			c, err = util.GetMilvusClientManager().GetMilvusClient(ctx, m.uri, m.token, database, m.dialConfig)
 			if err != nil {
 				log.Warn("fail to get milvus client", zap.Error(err))
 				return err
 			}
 			err = f(c)
 			if status.Code(err) == codes.Canceled {
-				util.GetMilvusClientManager().DeleteMilvusClient(m.address, database)
+				util.GetMilvusClientManager().DeleteMilvusClient(m.uri, database)
 				log.Warn("grpc: the client connection is closing, waiting...", zap.Error(err))
 				time.Sleep(resource.DefaultExpiration)
 			}

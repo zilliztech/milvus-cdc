@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -59,19 +60,17 @@ func GetMilvusClientManager() *MilvusClientResourceManager {
 	return clientManager
 }
 
-func (m *MilvusClientResourceManager) newMilvusClient(ctx context.Context, address, apiKey, database string, enableTLS bool, dialConfig DialConfig) resource.NewResourceFunc {
+func (m *MilvusClientResourceManager) newMilvusClient(ctx context.Context, address, token, database string, dialConfig DialConfig) resource.NewResourceFunc {
 	return func() (resource.Resource, error) {
 		dialOptions, err := GetDialOptions(dialConfig)
 		if err != nil {
 			log.Warn("fail to get dial options", zap.Error(err))
 			return nil, err
 		}
-		if enableTLS {
-			address = fmt.Sprintf("https://%s", address)
-		}
+		enableTLS := strings.Contains(address, "https://")
 		c, err := client.NewClient(ctx, client.Config{
 			Address:       address,
-			APIKey:        apiKey,
+			APIKey:        token,
 			EnableTLSAuth: enableTLS,
 			DBName:        database,
 			DialOptions:   dialOptions,
@@ -89,14 +88,14 @@ func (m *MilvusClientResourceManager) newMilvusClient(ctx context.Context, addre
 	}
 }
 
-func (m *MilvusClientResourceManager) GetMilvusClient(ctx context.Context, address, apiKey, database string, enableTLS bool, dialConfig DialConfig) (client.Client, error) {
+func (m *MilvusClientResourceManager) GetMilvusClient(ctx context.Context, address, token, database string, dialConfig DialConfig) (client.Client, error) {
 	if database == "" {
 		database = DefaultDbName
 	}
 	ctxLog := log.Ctx(ctx).With(zap.String("database", database), zap.String("address", address))
 	res, err := m.manager.Get(MilvusClientResourceTyp,
 		getMilvusClientResourceName(address, database),
-		m.newMilvusClient(ctx, address, apiKey, database, enableTLS, dialConfig))
+		m.newMilvusClient(ctx, address, token, database, dialConfig))
 	if err != nil {
 		ctxLog.Error("fail to get milvus client", zap.Error(err))
 		return nil, err
@@ -116,6 +115,16 @@ func getMilvusClientResourceName(address, database string) string {
 	return fmt.Sprintf("%s:%s", address, database)
 }
 
-func GetAPIKey(username, password string) string {
+func GetToken(username, password string) string {
 	return fmt.Sprintf("%s:%s", username, password)
+}
+
+func GetURI(address string, port int, enableTLS bool) string {
+	if strings.Contains(address, "http://") || strings.Contains(address, "https://") {
+		return address
+	}
+	if enableTLS {
+		return fmt.Sprintf("https://%s:%d", address, port)
+	}
+	return fmt.Sprintf("http://%s:%d", address, port)
 }

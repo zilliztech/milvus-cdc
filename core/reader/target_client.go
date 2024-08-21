@@ -45,11 +45,9 @@ type TargetClient struct {
 }
 
 type TargetConfig struct {
-	Address    string
-	Username   string
-	Password   string
+	URI        string
+	Token      string
 	APIKey     string
-	EnableTLS  bool
 	DialConfig util.DialConfig
 }
 
@@ -61,16 +59,14 @@ func NewTarget(ctx context.Context, config TargetConfig) (api.TargetAPI, error) 
 }
 
 func (t *TargetClient) milvusOp(ctx context.Context, database string, f func(milvus client.Client) error) error {
-	c, err := util.GetMilvusClientManager().GetMilvusClient(ctx, t.config.Address,
-		util.GetAPIKey(t.config.Username, t.config.Password),
-		database, t.config.EnableTLS, t.config.DialConfig)
+	c, err := util.GetMilvusClientManager().GetMilvusClient(ctx, t.config.URI, t.config.Token, database, t.config.DialConfig)
 	if err != nil {
 		log.Warn("fail to get milvus client", zap.Error(err))
 		return err
 	}
 	err = f(c)
 	if status.Code(err) == codes.Canceled {
-		util.GetMilvusClientManager().DeleteMilvusClient(t.config.Address, database)
+		util.GetMilvusClientManager().DeleteMilvusClient(t.config.URI, database)
 		log.Warn("grpc: the client connection is closing, waiting...", zap.Error(err))
 		time.Sleep(resource.DefaultExpiration)
 	}
