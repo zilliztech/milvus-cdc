@@ -1255,6 +1255,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				continue
 			}
 			realMsg.ShardName = info.VChannel
+			// nolint
 			dataLen = int(realMsg.GetNumRows())
 		case *msgstream.DeleteMsg:
 			if info.Dropped {

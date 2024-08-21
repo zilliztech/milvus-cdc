@@ -306,10 +306,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		if err != nil {
 			return nil, servererror.NewServerError(errors.WithMessage(err, "fail to decode the rpc position data"))
 		}
-		rpcChannel := req.RPCChannelInfo.Name
-		if rpcChannel == "" {
-			rpcChannel = e.config.SourceConfig.ReplicateChan
-		}
+		rpcChannel := e.getRPCChannelName(req.RPCChannelInfo)
 
 		metaPosition := &meta.TaskCollectionPosition{
 			TaskID:         info.TaskID,
@@ -352,6 +349,13 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	}
 
 	return &request.CreateResponse{TaskID: info.TaskID}, nil
+}
+
+func (e *MetaCDC) getRPCChannelName(channelInfo model.ChannelInfo) string {
+	if channelInfo.Name != "" {
+		return channelInfo.Name
+	}
+	return e.config.SourceConfig.ReplicateChan
 }
 
 func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
@@ -517,7 +521,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 		log.Warn("fail to read the message", zap.Error(err))
 		_ = e.pauseTaskWithReason(info.TaskID, "fail to read the message, err:"+err.Error(), []meta.TaskState{})
 	}()
-	rpcRequestChannelName := info.RPCRequestChannelInfo.Name
+	rpcRequestChannelName := e.getRPCChannelName(info.RPCRequestChannelInfo)
 	rpcRequestPosition := info.RPCRequestChannelInfo.Position
 	if rpcRequestPosition == "" && channelSeekPosition[model.ReplicateCollectionID] != nil {
 		replicateSeekPosition := channelSeekPosition[model.ReplicateCollectionID][rpcRequestChannelName]
@@ -851,7 +855,7 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 			Set(float64(msgTime))
 		metrics.APIExecuteCountVec.WithLabelValues(info.TaskID, pack.Msgs[0].Type().String()).Inc()
 
-		rpcChannelName := info.RPCRequestChannelInfo.Name
+		rpcChannelName := e.getRPCChannelName(info.RPCRequestChannelInfo)
 		metaPosition := &meta.PositionInfo{
 			Time: msgTime,
 			DataPair: &commonpb.KeyDataPair{
