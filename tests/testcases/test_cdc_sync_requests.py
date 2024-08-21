@@ -277,7 +277,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(res) == 0
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect('downstream', host=downstream_host, port=downstream_port)
+        connections.connect(host=downstream_host, port=downstream_port)
         c_downstream = Collection(name=collection_name, using="downstream")
         timeout = 60
         t0 = time.time()
