@@ -118,6 +118,13 @@ type DisptachClientStreamCreator struct {
 	dispatchClient msgdispatcher.Client
 }
 
+func NewDisptachClientStreamCreator(factory msgstream.Factory, dispatchClient msgdispatcher.Client) *DisptachClientStreamCreator {
+	return &DisptachClientStreamCreator{
+		factory:        factory,
+		dispatchClient: dispatchClient,
+	}
+}
+
 func (dcsc *DisptachClientStreamCreator) GetStreamChan(ctx context.Context,
 	vchannel string,
 	seekPosition *msgstream.MsgPosition,

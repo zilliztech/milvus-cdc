@@ -144,11 +144,8 @@ body:
   "request_type":"create",
   "request_data":{
     "milvus_connect_param":{
-      "host":"localhost",
-      "port":19530,
-      "username":"root",
-      "password":"Milvus",
-      "enable_tls":true,
+      "uri":"http://localhost:19530",
+      "token":"root:Milvus",
       "connect_timeout":10
     },
     "collection_infos":[
@@ -190,11 +187,8 @@ body:
   "request_type":"create",
   "request_data":{
     "milvus_connect_param":{
-      "host":"localhost",
-      "port":19530,
-      "username":"root",
-      "password":"Milvus",
-      "enable_tls":true,
+      "uri":"https://localhost:19530",
+      "token":"root:Milvus",
       "connect_timeout":10,
       "dial_config": {
         "server_name": "localhost",
@@ -225,11 +219,8 @@ body:
   "request_type":"create",
   "request_data":{
     "milvus_connect_param":{
-      "host":"localhost",
-      "port":19530,
-      "username":"root",
-      "password":"Milvus",
-      "enable_tls":true,
+      "uri":"https://localhost:19530",
+      "token":"root:Milvus",
       "connect_timeout":10,
       "dial_config": {
         "server_name": "localhost",
@@ -366,9 +357,7 @@ body:
         }
       ],
       "milvus_connect_param": {
-        "connect_timeout": 10,
-        "enable_tls": true,
-        "host": "localhost",
+        "uri":"http://localhost:19530",
         "port": 19541
       },
       "reason": "manually pause through http interface",
@@ -405,8 +394,7 @@ body:
       {
         "task_id": "728070fdf999499da869fc3a896217b0",
         "milvus_connect_param": {
-          "host": "localhost",
-          "port": 19541,
+          "uri":"https://localhost:19530",
           "connect_timeout": 10
         },
         "collection_infos": [
