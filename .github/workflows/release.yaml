@@ -122,6 +122,6 @@ jobs:
       - name: Build and push docker image
         run: |
           tag=$(git tag --sort=-version:refname | head -1)
-          docker build -t milvusdb/milvus-cdc:$tag -t milvusdb/milvus-cdc:latest .
+          docker build --build-arg GIT_COMMIT_ARG=$(git rev-parse --short HEAD) -t milvusdb/milvus-cdc:$tag -t milvusdb/milvus-cdc:latest .
           docker push milvusdb/milvus-cdc:$tag
           docker push milvusdb/milvus-cdc:latest
