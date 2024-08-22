@@ -41,6 +41,7 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/config"
 	coremocks "github.com/zilliztech/milvus-cdc/core/mocks"
 	"github.com/zilliztech/milvus-cdc/core/pb"
+	cdcreader "github.com/zilliztech/milvus-cdc/core/reader"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/mocks"
 	"github.com/zilliztech/milvus-cdc/server/model"
@@ -49,46 +50,36 @@ import (
 )
 
 var (
-	endpoints    = []string{"localhost:2379"}
-	mysqlURL     = "root:123456@tcp(127.0.0.1:3306)/milvuscdc?charset=utf8"
-	rootPath     = "cdc"
-	serverConfig = &CDCServerConfig{
-		MetaStoreConfig: CDCMetaStoreConfig{
-			EtcdEndpoints: endpoints,
-			RootPath:      rootPath,
-		},
-		SourceConfig: MilvusSourceConfig{
-			EtcdAddress:     endpoints,
-			EtcdRootPath:    "by-dev",
-			EtcdMetaSubPath: "meta",
-		},
-	}
+	endpoints      = []string{"localhost:2379"}
+	mysqlURL       = "root:123456@tcp(127.0.0.1:3306)/milvuscdc?charset=utf8"
+	rootPath       = "cdc"
 	collectionName = "coll"
-	createRequest  = &request.CreateRequest{
-		MilvusConnectParam: model.MilvusConnectParam{
-			Host: "localhost",
-			Port: 19530,
-		},
-		CollectionInfos: []model.CollectionInfo{
-			{
-				Name: collectionName,
-			},
-		},
-	}
-	starRequest = &request.CreateRequest{
-		MilvusConnectParam: model.MilvusConnectParam{
-			Host: "localhost",
-			Port: 19530,
-		},
-		CollectionInfos: []model.CollectionInfo{
-			{
-				Name: "*",
-			},
-		},
+	pulsarConfig   = &config.PulsarConfig{
+		Address:    "pulsar://localhost:6650",
+		WebAddress: "localhost:8080",
+		Tenant:     "public",
+		Namespace:  "default",
 	}
 )
 
+func createTopic(topic string) error {
+	util.InitMilvusPkgParam()
+	c := cdcreader.NewDefaultFactoryCreator()
+	f := c.NewPmsFactory(pulsarConfig)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	s, err := f.NewMsgStream(timeoutCtx)
+	if err != nil {
+		return err
+	}
+	s.AsProducer([]string{topic})
+	s.Close()
+	return nil
+}
+
 func TestNewMetaCDC(t *testing.T) {
+	createErr := createTopic("by-dev-replicate-msg")
+	assert.NoError(t, createErr)
 	t.Run("invalid meta store type", func(t *testing.T) {
 		assert.Panics(t, func() {
 			NewMetaCDC(&CDCServerConfig{
@@ -136,6 +127,24 @@ func TestNewMetaCDC(t *testing.T) {
 			})
 		})
 
+		// invalid pulsar address
+		{
+			NewMetaCDC(&CDCServerConfig{
+				MetaStoreConfig: CDCMetaStoreConfig{
+					StoreType:     "etcd",
+					EtcdEndpoints: endpoints,
+					RootPath:      "cdc-test",
+				},
+				SourceConfig: MilvusSourceConfig{
+					ReplicateChan: "by-dev-replicate-msg",
+					EtcdAddress:   endpoints,
+					Pulsar: config.PulsarConfig{
+						Address: "invalid",
+					},
+				},
+			})
+		}
+
 		// success
 		{
 			NewMetaCDC(&CDCServerConfig{
@@ -147,6 +156,7 @@ func TestNewMetaCDC(t *testing.T) {
 				SourceConfig: MilvusSourceConfig{
 					ReplicateChan: "by-dev-replicate-msg",
 					EtcdAddress:   endpoints,
+					Pulsar:        *pulsarConfig,
 				},
 			})
 		}
@@ -177,6 +187,7 @@ func TestNewMetaCDC(t *testing.T) {
 				SourceConfig: MilvusSourceConfig{
 					EtcdAddress:   endpoints,
 					ReplicateChan: "by-dev-replicate-msg",
+					Pulsar:        *pulsarConfig,
 				},
 			})
 		}

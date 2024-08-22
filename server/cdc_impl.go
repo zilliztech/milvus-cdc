@@ -128,18 +128,38 @@ func NewMetaCDC(serverConfig *CDCServerConfig) *MetaCDC {
 	if err != nil {
 		log.Panic("fail to get etcd client for connect the source etcd data", zap.Error(err))
 	}
-	// TODO check mq status
 
 	cdc := &MetaCDC{
 		metaStoreFactory: factory,
 		config:           serverConfig,
 		mqFactoryCreator: cdcreader.NewDefaultFactoryCreator(),
 	}
+
+	err = cdc.checkMQConnection()
+	if err != nil {
+		log.Panic("fail to check the mq connection", zap.Error(err))
+	}
+
 	cdc.collectionNames.data = make(map[string][]string)
 	cdc.collectionNames.excludeData = make(map[string][]string)
 	cdc.cdcTasks.data = make(map[string]*meta.TaskInfo)
 	cdc.replicateEntityMap.data = make(map[string]*ReplicateEntity)
 	return cdc
+}
+
+func (e *MetaCDC) checkMQConnection() error {
+	mqConfig := config.MQConfig{
+		Pulsar: e.config.SourceConfig.Pulsar,
+		Kafka:  e.config.SourceConfig.Kafka,
+	}
+	f, err := cdcreader.GetStreamFactory(e.mqFactoryCreator, mqConfig, false)
+	if err != nil {
+		return err
+	}
+	d := cdcreader.NewDisptachClientStreamCreator(f, nil)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return d.CheckConnection(timeoutCtx, util.GetVChannel(e.config.SourceConfig.ReplicateChan, "000000"), nil)
 }
 
 func (e *MetaCDC) ReloadTask() {
