@@ -818,7 +818,7 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 							HashValues:     []uint32{uint32(0)},
 							MsgPosition:    generatePosition,
 						},
-						DropCollectionRequest: msgpb.DropCollectionRequest{
+						DropCollectionRequest: &msgpb.DropCollectionRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:   commonpb.MsgType_DropCollection,
 								Timestamp: generatePosition.Timestamp,
@@ -923,7 +923,7 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 							HashValues:     []uint32{uint32(0)},
 							MsgPosition:    generatePosition,
 						},
-						DropPartitionRequest: msgpb.DropPartitionRequest{
+						DropPartitionRequest: &msgpb.DropPartitionRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:   commonpb.MsgType_DropPartition,
 								Timestamp: generatePosition.Timestamp,
@@ -1424,7 +1424,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		return api.GetReplicateMsg(sourceCollectionName, sourceCollectionID, newPack)
 	}
 	generateTS := maxTS
-	timeTickResult := msgpb.TimeTickMsg{
+	timeTickResult := &msgpb.TimeTickMsg{
 		Base: commonpbutil.NewMsgBase(
 			commonpbutil.WithMsgType(commonpb.MsgType_TimeTick),
 			commonpbutil.WithMsgID(0),
@@ -1529,7 +1529,7 @@ func copyDropTypeMsg(msg msgstream.TsMsg) msgstream.TsMsg {
 				HashValues:     hashValues,
 				MsgPosition:    typeutil.Clone(realMsg.MsgPosition),
 			},
-			DropCollectionRequest: *typeutil.Clone(&realMsg.DropCollectionRequest),
+			DropCollectionRequest: typeutil.Clone(realMsg.DropCollectionRequest),
 		}
 		return copyDropCollectionMsg
 	case *msgstream.DropPartitionMsg:
@@ -1543,7 +1543,7 @@ func copyDropTypeMsg(msg msgstream.TsMsg) msgstream.TsMsg {
 				HashValues:     hashValues,
 				MsgPosition:    typeutil.Clone(realMsg.MsgPosition),
 			},
-			DropPartitionRequest: *typeutil.Clone(&realMsg.DropPartitionRequest),
+			DropPartitionRequest: typeutil.Clone(realMsg.DropPartitionRequest),
 		}
 		return copyDropPartitionMsg
 	default:

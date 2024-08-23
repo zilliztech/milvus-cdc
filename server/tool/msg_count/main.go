@@ -31,11 +31,11 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	"github.com/golang/protobuf/proto"
 	"github.com/samber/lo"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"google.golang.org/protobuf/proto"
 	"sigs.k8s.io/yaml"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"

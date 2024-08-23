@@ -28,13 +28,13 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 	"github.com/milvus-io/milvus/pkg/util/resource"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
@@ -331,11 +331,12 @@ func (m *MilvusDataHandler) DropRole(ctx context.Context, param *api.DropRolePar
 
 func (m *MilvusDataHandler) OperateUserRole(ctx context.Context, param *api.OperateUserRoleParam) error {
 	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		if param.Type == milvuspb.OperateUserRoleType_AddUserToRole {
+		switch param.Type {
+		case milvuspb.OperateUserRoleType_AddUserToRole:
 			return milvus.AddUserRole(ctx, param.Username, param.RoleName)
-		} else if param.Type == milvuspb.OperateUserRoleType_RemoveUserFromRole {
+		case milvuspb.OperateUserRoleType_RemoveUserFromRole:
 			return milvus.RemoveUserRole(ctx, param.Username, param.RoleName)
-		} else {
+		default:
 			log.Warn("unknown operate user role type", zap.String("type", param.Type.String()))
 			return nil
 		}
@@ -349,19 +350,20 @@ func (m *MilvusDataHandler) OperatePrivilege(ctx context.Context, param *api.Ope
 	}
 
 	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		if param.Type == milvuspb.OperatePrivilegeType_Grant {
+		switch param.Type {
+		case milvuspb.OperatePrivilegeType_Grant:
 			return milvus.Grant(ctx, param.GetEntity().GetRole().GetName(),
 				objectType,
 				param.GetEntity().GetObjectName(),
 				param.GetEntity().GetGrantor().GetPrivilege().GetName(),
 				entity.WithOperatePrivilegeDatabase(param.GetEntity().GetDbName()))
-		} else if param.Type == milvuspb.OperatePrivilegeType_Revoke {
+		case milvuspb.OperatePrivilegeType_Revoke:
 			return milvus.Revoke(ctx, param.GetEntity().GetRole().GetName(),
 				objectType,
 				param.GetEntity().GetObjectName(),
 				param.GetEntity().GetGrantor().GetPrivilege().GetName(),
 				entity.WithOperatePrivilegeDatabase(param.GetEntity().GetDbName()))
-		} else {
+		default:
 			log.Warn("unknown operate privilege type", zap.String("type", param.Type.String()))
 			return nil
 		}
