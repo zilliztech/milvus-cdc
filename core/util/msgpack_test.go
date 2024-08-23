@@ -50,7 +50,7 @@ func TestGetCollectionNameFromMsgPack(t *testing.T) {
 		msgPack := &msgstream.MsgPack{
 			Msgs: []msgstream.TsMsg{
 				&msgstream.CreateCollectionMsg{
-					CreateCollectionRequest: msgpb.CreateCollectionRequest{
+					CreateCollectionRequest: &msgpb.CreateCollectionRequest{
 						CollectionName: "test",
 					},
 				},

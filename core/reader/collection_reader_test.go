@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
@@ -91,7 +91,7 @@ func TestCollectionReader(t *testing.T) {
 			State:         pb.PartitionState_PartitionCreated,
 			PartitionName: "foo",
 			PartitionID:   200005,
-			CollectionID:  100002,
+			CollectionId:  100002,
 		}
 		_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/100002/200005", getStringForMessage(info))
 
@@ -100,7 +100,7 @@ func TestCollectionReader(t *testing.T) {
 				State:         pb.PartitionState_PartitionCreated,
 				PartitionName: "foo",
 				PartitionID:   300046,
-				CollectionID:  100003,
+				CollectionId:  100003,
 			}
 			_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/100003/300046", getStringForMessage(info))
 		}
@@ -168,7 +168,7 @@ func TestCollectionReader(t *testing.T) {
 				State:         pb.PartitionState_PartitionCreated,
 				PartitionName: "foo",
 				PartitionID:   300047,
-				CollectionID:  100003,
+				CollectionId:  100003,
 			}
 			_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/100003/300047", getStringForMessage(info))
 		}
@@ -202,7 +202,7 @@ func TestCollectionReader(t *testing.T) {
 			State:         pb.PartitionState_PartitionCreated,
 			PartitionName: "foo",
 			PartitionID:   200045,
-			CollectionID:  100004,
+			CollectionId:  100004,
 		}
 		_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/100004/200045", getStringForMessage(info))
 	}
@@ -214,7 +214,7 @@ func TestCollectionReader(t *testing.T) {
 				State:         pb.PartitionState_PartitionCreated,
 				PartitionName: "foo",
 				PartitionID:   900045,
-				CollectionID:  900004,
+				CollectionId:  900004,
 			}
 			_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/900004/900045", getStringForMessage(info))
 		}
@@ -225,7 +225,7 @@ func TestCollectionReader(t *testing.T) {
 				State:         pb.PartitionState_PartitionCreated,
 				PartitionName: "foo",
 				PartitionID:   300045,
-				CollectionID:  100003,
+				CollectionId:  100003,
 			}
 			_, _ = realOp.etcdClient.Put(context.Background(), realOp.partitionPrefix()+"/100003/300045", getStringForMessage(info))
 		}

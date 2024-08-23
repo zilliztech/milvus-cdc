@@ -604,7 +604,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}, &pb.PartitionInfo{
 			PartitionID:   1021,
 			PartitionName: "p1",
-			CollectionID:  1,
+			CollectionId:  1,
 		}, partitionBarrierChan)
 		assert.NoError(t, err)
 
@@ -701,7 +701,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
-					CreateCollectionRequest: msgpb.CreateCollectionRequest{
+					CreateCollectionRequest: &msgpb.CreateCollectionRequest{
 						Base: &commonpb.MsgBase{
 							MsgType: commonpb.MsgType_CreateCollection,
 						},
@@ -713,7 +713,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
-					CreatePartitionRequest: msgpb.CreatePartitionRequest{
+					CreatePartitionRequest: &msgpb.CreatePartitionRequest{
 						Base: &commonpb.MsgBase{
 							MsgType: commonpb.MsgType_CreatePartition,
 						},
@@ -725,7 +725,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
-					TimeTickMsg: msgpb.TimeTickMsg{
+					TimeTickMsg: &msgpb.TimeTickMsg{
 						Base: &commonpb.MsgBase{
 							MsgType: commonpb.MsgType_TimeTick,
 						},
@@ -737,7 +737,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
-					TimeTickMsg: msgpb.TimeTickMsg{
+					TimeTickMsg: &msgpb.TimeTickMsg{
 						Base: &commonpb.MsgBase{
 							MsgType: commonpb.MsgType_ShowCollections,
 						},
@@ -766,7 +766,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
-					TimeTickMsg: msgpb.TimeTickMsg{
+					TimeTickMsg: &msgpb.TimeTickMsg{
 						Base: &commonpb.MsgBase{
 							MsgType: commonpb.MsgType_TimeTick,
 						},
@@ -795,7 +795,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
-					TimeTickMsg: msgpb.TimeTickMsg{
+					TimeTickMsg: &msgpb.TimeTickMsg{
 						Base: &commonpb.MsgBase{
 							MsgType: commonpb.MsgType_ShowCollections,
 						},
@@ -826,7 +826,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
-					InsertRequest: msgpb.InsertRequest{
+					InsertRequest: &msgpb.InsertRequest{
 						Base: &commonpb.MsgBase{
 							MsgType: commonpb.MsgType_Insert,
 						},
@@ -861,7 +861,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						EndTimestamp:   1,
 						HashValues:     []uint32{0},
 					},
-					DeleteRequest: msgpb.DeleteRequest{
+					DeleteRequest: &msgpb.DeleteRequest{
 						Base: &commonpb.MsgBase{
 							MsgType: commonpb.MsgType_Delete,
 						},
@@ -875,7 +875,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
-					DeleteRequest: msgpb.DeleteRequest{
+					DeleteRequest: &msgpb.DeleteRequest{
 						Base: &commonpb.MsgBase{
 							MsgType: commonpb.MsgType_Delete,
 						},
@@ -910,7 +910,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
-					DropPartitionRequest: msgpb.DropPartitionRequest{
+					DropPartitionRequest: &msgpb.DropPartitionRequest{
 						Base: &commonpb.MsgBase{
 							MsgType: commonpb.MsgType_DropPartition,
 						},
@@ -944,7 +944,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
-					DropCollectionRequest: msgpb.DropCollectionRequest{
+					DropCollectionRequest: &msgpb.DropCollectionRequest{
 						Base: &commonpb.MsgBase{
 							MsgType: commonpb.MsgType_DropCollection,
 						},
@@ -988,7 +988,7 @@ func TestResetPack(t *testing.T) {
 				BaseMsg: msgstream.BaseMsg{
 					BeginTimestamp: 10,
 				},
-				InsertRequest: msgpb.InsertRequest{
+				InsertRequest: &msgpb.InsertRequest{
 					Timestamps: []uint64{10},
 				},
 			},
@@ -996,7 +996,7 @@ func TestResetPack(t *testing.T) {
 				BaseMsg: msgstream.BaseMsg{
 					BeginTimestamp: 11,
 				},
-				DeleteRequest: msgpb.DeleteRequest{
+				DeleteRequest: &msgpb.DeleteRequest{
 					Timestamps: []uint64{11},
 				},
 			},
@@ -1004,7 +1004,7 @@ func TestResetPack(t *testing.T) {
 				BaseMsg: msgstream.BaseMsg{
 					BeginTimestamp: 11,
 				},
-				InsertRequest: msgpb.InsertRequest{
+				InsertRequest: &msgpb.InsertRequest{
 					Timestamps: []uint64{11},
 				},
 			},
@@ -1012,7 +1012,7 @@ func TestResetPack(t *testing.T) {
 				BaseMsg: msgstream.BaseMsg{
 					BeginTimestamp: 20,
 				},
-				DeleteRequest: msgpb.DeleteRequest{
+				DeleteRequest: &msgpb.DeleteRequest{
 					Timestamps: []uint64{20},
 				},
 			},
@@ -1046,7 +1046,7 @@ func TestResetPack2(t *testing.T) {
 				BaseMsg: msgstream.BaseMsg{
 					BeginTimestamp: 11,
 				},
-				InsertRequest: msgpb.InsertRequest{
+				InsertRequest: &msgpb.InsertRequest{
 					Base: &commonpb.MsgBase{
 						MsgType: commonpb.MsgType_Insert,
 					},
@@ -1057,7 +1057,7 @@ func TestResetPack2(t *testing.T) {
 				BaseMsg: msgstream.BaseMsg{
 					BeginTimestamp: 11,
 				},
-				DeleteRequest: msgpb.DeleteRequest{
+				DeleteRequest: &msgpb.DeleteRequest{
 					Base: &commonpb.MsgBase{
 						MsgType: commonpb.MsgType_Delete,
 					},

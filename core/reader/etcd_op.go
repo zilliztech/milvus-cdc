@@ -28,9 +28,9 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
-	"github.com/golang/protobuf/proto"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/common"
@@ -366,7 +366,7 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 								hasConsume := e.subscribePartitionEvent.Range(func(key string, value api.PartitionEventConsumer) bool {
 									if value != nil && value(beforeInfo) {
 										log.Info("the partition has been consumed",
-											zap.Int64("collection_id", beforeInfo.CollectionID),
+											zap.Int64("collection_id", beforeInfo.CollectionId),
 											zap.String("partition_name", beforeInfo.PartitionName),
 											zap.String("key", partitionKey),
 											zap.String("task_id", key))
@@ -376,7 +376,7 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 								})
 								if !hasConsume {
 									log.Info("the partition is not consumed",
-										zap.Int64("collection_id", beforeInfo.CollectionID),
+										zap.Int64("collection_id", beforeInfo.CollectionId),
 										zap.String("partition_name", beforeInfo.PartitionName),
 										zap.String("key", partitionKey))
 								}
@@ -387,13 +387,13 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 						if info.State != pb.PartitionState_PartitionCreated ||
 							strings.Contains(info.PartitionName, e.defaultPartitionName) {
 							log.Info("partition state is not created or partition name is default",
-								zap.Int64("collection_id", info.CollectionID),
+								zap.Int64("collection_id", info.CollectionId),
 								zap.String("partition name", info.PartitionName), zap.Any("state", info.State))
 							continue
 						}
 						if filter != nil && filter(info) {
 							log.Info("partition filter",
-								zap.Int64("collection_id", info.CollectionID),
+								zap.Int64("collection_id", info.CollectionId),
 								zap.String("partition name", info.PartitionName))
 							continue
 						}
@@ -403,7 +403,7 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 							hasConsume := e.subscribePartitionEvent.Range(func(key string, value api.PartitionEventConsumer) bool {
 								if value != nil && value(info) {
 									log.Info("the partition has been consumed",
-										zap.Int64("collection_id", info.CollectionID),
+										zap.Int64("collection_id", info.CollectionId),
 										zap.String("partition_name", info.PartitionName),
 										zap.String("key", partitionKey),
 										zap.String("task_id", key))
@@ -413,7 +413,7 @@ func (e *EtcdOp) WatchPartition(ctx context.Context, filter api.PartitionFilter)
 							})
 							if !hasConsume {
 								log.Info("the partition is not consumed",
-									zap.Int64("collection_id", info.CollectionID),
+									zap.Int64("collection_id", info.CollectionId),
 									zap.String("partition_name", info.PartitionName),
 									zap.String("key", partitionKey))
 							}
@@ -843,15 +843,15 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 	}
 
 	for _, partition := range partitions {
-		collectionName := e.collectionID2Name.LoadWithDefault(partition.CollectionID, "")
+		collectionName := e.collectionID2Name.LoadWithDefault(partition.CollectionId, "")
 		if collectionName == "" {
 			log.Panic("fail to get collection name for partition",
-				zap.Int64("partition_id", partition.PartitionID), zap.Int64("collection_id", partition.CollectionID))
+				zap.Int64("partition_id", partition.PartitionID), zap.Int64("collection_id", partition.CollectionId))
 			continue
 		}
-		originDBName := getDBNameForCollection(partition.CollectionID)
+		originDBName := getDBNameForCollection(partition.CollectionId)
 		if originDBName == "" {
-			log.Panic("fail to get db name for collection", zap.Int64("collection_id", partition.CollectionID))
+			log.Panic("fail to get db name for collection", zap.Int64("collection_id", partition.CollectionId))
 			continue
 		}
 		dbName, err := e.targetMilvus.GetDatabaseName(context.Background(), collectionName, originDBName)
