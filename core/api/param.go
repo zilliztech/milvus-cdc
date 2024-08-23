@@ -80,94 +80,94 @@ type DropPartitionParam struct {
 
 type CreateIndexParam struct {
 	ReplicateParam
-	milvuspb.CreateIndexRequest
+	*milvuspb.CreateIndexRequest
 }
 
 type DropIndexParam struct {
 	ReplicateParam
-	milvuspb.DropIndexRequest
+	*milvuspb.DropIndexRequest
 }
 
 const IndexKeyMmap = "mmap.enabled"
 
 type AlterIndexParam struct {
 	ReplicateParam
-	milvuspb.AlterIndexRequest
+	*milvuspb.AlterIndexRequest
 }
 
 type LoadCollectionParam struct {
 	ReplicateParam
-	milvuspb.LoadCollectionRequest
+	*milvuspb.LoadCollectionRequest
 }
 
 type ReleaseCollectionParam struct {
 	ReplicateParam
-	milvuspb.ReleaseCollectionRequest
+	*milvuspb.ReleaseCollectionRequest
 }
 
 type LoadPartitionsParam struct {
 	ReplicateParam
-	milvuspb.LoadPartitionsRequest
+	*milvuspb.LoadPartitionsRequest
 }
 
 type ReleasePartitionsParam struct {
 	ReplicateParam
-	milvuspb.ReleasePartitionsRequest
+	*milvuspb.ReleasePartitionsRequest
 }
 
 type CreateDatabaseParam struct {
 	ReplicateParam
-	milvuspb.CreateDatabaseRequest
+	*milvuspb.CreateDatabaseRequest
 }
 
 type DropDatabaseParam struct {
 	ReplicateParam
-	milvuspb.DropDatabaseRequest
+	*milvuspb.DropDatabaseRequest
 }
 
 type AlterDatabaseParam struct {
 	ReplicateParam
-	milvuspb.AlterDatabaseRequest
+	*milvuspb.AlterDatabaseRequest
 }
 
 type FlushParam struct {
 	ReplicateParam
-	milvuspb.FlushRequest
+	*milvuspb.FlushRequest
 }
 
 type CreateUserParam struct {
 	ReplicateParam
-	milvuspb.CreateCredentialRequest
+	*milvuspb.CreateCredentialRequest
 }
 
 type UpdateUserParam struct {
 	ReplicateParam
-	milvuspb.UpdateCredentialRequest
+	*milvuspb.UpdateCredentialRequest
 }
 
 type DeleteUserParam struct {
 	ReplicateParam
-	milvuspb.DeleteCredentialRequest
+	*milvuspb.DeleteCredentialRequest
 }
 
 type CreateRoleParam struct {
 	ReplicateParam
-	milvuspb.CreateRoleRequest
+	*milvuspb.CreateRoleRequest
 }
 
 type DropRoleParam struct {
 	ReplicateParam
-	milvuspb.DropRoleRequest
+	*milvuspb.DropRoleRequest
 }
 
 type OperateUserRoleParam struct {
 	ReplicateParam
-	milvuspb.OperateUserRoleRequest
+	*milvuspb.OperateUserRoleRequest
 }
 
 type OperatePrivilegeParam struct {
 	ReplicateParam
-	milvuspb.OperatePrivilegeRequest
+	*milvuspb.OperatePrivilegeRequest
 }
 
 type ReplicateMessageParam struct {

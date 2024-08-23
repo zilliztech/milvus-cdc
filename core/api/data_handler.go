@@ -43,15 +43,25 @@ type DataHandler interface {
 
 	CreateIndex(ctx context.Context, param *CreateIndexParam) error
 	DropIndex(ctx context.Context, param *DropIndexParam) error
+	AlterIndex(ctx context.Context, param *AlterIndexParam) error
 
 	CreateDatabase(ctx context.Context, param *CreateDatabaseParam) error
 	DropDatabase(ctx context.Context, param *DropDatabaseParam) error
+	AlterDatabase(ctx context.Context, param *AlterDatabaseParam) error
 
 	ReplicateMessage(ctx context.Context, param *ReplicateMessageParam) error
 
 	DescribeCollection(ctx context.Context, param *DescribeCollectionParam) error
 	DescribeDatabase(ctx context.Context, param *DescribeDatabaseParam) error
 	DescribePartition(ctx context.Context, param *DescribePartitionParam) error
+
+	CreateUser(ctx context.Context, param *CreateUserParam) error
+	DeleteUser(ctx context.Context, param *DeleteUserParam) error
+	UpdateUser(ctx context.Context, param *UpdateUserParam) error
+	CreateRole(ctx context.Context, param *CreateRoleParam) error
+	DropRole(ctx context.Context, param *DropRoleParam) error
+	OperateUserRole(ctx context.Context, param *OperateUserRoleParam) error
+	OperatePrivilege(ctx context.Context, param *OperatePrivilegeParam) error
 }
 
 type DefaultDataHandler struct{}
@@ -98,6 +108,11 @@ func (d *DefaultDataHandler) DropIndex(ctx context.Context, param *DropIndexPara
 	return nil
 }
 
+func (d *DefaultDataHandler) AlterIndex(ctx context.Context, param *AlterIndexParam) error {
+	log.Warn("AlterIndex is not implemented, please check it")
+	return nil
+}
+
 func (d *DefaultDataHandler) LoadCollection(ctx context.Context, param *LoadCollectionParam) error {
 	log.Warn("LoadCollection is not implemented, please check it")
 	return nil
@@ -120,6 +135,11 @@ func (d *DefaultDataHandler) CreateDatabase(ctx context.Context, param *CreateDa
 
 func (d *DefaultDataHandler) DropDatabase(ctx context.Context, param *DropDatabaseParam) error {
 	log.Warn("DropDatabase is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) AlterDatabase(ctx context.Context, param *AlterDatabaseParam) error {
+	log.Warn("AlterDatabase is not implemented, please check it")
 	return nil
 }
 
@@ -150,5 +170,40 @@ func (d *DefaultDataHandler) DescribeDatabase(ctx context.Context, param *Descri
 
 func (d *DefaultDataHandler) DescribePartition(ctx context.Context, param *DescribePartitionParam) error {
 	log.Warn("DescribePartition is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) CreateUser(ctx context.Context, param *CreateUserParam) error {
+	log.Warn("CreateUser is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) DeleteUser(ctx context.Context, param *DeleteUserParam) error {
+	log.Warn("DeleteUser is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) UpdateUser(ctx context.Context, param *UpdateUserParam) error {
+	log.Warn("UpdateUser is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) CreateRole(ctx context.Context, param *CreateRoleParam) error {
+	log.Warn("CreateRole is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) DropRole(ctx context.Context, param *DropRoleParam) error {
+	log.Warn("DropRole is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) OperateUserRole(ctx context.Context, param *OperateUserRoleParam) error {
+	log.Warn("OperateUserRole is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) OperatePrivilege(ctx context.Context, param *OperatePrivilegeParam) error {
+	log.Warn("OperatePrivilege is not implemented, please check it")
 	return nil
 }

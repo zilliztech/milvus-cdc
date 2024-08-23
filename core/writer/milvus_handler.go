@@ -32,6 +32,7 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
+	"github.com/milvus-io/milvus/pkg/util/crypto"
 	"github.com/milvus-io/milvus/pkg/util/resource"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 
@@ -300,8 +301,12 @@ func (m *MilvusDataHandler) AlterDatabase(ctx context.Context, param *api.AlterD
 }
 
 func (m *MilvusDataHandler) CreateUser(ctx context.Context, param *api.CreateUserParam) error {
+	pwd, err := DecodePwd(param.Password)
+	if err != nil {
+		return err
+	}
 	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		return milvus.CreateCredential(ctx, param.Username, param.Password)
+		return milvus.CreateCredential(ctx, param.Username, pwd)
 	})
 }
 
@@ -312,9 +317,21 @@ func (m *MilvusDataHandler) DeleteUser(ctx context.Context, param *api.DeleteUse
 }
 
 func (m *MilvusDataHandler) UpdateUser(ctx context.Context, param *api.UpdateUserParam) error {
+	oldPwd, err := DecodePwd(param.OldPassword)
+	if err != nil {
+		return err
+	}
+	newPwd, err := DecodePwd(param.NewPassword)
+	if err != nil {
+		return err
+	}
 	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		return milvus.UpdateCredential(ctx, param.Username, param.OldPassword, param.NewPassword)
+		return milvus.UpdateCredential(ctx, param.Username, oldPwd, newPwd)
 	})
+}
+
+func DecodePwd(pwd string) (string, error) {
+	return crypto.Base64Decode(pwd)
 }
 
 func (m *MilvusDataHandler) CreateRole(ctx context.Context, param *api.CreateRoleParam) error {
