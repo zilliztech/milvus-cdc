@@ -103,13 +103,22 @@ func (c *ChannelWriter) initOPMessageFuncs() {
 	c.opMessageFuncs = map[commonpb.MsgType]opMessageFunc{
 		commonpb.MsgType_CreateDatabase:    c.createDatabase,
 		commonpb.MsgType_DropDatabase:      c.dropDatabase,
+		commonpb.MsgType_AlterDatabase:     c.alterDatabase,
 		commonpb.MsgType_Flush:             c.flush,
 		commonpb.MsgType_CreateIndex:       c.createIndex,
 		commonpb.MsgType_DropIndex:         c.dropIndex,
+		commonpb.MsgType_AlterIndex:        c.alterIndex,
 		commonpb.MsgType_LoadCollection:    c.loadCollection,
 		commonpb.MsgType_ReleaseCollection: c.releaseCollection,
 		commonpb.MsgType_LoadPartitions:    c.loadPartitions,
 		commonpb.MsgType_ReleasePartitions: c.releasePartitions,
+		commonpb.MsgType_CreateCredential:  c.createCredential,
+		commonpb.MsgType_DeleteCredential:  c.deleteCredential,
+		commonpb.MsgType_UpdateCredential:  c.updateCredential,
+		commonpb.MsgType_CreateRole:        c.createRole,
+		commonpb.MsgType_DropRole:          c.dropRole,
+		commonpb.MsgType_OperateUserRole:   c.operateUserRole,
+		commonpb.MsgType_OperatePrivilege:  c.operatePrivilege,
 	}
 }
 
@@ -496,7 +505,7 @@ func (c *ChannelWriter) dropPartition(ctx context.Context, apiEvent *api.Replica
 func (c *ChannelWriter) createDatabase(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	createDatabaseMsg := msg.(*msgstream.CreateDatabaseMsg)
 	err := c.dataHandler.CreateDatabase(ctx, &api.CreateDatabaseParam{
-		CreateDatabaseRequest: milvuspb.CreateDatabaseRequest{
+		CreateDatabaseRequest: &milvuspb.CreateDatabaseRequest{
 			Base:   msgBase,
 			DbName: createDatabaseMsg.GetDbName(),
 		},
@@ -512,7 +521,7 @@ func (c *ChannelWriter) dropDatabase(ctx context.Context, msgBase *commonpb.MsgB
 	dropDatabaseMsg := msg.(*msgstream.DropDatabaseMsg)
 	databaseName := dropDatabaseMsg.GetDbName()
 	err := c.dataHandler.DropDatabase(ctx, &api.DropDatabaseParam{
-		DropDatabaseRequest: milvuspb.DropDatabaseRequest{
+		DropDatabaseRequest: &milvuspb.DropDatabaseRequest{
 			Base:   msgBase,
 			DbName: databaseName,
 		},
@@ -523,6 +532,19 @@ func (c *ChannelWriter) dropDatabase(ctx context.Context, msgBase *commonpb.MsgB
 	}
 	_, dropKey := util.GetDBInfoKeys(databaseName)
 	c.dbInfos.Store(dropKey, dropDatabaseMsg.EndTs())
+	return nil
+}
+
+func (c *ChannelWriter) alterDatabase(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	alterDatabaseMsg := msg.(*msgstream.AlterDatabaseMsg)
+	alterDatabaseMsg.Base = msgBase
+	err := c.dataHandler.AlterDatabase(ctx, &api.AlterDatabaseParam{
+		AlterDatabaseRequest: alterDatabaseMsg.AlterDatabaseRequest,
+	})
+	if err != nil {
+		log.Warn("failed to alter database", zap.Any("msg", alterDatabaseMsg), zap.Error(err))
+		return err
+	}
 	return nil
 }
 
@@ -546,7 +568,7 @@ func (c *ChannelWriter) flush(ctx context.Context, msgBase *commonpb.MsgBase, ms
 		ReplicateParam: api.ReplicateParam{
 			Database: flushMsg.GetDbName(),
 		},
-		FlushRequest: milvuspb.FlushRequest{
+		FlushRequest: &milvuspb.FlushRequest{
 			Base:            msgBase,
 			CollectionNames: collectionNames,
 		},
@@ -574,17 +596,12 @@ func (c *ChannelWriter) createIndex(ctx context.Context, msgBase *commonpb.MsgBa
 			zap.String("collection", createIndexMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
 		return nil
 	}
+	createIndexMsg.Base = msgBase
 	err := c.dataHandler.CreateIndex(ctx, &api.CreateIndexParam{
 		ReplicateParam: api.ReplicateParam{
 			Database: createIndexMsg.GetDbName(),
 		},
-		CreateIndexRequest: milvuspb.CreateIndexRequest{
-			Base:           msgBase,
-			CollectionName: createIndexMsg.GetCollectionName(),
-			FieldName:      createIndexMsg.GetFieldName(),
-			IndexName:      createIndexMsg.GetIndexName(),
-			ExtraParams:    createIndexMsg.GetExtraParams(),
-		},
+		CreateIndexRequest: createIndexMsg.CreateIndexRequest,
 	})
 	if err != nil {
 		log.Warn("fail to create index", zap.Any("msg", createIndexMsg), zap.Error(err))
@@ -611,7 +628,7 @@ func (c *ChannelWriter) dropIndex(ctx context.Context, msgBase *commonpb.MsgBase
 		ReplicateParam: api.ReplicateParam{
 			Database: dropIndexMsg.GetDbName(),
 		},
-		DropIndexRequest: milvuspb.DropIndexRequest{
+		DropIndexRequest: &milvuspb.DropIndexRequest{
 			Base:           msgBase,
 			CollectionName: dropIndexMsg.GetCollectionName(),
 			FieldName:      dropIndexMsg.GetFieldName(),
@@ -630,6 +647,26 @@ func (c *ChannelWriter) dropIndex(ctx context.Context, msgBase *commonpb.MsgBase
 	return nil
 }
 
+func (c *ChannelWriter) alterIndex(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	alterIndexMsg := msg.(*msgstream.AlterIndexMsg)
+	if skip, err := c.WaitObjReady(ctx, alterIndexMsg.GetDbName(), alterIndexMsg.GetCollectionName(), "", alterIndexMsg.EndTs()); err != nil {
+		return err
+	} else if skip {
+		log.Info("collection has been dropped", zap.String("database", alterIndexMsg.GetDbName()),
+			zap.String("collection", alterIndexMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
+		return nil
+	}
+	alterIndexMsg.Base = msgBase
+	err := c.dataHandler.AlterIndex(ctx, &api.AlterIndexParam{
+		AlterIndexRequest: alterIndexMsg.AlterIndexRequest,
+	})
+	if err != nil {
+		log.Warn("failed to alter index", zap.Any("msg", alterIndexMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
 func (c *ChannelWriter) loadCollection(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	loadCollectionMsg := msg.(*msgstream.LoadCollectionMsg)
 	if skip, err := c.WaitObjReady(ctx, loadCollectionMsg.GetDbName(), loadCollectionMsg.GetCollectionName(), "", loadCollectionMsg.EndTs()); err != nil {
@@ -639,15 +676,12 @@ func (c *ChannelWriter) loadCollection(ctx context.Context, msgBase *commonpb.Ms
 			zap.String("collection", loadCollectionMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
 		return nil
 	}
+	loadCollectionMsg.Base = msgBase
 	err := c.dataHandler.LoadCollection(ctx, &api.LoadCollectionParam{
 		ReplicateParam: api.ReplicateParam{
 			Database: loadCollectionMsg.GetDbName(),
 		},
-		LoadCollectionRequest: milvuspb.LoadCollectionRequest{
-			Base:           msgBase,
-			CollectionName: loadCollectionMsg.GetCollectionName(),
-			ReplicaNumber:  loadCollectionMsg.GetReplicaNumber(),
-		},
+		LoadCollectionRequest: loadCollectionMsg.LoadCollectionRequest,
 	})
 	if err != nil {
 		log.Warn("fail to load collection", zap.Any("msg", loadCollectionMsg), zap.Error(err))
@@ -674,7 +708,7 @@ func (c *ChannelWriter) releaseCollection(ctx context.Context, msgBase *commonpb
 		ReplicateParam: api.ReplicateParam{
 			Database: releaseCollectionMsg.GetDbName(),
 		},
-		ReleaseCollectionRequest: milvuspb.ReleaseCollectionRequest{
+		ReleaseCollectionRequest: &milvuspb.ReleaseCollectionRequest{
 			Base:           msgBase,
 			CollectionName: releaseCollectionMsg.GetCollectionName(),
 		},
@@ -711,7 +745,7 @@ func (c *ChannelWriter) loadPartitions(ctx context.Context, msgBase *commonpb.Ms
 		ReplicateParam: api.ReplicateParam{
 			Database: loadPartitionsMsg.GetDbName(),
 		},
-		LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+		LoadPartitionsRequest: &milvuspb.LoadPartitionsRequest{
 			Base:           msgBase,
 			CollectionName: loadPartitionsMsg.GetCollectionName(),
 			PartitionNames: partitions,
@@ -752,7 +786,7 @@ func (c *ChannelWriter) releasePartitions(ctx context.Context, msgBase *commonpb
 		ReplicateParam: api.ReplicateParam{
 			Database: releasePartitionsMsg.GetDbName(),
 		},
-		ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+		ReleasePartitionsRequest: &milvuspb.ReleasePartitionsRequest{
 			Base:           msgBase,
 			CollectionName: releasePartitionsMsg.GetCollectionName(),
 			PartitionNames: partitions,
@@ -768,6 +802,97 @@ func (c *ChannelWriter) releasePartitions(ctx context.Context, msgBase *commonpb
 		}
 		log.Info("partition has been dropped", zap.String("database", releasePartitionsMsg.GetDbName()),
 			zap.String("collection", releasePartitionsMsg.GetCollectionName()), zap.Strings("partitions", partitions), zap.String("msg", util.Base64Msg(msg)))
+	}
+	return nil
+}
+
+func (c *ChannelWriter) createCredential(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	createUserMsg := msg.(*msgstream.CreateUserMsg)
+	createUserMsg.Base = msgBase
+	err := c.dataHandler.CreateUser(ctx, &api.CreateUserParam{
+		CreateCredentialRequest: createUserMsg.CreateCredentialRequest,
+	})
+	if err != nil {
+		log.Warn("failed to create credential", zap.Any("msg", createUserMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelWriter) deleteCredential(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	deleteUserMsg := msg.(*msgstream.DeleteUserMsg)
+	deleteUserMsg.Base = msgBase
+	err := c.dataHandler.DeleteUser(ctx, &api.DeleteUserParam{
+		DeleteCredentialRequest: deleteUserMsg.DeleteCredentialRequest,
+	})
+	if err != nil {
+		log.Warn("failed to drop credential", zap.Any("msg", deleteUserMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelWriter) updateCredential(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	updateUserMsg := msg.(*msgstream.UpdateUserMsg)
+	updateUserMsg.Base = msgBase
+	err := c.dataHandler.UpdateUser(ctx, &api.UpdateUserParam{
+		UpdateCredentialRequest: updateUserMsg.UpdateCredentialRequest,
+	})
+	if err != nil {
+		log.Warn("failed to update user", zap.Any("msg", updateUserMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelWriter) createRole(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	createRoleMsg := msg.(*msgstream.CreateRoleMsg)
+	createRoleMsg.Base = msgBase
+	err := c.dataHandler.CreateRole(ctx, &api.CreateRoleParam{
+		CreateRoleRequest: createRoleMsg.CreateRoleRequest,
+	})
+	if err != nil {
+		log.Warn("failed to create role", zap.Any("msg", createRoleMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelWriter) dropRole(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	dropRoleMsg := msg.(*msgstream.DropRoleMsg)
+	dropRoleMsg.Base = msgBase
+	err := c.dataHandler.DropRole(ctx, &api.DropRoleParam{
+		DropRoleRequest: dropRoleMsg.DropRoleRequest,
+	})
+	if err != nil {
+		log.Warn("failed to drop role", zap.Any("msg", dropRoleMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelWriter) operateUserRole(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	operateUserRoleMsg := msg.(*msgstream.OperateUserRoleMsg)
+	operateUserRoleMsg.Base = msgBase
+	err := c.dataHandler.OperateUserRole(ctx, &api.OperateUserRoleParam{
+		OperateUserRoleRequest: operateUserRoleMsg.OperateUserRoleRequest,
+	})
+	if err != nil {
+		log.Warn("failed to operate user role", zap.Any("msg", operateUserRoleMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelWriter) operatePrivilege(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	operatePrivilegeMsg := msg.(*msgstream.OperatePrivilegeMsg)
+	operatePrivilegeMsg.Base = msgBase
+	err := c.dataHandler.OperatePrivilege(ctx, &api.OperatePrivilegeParam{
+		OperatePrivilegeRequest: operatePrivilegeMsg.OperatePrivilegeRequest,
+	})
+	if err != nil {
+		log.Warn("failed to operate privilege", zap.Any("msg", operatePrivilegeMsg), zap.Error(err))
+		return err
 	}
 	return nil
 }

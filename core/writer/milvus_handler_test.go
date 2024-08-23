@@ -380,7 +380,7 @@ func TestDataHandler(t *testing.T) {
 		}, nil).Once()
 		milvusService.EXPECT().CreateIndex(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.CreateIndex(ctx, &api.CreateIndexParam{
-			CreateIndexRequest: milvuspb.CreateIndexRequest{
+			CreateIndexRequest: &milvuspb.CreateIndexRequest{
 				CollectionName: "foo",
 				FieldName:      "name",
 				IndexName:      "baz",
@@ -392,7 +392,7 @@ func TestDataHandler(t *testing.T) {
 	t.Run("drop index", func(t *testing.T) {
 		milvusService.EXPECT().DropIndex(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.DropIndex(ctx, &api.DropIndexParam{
-			DropIndexRequest: milvuspb.DropIndexRequest{
+			DropIndexRequest: &milvuspb.DropIndexRequest{
 				CollectionName: "foo",
 				FieldName:      "bar",
 				IndexName:      "baz",
@@ -408,7 +408,7 @@ func TestDataHandler(t *testing.T) {
 		}, nil).Once()
 		milvusService.EXPECT().LoadCollection(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.LoadCollection(ctx, &api.LoadCollectionParam{
-			LoadCollectionRequest: milvuspb.LoadCollectionRequest{
+			LoadCollectionRequest: &milvuspb.LoadCollectionRequest{
 				CollectionName: "foo",
 				ReplicaNumber:  1,
 			},
@@ -423,7 +423,7 @@ func TestDataHandler(t *testing.T) {
 		}, nil).Once()
 		milvusService.EXPECT().ReleaseCollection(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.ReleaseCollection(ctx, &api.ReleaseCollectionParam{
-			ReleaseCollectionRequest: milvuspb.ReleaseCollectionRequest{
+			ReleaseCollectionRequest: &milvuspb.ReleaseCollectionRequest{
 				CollectionName: "foo",
 			},
 		})
@@ -438,7 +438,7 @@ func TestDataHandler(t *testing.T) {
 		}, nil).Once()
 		milvusService.EXPECT().LoadPartitions(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.LoadPartitions(ctx, &api.LoadPartitionsParam{
-			LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+			LoadPartitionsRequest: &milvuspb.LoadPartitionsRequest{
 				CollectionName: "foo",
 				PartitionNames: []string{"bar"},
 			},
@@ -454,7 +454,7 @@ func TestDataHandler(t *testing.T) {
 		}, nil).Once()
 		milvusService.EXPECT().ReleasePartitions(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.ReleasePartitions(ctx, &api.ReleasePartitionsParam{
-			ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+			ReleasePartitionsRequest: &milvuspb.ReleasePartitionsRequest{
 				CollectionName: "foo",
 				PartitionNames: []string{"bar"},
 			},
@@ -470,7 +470,7 @@ func TestDataHandler(t *testing.T) {
 			}, nil).Maybe()
 			flushCall := milvusService.EXPECT().Flush(mock.Anything, mock.Anything).Return(&milvuspb.FlushResponse{Status: &commonpb.Status{}}, nil).Once()
 			err := dataHandler.Flush(ctx, &api.FlushParam{
-				FlushRequest: milvuspb.FlushRequest{
+				FlushRequest: &milvuspb.FlushRequest{
 					CollectionNames: []string{"foo"},
 				},
 			})
@@ -486,7 +486,7 @@ func TestDataHandler(t *testing.T) {
 			}, nil).Maybe()
 			flushCall := milvusService.EXPECT().Flush(mock.Anything, mock.Anything).Return(&milvuspb.FlushResponse{Status: &commonpb.Status{Code: 500, ErrorCode: commonpb.ErrorCode_UnexpectedError}}, nil).Once()
 			err := dataHandler.Flush(ctx, &api.FlushParam{
-				FlushRequest: milvuspb.FlushRequest{
+				FlushRequest: &milvuspb.FlushRequest{
 					CollectionNames: []string{"foo"},
 				},
 			})
@@ -502,7 +502,7 @@ func TestDataHandler(t *testing.T) {
 		}, DbNames: []string{}}, nil).Once()
 		milvusService.EXPECT().CreateDatabase(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.CreateDatabase(ctx, &api.CreateDatabaseParam{
-			CreateDatabaseRequest: milvuspb.CreateDatabaseRequest{
+			CreateDatabaseRequest: &milvuspb.CreateDatabaseRequest{
 				DbName: "foo",
 			},
 		})
@@ -512,7 +512,7 @@ func TestDataHandler(t *testing.T) {
 	t.Run("drop database", func(t *testing.T) {
 		milvusService.EXPECT().DropDatabase(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.DropDatabase(ctx, &api.DropDatabaseParam{
-			DropDatabaseRequest: milvuspb.DropDatabaseRequest{
+			DropDatabaseRequest: &milvuspb.DropDatabaseRequest{
 				DbName: "foo",
 			},
 		})

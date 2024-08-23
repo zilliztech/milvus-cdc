@@ -57,8 +57,8 @@ github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAE
 github.com/Shopify/goreferrer v0.0.0-20181106222321-ec9c9a553398/go.mod h1:a1uqRtAwp2Xwc6WNPJEufxJ7fx3npB4UV/JOLmbu5I0=
 github.com/SimFG/milvus-proto/go-api/v2 v2.0.0-20240823025422-e51c37053246 h1:2auCvoKtq4GW4V6D5XW4fnc5o31PJBw+Ld+WtRJAJko=
 github.com/SimFG/milvus-proto/go-api/v2 v2.0.0-20240823025422-e51c37053246/go.mod h1:/6UT4zZl6awVeXLeE7UGDWZvXj3IWkRsh3mqsn0DiAs=
-github.com/SimFG/milvus/pkg v0.0.0-20240823023436-b9ba001aebd4 h1:nhmiHlp68RGkAEhuQZGyatyOO1j0Z63fZQwAQRb+2Kk=
-github.com/SimFG/milvus/pkg v0.0.0-20240823023436-b9ba001aebd4/go.mod h1:+UKYwL2ropQPSftL38yI07yuz2MSuxIyKWb0GK4rGYQ=
+github.com/SimFG/milvus/pkg v0.0.0-20240823102803-3c6fff3ed071 h1:NSVbpbJAA6stcB558PhmrIb+TFLnftW+hAHbTC8vlzU=
+github.com/SimFG/milvus/pkg v0.0.0-20240823102803-3c6fff3ed071/go.mod h1:+UKYwL2ropQPSftL38yI07yuz2MSuxIyKWb0GK4rGYQ=
 github.com/actgardner/gogen-avro/v10 v10.1.0/go.mod h1:o+ybmVjEa27AAr35FRqU98DJu1fXES56uXniYFv4yDA=
 github.com/actgardner/gogen-avro/v10 v10.2.1/go.mod h1:QUhjeHPchheYmMDni/Nx7VB0RsT/ee8YIgGY/xpEQgQ=
 github.com/actgardner/gogen-avro/v9 v9.1.0/go.mod h1:nyTj6wPqDJoxM3qdnjcLv+EnMDSDFqE0qDpva2QRmKc=

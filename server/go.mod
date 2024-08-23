@@ -6,7 +6,6 @@ require (
 	github.com/cockroachdb/errors v1.9.1
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/goccy/go-json v0.10.2
-	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
 	github.com/milvus-io/milvus-proto/go-api/v2 v2.4.10-0.20240822040449-32b0311b3785
 	github.com/milvus-io/milvus-sdk-go/v2 v2.4.2-0.20240821073850-0c84a71df153
@@ -22,6 +21,7 @@ require (
 	go.uber.org/atomic v1.10.0
 	go.uber.org/zap v1.21.0
 	google.golang.org/grpc v1.65.0
+	google.golang.org/protobuf v1.34.2
 	sigs.k8s.io/yaml v1.3.0
 )
 
@@ -59,6 +59,7 @@ require (
 	github.com/godbus/dbus/v5 v5.0.4 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
@@ -150,7 +151,6 @@ require (
 	google.golang.org/genproto v0.0.0-20231106174013-bbf56f31fb17 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240528184218-531527333157 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240730163845-b1a4ccb954bf // indirect
-	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
@@ -165,7 +165,7 @@ replace (
 	// github.com/milvus-io/milvus-sdk-go/v2 => ../../milvus-sdk-go
 	//github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240727040408-64020f3da23b // master-cdc-bak
 	github.com/milvus-io/milvus-proto/go-api/v2 => github.com/SimFG/milvus-proto/go-api/v2 v2.0.0-20240823025422-e51c37053246 // 2.4-cdc-null
-	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240823023436-b9ba001aebd4 // master
+	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240823102803-3c6fff3ed071 // master
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => ./../rocksdb
 	github.com/zilliztech/milvus-cdc/core => ../core
