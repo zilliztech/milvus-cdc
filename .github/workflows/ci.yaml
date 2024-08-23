@@ -30,7 +30,7 @@ jobs:
         timeout-minutes: 15
         shell: bash
         run: |
-          docker build --build-arg GIT_COMMIT_ARG=$(git rev-parse --short HEA) -t milvus-cdc:latest .
+          docker build --build-arg GIT_COMMIT_ARG=$(git rev-parse --short HEAD) -t milvus-cdc:latest .
           docker tag milvus-cdc:latest milvusdb/milvus-cdc:latest
 
       - name: Creating kind cluster
@@ -72,9 +72,10 @@ jobs:
         working-directory: deployment/docker
         shell: bash
         run: |
-          docker compose up -d
+          docker compose --verbose up -d
           sleep 20s
           docker compose ps
+          docker compose logs || true
 
       - name: Create CDC task
         timeout-minutes: 15

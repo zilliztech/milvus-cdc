@@ -28,13 +28,14 @@ type CDCServerConfig struct {
 	MaxTaskNum      int
 	MetaStoreConfig CDCMetaStoreConfig // cdc meta data save
 	SourceConfig    MilvusSourceConfig // cdc source
-	EnableReverse   bool
-	ReverseMilvus   model.MilvusConnectParam
-	CurrentMilvus   model.MilvusConnectParam
-	MaxNameLength   int
-	Retry           config.RetrySettings
-	LogLevel        string
-	DetectDeadLock  bool
+	// deprecated
+	EnableReverse  bool
+	ReverseMilvus  model.MilvusConnectParam
+	CurrentMilvus  model.MilvusConnectParam
+	MaxNameLength  int
+	Retry          config.RetrySettings
+	LogLevel       string
+	DetectDeadLock bool
 }
 
 type CDCMetaStoreConfig struct {
@@ -57,6 +58,7 @@ type MilvusSourceConfig struct {
 	ReadChanLen          int
 	TimeTickInterval     int
 	DefaultPartitionName string
+	ReplicateChan        string
 	Pulsar               config.PulsarConfig
 	Kafka                config.KafkaConfig
 }

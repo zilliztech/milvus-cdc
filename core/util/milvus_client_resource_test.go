@@ -43,10 +43,10 @@ func TestNewMilvusClient(t *testing.T) {
 		assert.Equal(t, fmt.Sprintf("%s:%s", address, database), getMilvusClientResourceName(address, database))
 	})
 
-	t.Run("GetAPIKey", func(t *testing.T) {
+	t.Run("GetToken", func(t *testing.T) {
 		username := "foo"
 		password := "hoo"
-		assert.Equal(t, fmt.Sprintf("%s:%s", username, password), GetAPIKey(username, password))
+		assert.Equal(t, fmt.Sprintf("%s:%s", username, password), GetToken(username, password))
 	})
 
 	t.Run("GetMilvusClient", func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestNewMilvusClient(t *testing.T) {
 		{
 			timeCtx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancelFunc()
-			_, err := resourceManager.GetMilvusClient(timeCtx, "localhost:19530", "foo", "", false, DialConfig{})
+			_, err := resourceManager.GetMilvusClient(timeCtx, "localhost:19530", "foo", "", DialConfig{})
 			assert.Error(t, err)
 		}
 
@@ -67,7 +67,7 @@ func TestNewMilvusClient(t *testing.T) {
 				return resource.NewSimpleResource("hello", MilvusClientResourceTyp, fmt.Sprintf("%s:%s", address, database), MilvusClientExpireTime, func() {}), nil
 			})
 
-			_, err := resourceManager.GetMilvusClient(context.Background(), "localhost:19530", "foo", "", false, DialConfig{})
+			_, err := resourceManager.GetMilvusClient(context.Background(), "localhost:19530", "foo", "", DialConfig{})
 			assert.Error(t, err)
 
 			assert.Eventually(t, func() bool {
@@ -101,7 +101,7 @@ func TestNewMilvusClient(t *testing.T) {
 			{
 				address := "localhost:50051"
 				database := "foo"
-				_, err := resourceManager.GetMilvusClient(context.Background(), address, "foo", database, false, DialConfig{})
+				_, err := resourceManager.GetMilvusClient(context.Background(), address, "foo", database, DialConfig{})
 				assert.NoError(t, err)
 
 				assert.Eventually(t, func() bool {

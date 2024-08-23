@@ -20,7 +20,6 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
 	"log"
 	"net"
 	"testing"
@@ -42,6 +41,7 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/config"
 	coremocks "github.com/zilliztech/milvus-cdc/core/mocks"
 	"github.com/zilliztech/milvus-cdc/core/pb"
+	cdcreader "github.com/zilliztech/milvus-cdc/core/reader"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/mocks"
 	"github.com/zilliztech/milvus-cdc/server/model"
@@ -50,46 +50,36 @@ import (
 )
 
 var (
-	endpoints    = []string{"localhost:2379"}
-	mysqlURL     = "root:123456@tcp(127.0.0.1:3306)/milvuscdc?charset=utf8"
-	rootPath     = "cdc"
-	serverConfig = &CDCServerConfig{
-		MetaStoreConfig: CDCMetaStoreConfig{
-			EtcdEndpoints: endpoints,
-			RootPath:      rootPath,
-		},
-		SourceConfig: MilvusSourceConfig{
-			EtcdAddress:     endpoints,
-			EtcdRootPath:    "by-dev",
-			EtcdMetaSubPath: "meta",
-		},
-	}
+	endpoints      = []string{"localhost:2379"}
+	mysqlURL       = "root:123456@tcp(127.0.0.1:3306)/milvuscdc?charset=utf8"
+	rootPath       = "cdc"
 	collectionName = "coll"
-	createRequest  = &request.CreateRequest{
-		MilvusConnectParam: model.MilvusConnectParam{
-			Host: "localhost",
-			Port: 19530,
-		},
-		CollectionInfos: []model.CollectionInfo{
-			{
-				Name: collectionName,
-			},
-		},
-	}
-	starRequest = &request.CreateRequest{
-		MilvusConnectParam: model.MilvusConnectParam{
-			Host: "localhost",
-			Port: 19530,
-		},
-		CollectionInfos: []model.CollectionInfo{
-			{
-				Name: "*",
-			},
-		},
+	pulsarConfig   = &config.PulsarConfig{
+		Address:    "pulsar://localhost:6650",
+		WebAddress: "localhost:8080",
+		Tenant:     "public",
+		Namespace:  "default",
 	}
 )
 
+func createTopic(topic string) error {
+	util.InitMilvusPkgParam()
+	c := cdcreader.NewDefaultFactoryCreator()
+	f := c.NewPmsFactory(pulsarConfig)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	s, err := f.NewMsgStream(timeoutCtx)
+	if err != nil {
+		return err
+	}
+	s.AsProducer([]string{topic})
+	s.Close()
+	return nil
+}
+
 func TestNewMetaCDC(t *testing.T) {
+	createErr := createTopic("by-dev-replicate-msg")
+	assert.NoError(t, createErr)
 	t.Run("invalid meta store type", func(t *testing.T) {
 		assert.Panics(t, func() {
 			NewMetaCDC(&CDCServerConfig{
@@ -110,6 +100,18 @@ func TestNewMetaCDC(t *testing.T) {
 			})
 		})
 
+		// empty replicate chan
+		assert.Panics(t, func() {
+			NewMetaCDC(&CDCServerConfig{
+				MetaStoreConfig: CDCMetaStoreConfig{
+					StoreType:     "etcd",
+					EtcdEndpoints: endpoints,
+					RootPath:      "cdc-test",
+				},
+				SourceConfig: MilvusSourceConfig{},
+			})
+		})
+
 		// invalid source etcd
 		assert.Panics(t, func() {
 			NewMetaCDC(&CDCServerConfig{
@@ -119,10 +121,29 @@ func TestNewMetaCDC(t *testing.T) {
 					RootPath:      "cdc-test",
 				},
 				SourceConfig: MilvusSourceConfig{
-					EtcdAddress: []string{"unknown"},
+					ReplicateChan: "by-dev-replicate-msg",
+					EtcdAddress:   []string{"unknown"},
 				},
 			})
 		})
+
+		// invalid pulsar address
+		{
+			NewMetaCDC(&CDCServerConfig{
+				MetaStoreConfig: CDCMetaStoreConfig{
+					StoreType:     "etcd",
+					EtcdEndpoints: endpoints,
+					RootPath:      "cdc-test",
+				},
+				SourceConfig: MilvusSourceConfig{
+					ReplicateChan: "by-dev-replicate-msg",
+					EtcdAddress:   endpoints,
+					Pulsar: config.PulsarConfig{
+						Address: "invalid",
+					},
+				},
+			})
+		}
 
 		// success
 		{
@@ -133,7 +154,9 @@ func TestNewMetaCDC(t *testing.T) {
 					RootPath:      "cdc-test",
 				},
 				SourceConfig: MilvusSourceConfig{
-					EtcdAddress: endpoints,
+					ReplicateChan: "by-dev-replicate-msg",
+					EtcdAddress:   endpoints,
+					Pulsar:        *pulsarConfig,
 				},
 			})
 		}
@@ -162,7 +185,9 @@ func TestNewMetaCDC(t *testing.T) {
 					RootPath:       "cdc-test",
 				},
 				SourceConfig: MilvusSourceConfig{
-					EtcdAddress: endpoints,
+					EtcdAddress:   endpoints,
+					ReplicateChan: "by-dev-replicate-msg",
+					Pulsar:        *pulsarConfig,
 				},
 			})
 		}
@@ -229,7 +254,7 @@ func TestReload(t *testing.T) {
 
 		metaCDC.replicateEntityMap.Lock()
 		metaCDC.replicateEntityMap.data = map[string]*ReplicateEntity{
-			"127.0.0.1:19530": {
+			"http://127.0.0.1:19530": {
 				entityQuitFunc: func() {},
 				taskQuitFuncs:  typeutil.NewConcurrentMap[string, func()](),
 			},
@@ -247,6 +272,9 @@ func TestValidCreateRequest(t *testing.T) {
 	metaCDC := &MetaCDC{
 		config: &CDCServerConfig{
 			MaxNameLength: 6,
+			SourceConfig: MilvusSourceConfig{
+				ReplicateChan: "foo",
+			},
 		},
 	}
 	t.Run("empty host", func(t *testing.T) {
@@ -344,7 +372,7 @@ func TestValidCreateRequest(t *testing.T) {
 		})
 		assert.Error(t, err)
 	})
-	t.Run("empty rpc channel", func(t *testing.T) {
+	t.Run("invalid rpc channel", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
 			MilvusConnectParam: model.MilvusConnectParam{
 				Host:           "localhost",
@@ -359,6 +387,9 @@ func TestValidCreateRequest(t *testing.T) {
 				{
 					Name: "*",
 				},
+			},
+			RPCChannelInfo: model.ChannelInfo{
+				Name: "noo",
 			},
 		})
 		assert.Error(t, err)
@@ -427,6 +458,7 @@ func TestCreateRequest(t *testing.T) {
 					EtcdRootPath:         "source-cdc-test",
 					EtcdMetaSubPath:      "meta",
 					DefaultPartitionName: "_default",
+					ReplicateChan:        "foo",
 				},
 				MaxNameLength: 256,
 			},
@@ -724,17 +756,29 @@ func TestTaskPosition(t *testing.T) {
 		assert.Len(t, resp.Positions, 1)
 		assert.Equal(t, "ch1", resp.Positions[0].ChannelName)
 		assert.EqualValues(t, 1, resp.Positions[0].Time)
-		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("ch1-position")), resp.Positions[0].MsgID)
+		{
+			p, err := util.Base64DecodeMsgPosition(resp.Positions[0].MsgID)
+			assert.NoError(t, err)
+			assert.Equal(t, []byte("ch1-position"), p.MsgID)
+		}
 
 		assert.Len(t, resp.OpPositions, 1)
 		assert.Equal(t, "ch1", resp.OpPositions[0].ChannelName)
 		assert.EqualValues(t, 1, resp.OpPositions[0].Time)
-		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("ch2-position")), resp.OpPositions[0].MsgID)
+		{
+			p, err := util.Base64DecodeMsgPosition(resp.OpPositions[0].MsgID)
+			assert.NoError(t, err)
+			assert.Equal(t, []byte("ch2-position"), p.MsgID)
+		}
 
 		assert.Len(t, resp.TargetPositions, 1)
 		assert.Equal(t, "ch1-tar", resp.TargetPositions[0].ChannelName)
 		assert.EqualValues(t, 1, resp.TargetPositions[0].Time)
-		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("ch3-position")), resp.TargetPositions[0].MsgID)
+		{
+			p, err := util.Base64DecodeMsgPosition(resp.TargetPositions[0].MsgID)
+			assert.NoError(t, err)
+			assert.Equal(t, []byte("ch3-position"), p.MsgID)
+		}
 	})
 }
 
@@ -1073,7 +1117,7 @@ func TestDelete(t *testing.T) {
 		}
 		metaCDC.cdcTasks.Unlock()
 		metaCDC.replicateEntityMap.Lock()
-		metaCDC.replicateEntityMap.data["127.0.0.1:6666"] = &ReplicateEntity{
+		metaCDC.replicateEntityMap.data["http://127.0.0.1:6666"] = &ReplicateEntity{
 			entityQuitFunc: func() {},
 			taskQuitFuncs:  typeutil.NewConcurrentMap[string, func()](),
 		}
@@ -1170,7 +1214,7 @@ func TestPauseTask(t *testing.T) {
 		cm.Insert("task1", func() {
 			isQuit.Store(true)
 		})
-		m.replicateEntityMap.data["127.0.0.1:19530"] = &ReplicateEntity{
+		m.replicateEntityMap.data["http://127.0.0.1:19530"] = &ReplicateEntity{
 			entityQuitFunc: func() {},
 			taskQuitFuncs:  cm,
 		}

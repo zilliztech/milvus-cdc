@@ -80,6 +80,8 @@ sourceConfig:
   defaultPartitionName: _default
   # read buffer length, mainly used for buffering if writing data to milvus-target is slow.
   readChanLen: 10
+  # milvus replicate channel name, which is `{msgChannel.chanNamePrefix.cluster}/{msgChannel.chanNamePrefix.replicateMsg}` in the milvus.yaml file
+  replicateChan: by-dev-replicate-msg
   # milvus-source mq config, which is pulsar or kafka
   pulsar:
     address: pulsar://localhost:6650
@@ -132,7 +134,6 @@ If the request fails, the code is not 200, and the error message will be display
 
 - milvus_connect_param, the connection params of the milvus-target server;
 - collection_infos, the collection information that needs to be synchronized, which currently only supports `*`;
-- rpc_channel_info, the corresponding name value is composed of the two values ​​of `common.chanNamePrefix.cluster` and `common.chanNamePrefix.replicateMsg` in **milvus-source**, connected by the symbol `-`
 
 ```http
 POST localhost:8444/cdc
@@ -143,21 +144,15 @@ body:
   "request_type":"create",
   "request_data":{
     "milvus_connect_param":{
-      "host":"localhost",
-      "port":19530,
-      "username":"root",
-      "password":"Milvus",
-      "enable_tls":true,
+      "uri":"http://localhost:19530",
+      "token":"root:Milvus",
       "connect_timeout":10
     },
     "collection_infos":[
       {
         "name":"*"
       }
-    ],
-    "rpc_channel_info": {
-      "name": "by-dev-replicate-msg"
-    }
+    ]
   }
 }
 ```
@@ -192,11 +187,8 @@ body:
   "request_type":"create",
   "request_data":{
     "milvus_connect_param":{
-      "host":"localhost",
-      "port":19530,
-      "username":"root",
-      "password":"Milvus",
-      "enable_tls":true,
+      "uri":"https://localhost:19530",
+      "token":"root:Milvus",
       "connect_timeout":10,
       "dial_config": {
         "server_name": "localhost",
@@ -207,10 +199,7 @@ body:
       {
         "name":"*"
       }
-    ],
-    "rpc_channel_info": {
-      "name": "by-dev-replicate-msg"
-    }
+    ]
   }
 }
 ```
@@ -230,11 +219,8 @@ body:
   "request_type":"create",
   "request_data":{
     "milvus_connect_param":{
-      "host":"localhost",
-      "port":19530,
-      "username":"root",
-      "password":"Milvus",
-      "enable_tls":true,
+      "uri":"https://localhost:19530",
+      "token":"root:Milvus",
       "connect_timeout":10,
       "dial_config": {
         "server_name": "localhost",
@@ -371,9 +357,7 @@ body:
         }
       ],
       "milvus_connect_param": {
-        "connect_timeout": 10,
-        "enable_tls": true,
-        "host": "localhost",
+        "uri":"http://localhost:19530",
         "port": 19541
       },
       "reason": "manually pause through http interface",
@@ -410,8 +394,7 @@ body:
       {
         "task_id": "728070fdf999499da869fc3a896217b0",
         "milvus_connect_param": {
-          "host": "localhost",
-          "port": 19541,
+          "uri":"https://localhost:19530",
           "connect_timeout": 10
         },
         "collection_infos": [

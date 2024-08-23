@@ -65,7 +65,6 @@ type KafkaConfig struct {
 
 type PulsarConfig struct {
 	Address        string
-	Port           string
 	WebAddress     string
 	WebPort        int
 	MaxMessageSize string

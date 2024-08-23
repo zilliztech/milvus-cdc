@@ -29,9 +29,8 @@ import (
 func TestConfigOption(t *testing.T) {
 	handler := &MilvusDataHandler{}
 	opts := []config.Option[*MilvusDataHandler]{
-		AddressOption("localhost:50051"),
-		UserOption("root", "123456"),
-		TLSOption(true),
+		URIOption("localhost:50051"),
+		TokenOption("root:123456"),
 		ConnectTimeoutOption(5),
 		IgnorePartitionOption(true),
 	}
@@ -40,10 +39,8 @@ func TestConfigOption(t *testing.T) {
 		opt.Apply(handler)
 	}
 
-	assert.Equal(t, "localhost:50051", handler.address)
-	assert.Equal(t, "root", handler.username)
-	assert.Equal(t, "123456", handler.password)
-	assert.True(t, handler.enableTLS)
+	assert.Equal(t, "localhost:50051", handler.uri)
+	assert.Equal(t, "root:123456", handler.token)
 	assert.Equal(t, 5, handler.connectTimeout)
 	assert.True(t, handler.ignorePartition)
 }

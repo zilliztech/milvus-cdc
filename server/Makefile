@@ -1,6 +1,6 @@
 OBJPREFIX := "github.com/zilliztech/milvus-cdc/server/tag"
 BUILD_TIME = $(shell date -u)
-GIT_COMMIT = $(shell git rev-parse --short HEAD 2>/dev/null || echo $(CDC_GIT_COMMIT))
+GIT_COMMIT ?= $(if $(CDC_GIT_COMMIT),$(CDC_GIT_COMMIT),$(shell git rev-parse --short HEAD))
 GO_VERSION = $(shell go version)
 BUILD_FLAGS = "-X '$(OBJPREFIX).BuildTime=$(BUILD_TIME)' -X '$(OBJPREFIX).GitCommit=$(GIT_COMMIT)' -X '$(OBJPREFIX).GoVersion=$(GO_VERSION)'"
 

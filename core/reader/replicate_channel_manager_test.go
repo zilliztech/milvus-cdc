@@ -61,13 +61,10 @@ func NewReplicateChannelManagerWithFactory(mqConfig config.MQConfig,
 
 	return &replicateChannelManager{
 		streamDispatchClient: streamDispatchClient,
-		streamCreator: &DisptachClientStreamCreator{
-			dispatchClient: streamDispatchClient,
-			factory:        streamFactory,
-		},
-		targetClient: client,
-		metaOp:       metaOp,
-		retryOptions: util.GetRetryOptions(readConfig.Retry),
+		streamCreator:        NewDisptachClientStreamCreator(streamFactory, streamDispatchClient),
+		targetClient:         client,
+		metaOp:               metaOp,
+		retryOptions:         util.GetRetryOptions(readConfig.Retry),
 		startReadRetryOptions: util.GetRetryOptions(config.RetrySettings{
 			RetryTimes:  readConfig.Retry.RetryTimes,
 			InitBackOff: readConfig.Retry.InitBackOff,

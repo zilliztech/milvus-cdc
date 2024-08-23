@@ -98,13 +98,10 @@ func NewReplicateChannelManagerWithDispatchClient(
 ) (api.ChannelManager, error) {
 	return &replicateChannelManager{
 		streamDispatchClient: dispatchClient,
-		streamCreator: &DisptachClientStreamCreator{
-			dispatchClient: dispatchClient,
-			factory:        factory,
-		},
-		targetClient: client,
-		metaOp:       metaOp,
-		retryOptions: util.GetRetryOptions(readConfig.Retry),
+		streamCreator:        NewDisptachClientStreamCreator(factory, dispatchClient),
+		targetClient:         client,
+		metaOp:               metaOp,
+		retryOptions:         util.GetRetryOptions(readConfig.Retry),
 		startReadRetryOptions: util.GetRetryOptions(config.RetrySettings{
 			RetryTimes:  readConfig.Retry.RetryTimes,
 			InitBackOff: readConfig.Retry.InitBackOff,
@@ -1255,6 +1252,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				continue
 			}
 			realMsg.ShardName = info.VChannel
+			// nolint
 			dataLen = int(realMsg.GetNumRows())
 		case *msgstream.DeleteMsg:
 			if info.Dropped {

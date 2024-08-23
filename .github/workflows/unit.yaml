@@ -42,9 +42,18 @@ jobs:
           ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
         ports:
           - 2379:2379
+#      pulsar:
+#        image: apachepulsar/pulsar:2.8.2
+#        ports:
+#          - 6650:6650
+#          - 8080:8080
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v3
+      - name: Set up Apache Pulsar
+        uses: reugn/github-action-pulsar@v1
+        with:
+          version: 2.8.2
       # Runs a single command using the runners shell
       - name: Run Unittest
         run: make test-go
