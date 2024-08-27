@@ -20,6 +20,7 @@ package writer
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -27,8 +28,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
+	"github.com/milvus-io/milvus/pkg/util/crypto"
 	"github.com/milvus-io/milvus/pkg/util/resource"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 
@@ -207,6 +211,17 @@ func (m *MilvusDataHandler) DropIndex(ctx context.Context, param *api.DropIndexP
 	})
 }
 
+func (m *MilvusDataHandler) AlterIndex(ctx context.Context, param *api.AlterIndexParam) error {
+	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
+		extraParams := util.ConvertKVPairToMap(param.GetExtraParams())
+		mmapEnable, _ := strconv.ParseBool(extraParams[api.IndexKeyMmap])
+		return milvus.AlterIndex(ctx, param.CollectionName, param.IndexName,
+			client.WithMmap(mmapEnable),
+			client.WithIndexMsgBase(param.GetBase()),
+		)
+	})
+}
+
 func (m *MilvusDataHandler) LoadCollection(ctx context.Context, param *api.LoadCollectionParam) error {
 	// TODO resource group
 	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
@@ -275,6 +290,109 @@ func (m *MilvusDataHandler) DropDatabase(ctx context.Context, param *api.DropDat
 			client.WithDropDatabaseMsgBase(param.GetBase()),
 		)
 	})
+}
+
+func (m *MilvusDataHandler) AlterDatabase(ctx context.Context, param *api.AlterDatabaseParam) error {
+	return m.milvusOp(ctx, "", func(milvus client.Client) error {
+		return milvus.AlterDatabase(ctx, param.DbName,
+			api.GetSimpleAttributions(param.GetProperties())...,
+		)
+	})
+}
+
+func (m *MilvusDataHandler) CreateUser(ctx context.Context, param *api.CreateUserParam) error {
+	pwd, err := DecodePwd(param.Password)
+	if err != nil {
+		return err
+	}
+	return m.milvusOp(ctx, "", func(milvus client.Client) error {
+		return milvus.CreateCredential(ctx, param.Username, pwd)
+	})
+}
+
+func (m *MilvusDataHandler) DeleteUser(ctx context.Context, param *api.DeleteUserParam) error {
+	return m.milvusOp(ctx, "", func(milvus client.Client) error {
+		return milvus.DeleteCredential(ctx, param.Username)
+	})
+}
+
+func (m *MilvusDataHandler) UpdateUser(ctx context.Context, param *api.UpdateUserParam) error {
+	oldPwd, err := DecodePwd(param.OldPassword)
+	if err != nil {
+		return err
+	}
+	newPwd, err := DecodePwd(param.NewPassword)
+	if err != nil {
+		return err
+	}
+	return m.milvusOp(ctx, "", func(milvus client.Client) error {
+		return milvus.UpdateCredential(ctx, param.Username, oldPwd, newPwd)
+	})
+}
+
+func DecodePwd(pwd string) (string, error) {
+	return crypto.Base64Decode(pwd)
+}
+
+func (m *MilvusDataHandler) CreateRole(ctx context.Context, param *api.CreateRoleParam) error {
+	return m.milvusOp(ctx, "", func(milvus client.Client) error {
+		return milvus.CreateRole(ctx, param.GetEntity().GetName())
+	})
+}
+
+func (m *MilvusDataHandler) DropRole(ctx context.Context, param *api.DropRoleParam) error {
+	return m.milvusOp(ctx, "", func(milvus client.Client) error {
+		return milvus.DropRole(ctx, param.GetRoleName())
+	})
+}
+
+func (m *MilvusDataHandler) OperateUserRole(ctx context.Context, param *api.OperateUserRoleParam) error {
+	return m.milvusOp(ctx, "", func(milvus client.Client) error {
+		switch param.Type {
+		case milvuspb.OperateUserRoleType_AddUserToRole:
+			return milvus.AddUserRole(ctx, param.Username, param.RoleName)
+		case milvuspb.OperateUserRoleType_RemoveUserFromRole:
+			return milvus.RemoveUserRole(ctx, param.Username, param.RoleName)
+		default:
+			log.Warn("unknown operate user role type", zap.String("type", param.Type.String()))
+			return nil
+		}
+	})
+}
+
+func (m *MilvusDataHandler) OperatePrivilege(ctx context.Context, param *api.OperatePrivilegeParam) error {
+	objectType, err := m.GetObjectType(param.GetEntity().GetObject().GetName())
+	if err != nil {
+		return err
+	}
+
+	return m.milvusOp(ctx, "", func(milvus client.Client) error {
+		switch param.Type {
+		case milvuspb.OperatePrivilegeType_Grant:
+			return milvus.Grant(ctx, param.GetEntity().GetRole().GetName(),
+				objectType,
+				param.GetEntity().GetObjectName(),
+				param.GetEntity().GetGrantor().GetPrivilege().GetName(),
+				entity.WithOperatePrivilegeDatabase(param.GetEntity().GetDbName()))
+		case milvuspb.OperatePrivilegeType_Revoke:
+			return milvus.Revoke(ctx, param.GetEntity().GetRole().GetName(),
+				objectType,
+				param.GetEntity().GetObjectName(),
+				param.GetEntity().GetGrantor().GetPrivilege().GetName(),
+				entity.WithOperatePrivilegeDatabase(param.GetEntity().GetDbName()))
+		default:
+			log.Warn("unknown operate privilege type", zap.String("type", param.Type.String()))
+			return nil
+		}
+	})
+}
+
+func (m *MilvusDataHandler) GetObjectType(o string) (entity.PriviledgeObjectType, error) {
+	objectType, ok := commonpb.ObjectType_value[o]
+	if !ok {
+		return entity.PriviledgeObjectType(-1), errors.Newf("invalid object type, %s", o)
+	}
+	return entity.PriviledgeObjectType(objectType), nil
 }
 
 func (m *MilvusDataHandler) ReplicateMessage(ctx context.Context, param *api.ReplicateMessageParam) error {

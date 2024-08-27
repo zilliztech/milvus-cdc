@@ -97,10 +97,7 @@ jobs:
                       {
                           "name": "*"
                       }
-                  ],
-                  "rpc_channel_info": {
-                      "name": "by-dev-replicate-msg"
-                  }
+                  ]
               }
           }'
 
@@ -197,7 +194,7 @@ jobs:
         working-directory: server
         shell: bash
         run: |
-          go build -o milvus-cdc main/main.go
+          make build
           ls -l 
 
       - name: Creating kind cluster
@@ -228,7 +225,7 @@ jobs:
         run: |
           helm repo add milvus https://zilliztech.github.io/milvus-helm
           helm repo update
-          helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values.yaml
+          helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values-auth.yaml
           kubectl get pods
           kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
           sleep 20s
@@ -240,7 +237,7 @@ jobs:
         shell: bash
         run: |
           cp ../deployment/docker/cdc.yaml configs/cdc.yaml
-          ./milvus-cdc > server.log 2>&1 &
+          ../bin/cdc > server.log 2>&1 &
           sleep 20s
 
       - name: Create CDC task
@@ -252,21 +249,15 @@ jobs:
               "request_type": "create",
               "request_data": {
                   "milvus_connect_param": {
-                      "host": "127.0.0.1",
-                      "port": 19500,
-                      "username": "",
-                      "password": "",
-                      "enable_tls": false,
+                      "uri": "http://127.0.0.1:19500",
+                      "token": "root:Milvus",
                       "connect_timeout": 120
                   },
                   "collection_infos": [
                       {
                           "name": "*"
                       }
-                  ],
-                  "rpc_channel_info": {
-                      "name": "by-dev-replicate-msg"
-                  }
+                  ]
               }
           }'
         

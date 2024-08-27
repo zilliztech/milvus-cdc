@@ -134,7 +134,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 		})
 		reader.metaOp.SubscribePartitionEvent(reader.id, func(info *pb.PartitionInfo) bool {
 			partitionLog := log.With(
-				zap.Int64("collection_id", info.CollectionID),
+				zap.Int64("collection_id", info.CollectionId),
 				zap.Int64("partition_id", info.PartitionID),
 				zap.String("partition_name", info.PartitionName),
 				zap.String("task_id", reader.id),
@@ -148,22 +148,22 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			partitionLog.Info("has watched to read partition")
 			var collectionName string
 			retryErr := retry.Do(ctx, func() error {
-				collectionName = reader.metaOp.GetCollectionNameByID(ctx, info.CollectionID)
+				collectionName = reader.metaOp.GetCollectionNameByID(ctx, info.CollectionId)
 				if collectionName != "" {
 					return nil
 				}
-				return errors.Newf("fail to get collection name by id %d", info.CollectionID)
+				return errors.Newf("fail to get collection name by id %d", info.CollectionId)
 			}, reader.retryOptions...)
 			if retryErr != nil || collectionName == "" {
-				partitionLog.Warn("empty collection name", zap.Int64("collection_id", info.CollectionID), zap.Error(retryErr))
+				partitionLog.Warn("empty collection name", zap.Int64("collection_id", info.CollectionId), zap.Error(retryErr))
 				return true
 			}
 			if IsDroppedObject(collectionName) {
-				partitionLog.Info("the collection has been dropped", zap.Int64("collection_id", info.CollectionID))
+				partitionLog.Info("the collection has been dropped", zap.Int64("collection_id", info.CollectionId))
 				return true
 			}
 			tmpCollectionInfo := &pb.CollectionInfo{
-				ID: info.CollectionID,
+				ID: info.CollectionId,
 				Schema: &schemapb.CollectionSchema{
 					Name: collectionName,
 				},
@@ -199,6 +199,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 		repeatedCollectionID := make(map[int64]struct{})
 		repeatedCollectionName := make(map[string]struct{})
 		for _, info := range existedCollectionInfos {
+			// TODO should consider the same collection name in different db
 			collectionName := info.Schema.GetName()
 			createTime := info.CreateTime
 			lastCollectionInfo, recordOK := recordCreateCollectionTime[collectionName]
@@ -258,31 +259,31 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			reader.replicateCollectionMap.Store(info.ID, info)
 		}
 		_, err = reader.metaOp.GetAllPartition(ctx, func(info *pb.PartitionInfo) bool {
-			if _, ok := repeatedCollectionID[info.CollectionID]; ok {
+			if _, ok := repeatedCollectionID[info.CollectionId]; ok {
 				readerLog.Info("skip to start to add partition",
 					zap.String("name", info.PartitionName),
 					zap.Int64("partition_id", info.PartitionID),
-					zap.Int64("collection_id", info.CollectionID))
+					zap.Int64("collection_id", info.CollectionId))
 				return true
 			}
 			var collectionName string
 			retryErr := retry.Do(ctx, func() error {
-				collectionName = reader.metaOp.GetCollectionNameByID(ctx, info.CollectionID)
+				collectionName = reader.metaOp.GetCollectionNameByID(ctx, info.CollectionId)
 				if collectionName != "" {
 					return nil
 				}
-				return errors.Newf("fail to get collection name by id %d", info.CollectionID)
+				return errors.Newf("fail to get collection name by id %d", info.CollectionId)
 			}, reader.retryOptions...)
 			if retryErr != nil || collectionName == "" {
-				readerLog.Warn("empty collection name", zap.Int64("collection_id", info.CollectionID), zap.Error(retryErr))
+				readerLog.Warn("empty collection name", zap.Int64("collection_id", info.CollectionId), zap.Error(retryErr))
 				return true
 			}
 			if IsDroppedObject(collectionName) {
-				readerLog.Info("the collection has been dropped", zap.Int64("collection_id", info.CollectionID))
+				readerLog.Info("the collection has been dropped", zap.Int64("collection_id", info.CollectionId))
 				return true
 			}
 			tmpCollectionInfo := &pb.CollectionInfo{
-				ID: info.CollectionID,
+				ID: info.CollectionId,
 				Schema: &schemapb.CollectionSchema{
 					Name: collectionName,
 				},
@@ -295,7 +296,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				zap.String("name", info.PartitionName),
 				zap.Int64("partition_id", info.PartitionID),
 				zap.String("collection_name", collectionName),
-				zap.Int64("collection_id", info.CollectionID))
+				zap.Int64("collection_id", info.CollectionId))
 			err := reader.channelManager.AddPartition(ctx, tmpCollectionInfo, info)
 			if err != nil {
 				readerLog.Warn("fail to add partition", zap.String("collection_name", collectionName), zap.String("partition_name", info.PartitionName), zap.Error(err))

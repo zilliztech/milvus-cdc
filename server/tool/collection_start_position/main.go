@@ -24,9 +24,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/golang/protobuf/proto"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/protobuf/proto"
 	"sigs.k8s.io/yaml"
+
+	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/pb"
@@ -82,7 +84,7 @@ func main() {
 		panic(err)
 	}
 	for _, position := range collectionInfo.StartPositions {
-		msgPosition := &pb.MsgPosition{
+		msgPosition := &msgpb.MsgPosition{
 			ChannelName: position.Key,
 			MsgID:       position.Data,
 		}

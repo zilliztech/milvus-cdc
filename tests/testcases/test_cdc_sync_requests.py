@@ -12,6 +12,7 @@ from pymilvus import (
     utility,
 )
 from pymilvus.client.types import LoadState
+from pymilvus.orm.role import Role
 from base.checker import default_schema, list_partitions
 from base.checker import (
     InsertEntitiesPartitionChecker,
@@ -25,6 +26,9 @@ prefix = "cdc_create_task_"
 
 class TestCDCSyncRequest(TestBase):
     """ Test Milvus CDC end to end """
+
+    def connect_downstream(self, host, port, token="root:Milvus"):
+        connections.connect(host=host, port=port, token=token)
 
     def test_cdc_sync_create_collection_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
@@ -46,7 +50,7 @@ class TestCDCSyncRequest(TestBase):
         assert set(col_list).issubset(set(list_collections()))
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         timeout = 60
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
@@ -83,7 +87,7 @@ class TestCDCSyncRequest(TestBase):
         assert set(col_list).issubset(set(list_collections()))
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         timeout = 60
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
@@ -108,7 +112,7 @@ class TestCDCSyncRequest(TestBase):
         assert set(col_list).isdisjoint(set(list_collections()))
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         timeout = 60
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
@@ -154,7 +158,7 @@ class TestCDCSyncRequest(TestBase):
         log.info(f"number of entities in upstream: {c.num_entities}")
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
         t0 = time.time()
@@ -218,7 +222,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(res) == nb
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
         t0 = time.time()
@@ -277,7 +281,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(res) == 0
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
         t0 = time.time()
@@ -289,6 +293,7 @@ class TestCDCSyncRequest(TestBase):
             c_state = utility.load_state(collection_name)
             if c_state != LoadState.Loaded:
                 log.info(f"collection state in downstream: {str(c_state)}")
+                continue
             # get the number of entities in downstream
             res = c_downstream.query(f"int64 in {[i for i in range(100)]}", timeout=10)
             if len(res) != 100:
@@ -318,7 +323,7 @@ class TestCDCSyncRequest(TestBase):
         assert set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c)))
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
         t0 = time.time()
@@ -350,7 +355,7 @@ class TestCDCSyncRequest(TestBase):
         assert set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c)))
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
         t0 = time.time()
@@ -373,7 +378,7 @@ class TestCDCSyncRequest(TestBase):
         assert set([f"partition_{i}" for i in range(10)]).isdisjoint(set(list_partitions(c)))
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
         t0 = time.time()
@@ -416,7 +421,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(c.indexes) == 1
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
         t0 = time.time()
@@ -457,7 +462,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(c.indexes) == 1
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
         t0 = time.time()
@@ -477,7 +482,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(c.indexes) == 0
         # check index in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
         t0 = time.time()
@@ -521,7 +526,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(res.groups) == 1
         # check collections in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
         replicas = None
@@ -550,7 +555,7 @@ class TestCDCSyncRequest(TestBase):
         log.info(f"replicas released in upstream successfully")
         # check replicas in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
         replicas = None
@@ -593,7 +598,7 @@ class TestCDCSyncRequest(TestBase):
         assert c.num_entities == 0
         # get number of entities in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         log.info(f"number of entities in downstream: {c_downstream.num_entities}")
         assert c_downstream.num_entities == 0
@@ -607,7 +612,7 @@ class TestCDCSyncRequest(TestBase):
         assert c.num_entities == nb
         # get number of entities in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         log.info(f"number of entities in downstream: {c_downstream.num_entities}")
         timeout = 60
@@ -640,7 +645,7 @@ class TestCDCSyncRequest(TestBase):
         assert db_name in db.list_database()
         # check database in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         timeout = 60
         t0 = time.time()
         while True and time.time() - t0 < timeout:
@@ -668,7 +673,7 @@ class TestCDCSyncRequest(TestBase):
         assert db_name in db.list_database()
         # check database in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         timeout = 60
         t0 = time.time()
         while True and time.time() - t0 < timeout:
@@ -688,10 +693,10 @@ class TestCDCSyncRequest(TestBase):
         assert db_name not in db.list_database()
         # check database in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        self.connect_downstream(downstream_host, downstream_port)
         timeout = 60
         t0 = time.time()
-        while True and time.time() - t0 < timeout:
+        while time.time() - t0 < timeout:
             if db_name not in db.list_database():
                 log.info(f"database synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
@@ -700,3 +705,95 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"database synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         log.info(f"database in downstream {db.list_database()}")
         assert db_name not in db.list_database()
+
+
+    def test_cdc_sync_rbac_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+        """
+        target: test cdc rbac replicate
+        """
+
+        username = "foo"
+        old_password = "foo123456"
+        new_password = "foo123456789"
+        role_name = "birder"
+        privilege = "CreateDatabase"
+
+        # upstream operation
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
+        utility.create_user(username, old_password)
+        utility.update_password(username, old_password, new_password)
+        role = Role(role_name)
+        role.create()
+        role.add_user(username)
+        role.grant("Global", "*", privilege)
+        connections.disconnect("default")
+
+        # downstream check
+        self.connect_downstream(downstream_host, downstream_port)
+        timeout = 20
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            userinfo = utility.list_users(False)
+            user_list = [user for user in userinfo.groups if user.username == username]
+            if len(user_list) != 1:
+                time.sleep(2)
+                continue
+            roleinfo = utility.list_roles(True)
+            role_list = [role for role in roleinfo.groups if role.role_name == role_name]
+            if len(role_list) != 1:
+                time.sleep(2)
+                continue
+            role = Role(role_name)
+            grantinfo = role.list_grant("Global", "*")
+            grant_list = [grant for grant in grantinfo.groups if grant.privilege == privilege]
+            if len(grant_list) != 1:
+                time.sleep(2)
+                continue
+        assert len(user_list) == 1, user_list
+        assert len(role_list) == 1, role_list
+        assert username in role_list[0].users, role_list[0].users
+        assert len(grant_list) == 1, grant_list
+        connections.disconnect("default")
+
+        # downstream new user connect
+        timeout = 20
+        t0 = time.time()
+        success_update = False
+        while time.time() - t0 < timeout:
+            try:
+                self.connect_downstream(downstream_host, downstream_port, f"{username}:{new_password}")
+                success_update = True
+            except Exception as e:
+                connections.disconnect("default")
+                time.sleep(2)
+                continue
+        assert success_update
+        connections.disconnect("default")
+
+        # upstream operation
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
+        role = Role(role_name)
+        role.revoke("Global", "*", privilege)
+        role.remove_user(username)
+        role.drop()
+        utility.delete_user(username)
+        connections.disconnect("default")
+
+        # downstream check
+        self.connect_downstream(downstream_host, downstream_port)
+        timeout = 20
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            userinfo = utility.list_users(False)
+            user_list = [user for user in userinfo.groups if user.username == username]
+            if len(user_list) != 0:
+                time.sleep(1)
+                continue
+            roleinfo = utility.list_roles(True)
+            role_list = [role for role in roleinfo.groups if role.role_name == role_name]
+            if len(role_list) != 0:
+                time.sleep(1)
+                continue
+        assert len(user_list) == 0, user_list
+        assert len(role_list) == 0, role_list
+        connections.disconnect("default")

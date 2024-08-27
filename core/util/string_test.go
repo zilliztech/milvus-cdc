@@ -23,8 +23,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
@@ -72,7 +72,7 @@ func TestBase64JSON(t *testing.T) {
 
 func TestBase64TSMsg(t *testing.T) {
 	tsMsg := &msgstream.InsertMsg{
-		InsertRequest: msgpb.InsertRequest{
+		InsertRequest: &msgpb.InsertRequest{
 			Base: &commonpb.MsgBase{
 				MsgType: commonpb.MsgType_Insert,
 				MsgID:   200,

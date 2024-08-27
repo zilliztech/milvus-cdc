@@ -299,7 +299,7 @@ func TestChannelWriter(t *testing.T) {
 						BaseMsg: msgstream.BaseMsg{
 							HashValues: []uint32{1},
 						},
-						CreateCollectionRequest: msgpb.CreateCollectionRequest{
+						CreateCollectionRequest: &msgpb.CreateCollectionRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_CreateCollection,
 								SourceID: 1,
@@ -335,7 +335,7 @@ func TestChannelWriter(t *testing.T) {
 						BaseMsg: msgstream.BaseMsg{
 							HashValues: []uint32{1},
 						},
-						CreateCollectionRequest: msgpb.CreateCollectionRequest{
+						CreateCollectionRequest: &msgpb.CreateCollectionRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_CreateCollection,
 								SourceID: 1,
@@ -372,7 +372,7 @@ func TestChannelWriter(t *testing.T) {
 						BaseMsg: msgstream.BaseMsg{
 							HashValues: []uint32{1},
 						},
-						CreateCollectionRequest: msgpb.CreateCollectionRequest{
+						CreateCollectionRequest: &msgpb.CreateCollectionRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_CreateCollection,
 								SourceID: 1,
@@ -384,7 +384,7 @@ func TestChannelWriter(t *testing.T) {
 						BaseMsg: msgstream.BaseMsg{
 							HashValues: []uint32{1},
 						},
-						CreateCollectionRequest: msgpb.CreateCollectionRequest{
+						CreateCollectionRequest: &msgpb.CreateCollectionRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_CreateCollection,
 								SourceID: 1,
@@ -412,7 +412,7 @@ func TestChannelWriter(t *testing.T) {
 						BaseMsg: msgstream.BaseMsg{
 							HashValues: []uint32{1},
 						},
-						CreateCollectionRequest: msgpb.CreateCollectionRequest{
+						CreateCollectionRequest: &msgpb.CreateCollectionRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_DescribeCollection,
 								SourceID: 1,
@@ -441,7 +441,7 @@ func TestChannelWriter(t *testing.T) {
 						BaseMsg: msgstream.BaseMsg{
 							HashValues: []uint32{1},
 						},
-						CreateDatabaseRequest: milvuspb.CreateDatabaseRequest{
+						CreateDatabaseRequest: &milvuspb.CreateDatabaseRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_CreateDatabase,
 								SourceID: 1,
@@ -470,7 +470,7 @@ func TestChannelWriter(t *testing.T) {
 						BaseMsg: msgstream.BaseMsg{
 							HashValues: []uint32{1},
 						},
-						DropDatabaseRequest: milvuspb.DropDatabaseRequest{
+						DropDatabaseRequest: &milvuspb.DropDatabaseRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_DropDatabase,
 								SourceID: 1,
@@ -501,7 +501,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						FlushRequest: milvuspb.FlushRequest{
+						FlushRequest: &milvuspb.FlushRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_Flush,
 								SourceID: 1,
@@ -532,7 +532,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						FlushRequest: milvuspb.FlushRequest{
+						FlushRequest: &milvuspb.FlushRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_Flush,
 								SourceID: 1,
@@ -565,7 +565,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						FlushRequest: milvuspb.FlushRequest{
+						FlushRequest: &milvuspb.FlushRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_Flush,
 								SourceID: 1,
@@ -599,7 +599,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						CreateIndexRequest: milvuspb.CreateIndexRequest{
+						CreateIndexRequest: &milvuspb.CreateIndexRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_CreateIndex,
 								SourceID: 1,
@@ -630,7 +630,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						CreateIndexRequest: milvuspb.CreateIndexRequest{
+						CreateIndexRequest: &milvuspb.CreateIndexRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_CreateIndex,
 								SourceID: 1,
@@ -662,7 +662,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						CreateIndexRequest: milvuspb.CreateIndexRequest{
+						CreateIndexRequest: &milvuspb.CreateIndexRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_CreateIndex,
 								SourceID: 1,
@@ -695,7 +695,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						DropIndexRequest: milvuspb.DropIndexRequest{
+						DropIndexRequest: &milvuspb.DropIndexRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_DropIndex,
 								SourceID: 1,
@@ -726,7 +726,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						LoadCollectionRequest: milvuspb.LoadCollectionRequest{
+						LoadCollectionRequest: &milvuspb.LoadCollectionRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_LoadCollection,
 								SourceID: 1,
@@ -757,7 +757,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						LoadCollectionRequest: milvuspb.LoadCollectionRequest{
+						LoadCollectionRequest: &milvuspb.LoadCollectionRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_LoadCollection,
 								SourceID: 1,
@@ -789,7 +789,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						LoadCollectionRequest: milvuspb.LoadCollectionRequest{
+						LoadCollectionRequest: &milvuspb.LoadCollectionRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_LoadCollection,
 								SourceID: 1,
@@ -822,7 +822,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						ReleaseCollectionRequest: milvuspb.ReleaseCollectionRequest{
+						ReleaseCollectionRequest: &milvuspb.ReleaseCollectionRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_ReleaseCollection,
 								SourceID: 1,
@@ -853,7 +853,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						ReleaseCollectionRequest: milvuspb.ReleaseCollectionRequest{
+						ReleaseCollectionRequest: &milvuspb.ReleaseCollectionRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_ReleaseCollection,
 								SourceID: 1,
@@ -887,7 +887,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+						LoadPartitionsRequest: &milvuspb.LoadPartitionsRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_LoadPartitions,
 								SourceID: 1,
@@ -919,7 +919,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+						LoadPartitionsRequest: &milvuspb.LoadPartitionsRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_LoadPartitions,
 								SourceID: 1,
@@ -952,7 +952,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+						LoadPartitionsRequest: &milvuspb.LoadPartitionsRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_LoadPartitions,
 								SourceID: 1,
@@ -988,7 +988,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+						LoadPartitionsRequest: &milvuspb.LoadPartitionsRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_LoadPartitions,
 								SourceID: 1,
@@ -1024,7 +1024,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+						ReleasePartitionsRequest: &milvuspb.ReleasePartitionsRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_ReleasePartitions,
 								SourceID: 1,
@@ -1056,7 +1056,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+						ReleasePartitionsRequest: &milvuspb.ReleasePartitionsRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_ReleasePartitions,
 								SourceID: 1,
@@ -1089,7 +1089,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+						ReleasePartitionsRequest: &milvuspb.ReleasePartitionsRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_ReleasePartitions,
 								SourceID: 1,
@@ -1125,7 +1125,7 @@ func TestChannelWriter(t *testing.T) {
 							HashValues:   []uint32{1},
 							EndTimestamp: 100,
 						},
-						ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+						ReleasePartitionsRequest: &milvuspb.ReleasePartitionsRequest{
 							Base: &commonpb.MsgBase{
 								MsgType:  commonpb.MsgType_ReleasePartitions,
 								SourceID: 1,

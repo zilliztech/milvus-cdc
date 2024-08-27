@@ -146,7 +146,7 @@ func TestKafkaDataHandler(t *testing.T) {
 
 	t.Run("create database", func(t *testing.T) {
 		createDatabaseParam := &api.CreateDatabaseParam{
-			CreateDatabaseRequest: milvuspb.CreateDatabaseRequest{
+			CreateDatabaseRequest: &milvuspb.CreateDatabaseRequest{
 				DbName: "foo",
 			},
 		}
@@ -157,7 +157,7 @@ func TestKafkaDataHandler(t *testing.T) {
 
 	t.Run("drop database", func(t *testing.T) {
 		dropDatabaseParam := &api.DropDatabaseParam{
-			DropDatabaseRequest: milvuspb.DropDatabaseRequest{
+			DropDatabaseRequest: &milvuspb.DropDatabaseRequest{
 				DbName: "foo",
 			},
 		}
@@ -168,7 +168,7 @@ func TestKafkaDataHandler(t *testing.T) {
 
 	t.Run("create index", func(t *testing.T) {
 		createIndexParam := &api.CreateIndexParam{
-			CreateIndexRequest: milvuspb.CreateIndexRequest{
+			CreateIndexRequest: &milvuspb.CreateIndexRequest{
 				CollectionName: "foo",
 				FieldName:      "name",
 				IndexName:      "baz",
@@ -181,7 +181,7 @@ func TestKafkaDataHandler(t *testing.T) {
 
 	t.Run("drop index", func(t *testing.T) {
 		dropIndexParam := &api.DropIndexParam{
-			DropIndexRequest: milvuspb.DropIndexRequest{
+			DropIndexRequest: &milvuspb.DropIndexRequest{
 				CollectionName: "foo",
 				FieldName:      "bar",
 				IndexName:      "baz",
@@ -193,7 +193,7 @@ func TestKafkaDataHandler(t *testing.T) {
 
 	t.Run("load collection", func(t *testing.T) {
 		loadCollectionParam := &api.LoadCollectionParam{
-			LoadCollectionRequest: milvuspb.LoadCollectionRequest{
+			LoadCollectionRequest: &milvuspb.LoadCollectionRequest{
 				CollectionName: "foo",
 				ReplicaNumber:  1,
 			},
@@ -204,7 +204,7 @@ func TestKafkaDataHandler(t *testing.T) {
 
 	t.Run("release collection", func(t *testing.T) {
 		releaseCollectionParam := &api.ReleaseCollectionParam{
-			ReleaseCollectionRequest: milvuspb.ReleaseCollectionRequest{
+			ReleaseCollectionRequest: &milvuspb.ReleaseCollectionRequest{
 				CollectionName: "foo",
 			},
 		}
@@ -214,7 +214,7 @@ func TestKafkaDataHandler(t *testing.T) {
 
 	t.Run("load partitions", func(t *testing.T) {
 		loadPartitionsParam := &api.LoadPartitionsParam{
-			LoadPartitionsRequest: milvuspb.LoadPartitionsRequest{
+			LoadPartitionsRequest: &milvuspb.LoadPartitionsRequest{
 				CollectionName: "foo",
 				PartitionNames: []string{"bar"},
 			},
@@ -225,7 +225,7 @@ func TestKafkaDataHandler(t *testing.T) {
 
 	t.Run("release partitions", func(t *testing.T) {
 		releasePartitionsParam := &api.ReleasePartitionsParam{
-			ReleasePartitionsRequest: milvuspb.ReleasePartitionsRequest{
+			ReleasePartitionsRequest: &milvuspb.ReleasePartitionsRequest{
 				CollectionName: "foo",
 				PartitionNames: []string{"bar"},
 			},
@@ -236,7 +236,7 @@ func TestKafkaDataHandler(t *testing.T) {
 
 	t.Run("flush", func(t *testing.T) {
 		flushParam := &api.FlushParam{
-			FlushRequest: milvuspb.FlushRequest{
+			FlushRequest: &milvuspb.FlushRequest{
 				CollectionNames: []string{"foo"},
 			},
 		}

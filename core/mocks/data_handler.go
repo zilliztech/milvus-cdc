@@ -23,6 +23,92 @@ func (_m *DataHandler) EXPECT() *DataHandler_Expecter {
 	return &DataHandler_Expecter{mock: &_m.Mock}
 }
 
+// AlterDatabase provides a mock function with given fields: ctx, param
+func (_m *DataHandler) AlterDatabase(ctx context.Context, param *api.AlterDatabaseParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.AlterDatabaseParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_AlterDatabase_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AlterDatabase'
+type DataHandler_AlterDatabase_Call struct {
+	*mock.Call
+}
+
+// AlterDatabase is a helper method to define mock.On call
+//  - ctx context.Context
+//  - param *api.AlterDatabaseParam
+func (_e *DataHandler_Expecter) AlterDatabase(ctx interface{}, param interface{}) *DataHandler_AlterDatabase_Call {
+	return &DataHandler_AlterDatabase_Call{Call: _e.mock.On("AlterDatabase", ctx, param)}
+}
+
+func (_c *DataHandler_AlterDatabase_Call) Run(run func(ctx context.Context, param *api.AlterDatabaseParam)) *DataHandler_AlterDatabase_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.AlterDatabaseParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_AlterDatabase_Call) Return(_a0 error) *DataHandler_AlterDatabase_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_AlterDatabase_Call) RunAndReturn(run func(context.Context, *api.AlterDatabaseParam) error) *DataHandler_AlterDatabase_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// AlterIndex provides a mock function with given fields: ctx, param
+func (_m *DataHandler) AlterIndex(ctx context.Context, param *api.AlterIndexParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.AlterIndexParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_AlterIndex_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AlterIndex'
+type DataHandler_AlterIndex_Call struct {
+	*mock.Call
+}
+
+// AlterIndex is a helper method to define mock.On call
+//  - ctx context.Context
+//  - param *api.AlterIndexParam
+func (_e *DataHandler_Expecter) AlterIndex(ctx interface{}, param interface{}) *DataHandler_AlterIndex_Call {
+	return &DataHandler_AlterIndex_Call{Call: _e.mock.On("AlterIndex", ctx, param)}
+}
+
+func (_c *DataHandler_AlterIndex_Call) Run(run func(ctx context.Context, param *api.AlterIndexParam)) *DataHandler_AlterIndex_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.AlterIndexParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_AlterIndex_Call) Return(_a0 error) *DataHandler_AlterIndex_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_AlterIndex_Call) RunAndReturn(run func(context.Context, *api.AlterIndexParam) error) *DataHandler_AlterIndex_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateCollection provides a mock function with given fields: ctx, param
 func (_m *DataHandler) CreateCollection(ctx context.Context, param *api.CreateCollectionParam) error {
 	ret := _m.Called(ctx, param)
@@ -195,6 +281,92 @@ func (_c *DataHandler_CreatePartition_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// CreateRole provides a mock function with given fields: ctx, param
+func (_m *DataHandler) CreateRole(ctx context.Context, param *api.CreateRoleParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.CreateRoleParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_CreateRole_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateRole'
+type DataHandler_CreateRole_Call struct {
+	*mock.Call
+}
+
+// CreateRole is a helper method to define mock.On call
+//  - ctx context.Context
+//  - param *api.CreateRoleParam
+func (_e *DataHandler_Expecter) CreateRole(ctx interface{}, param interface{}) *DataHandler_CreateRole_Call {
+	return &DataHandler_CreateRole_Call{Call: _e.mock.On("CreateRole", ctx, param)}
+}
+
+func (_c *DataHandler_CreateRole_Call) Run(run func(ctx context.Context, param *api.CreateRoleParam)) *DataHandler_CreateRole_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.CreateRoleParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_CreateRole_Call) Return(_a0 error) *DataHandler_CreateRole_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_CreateRole_Call) RunAndReturn(run func(context.Context, *api.CreateRoleParam) error) *DataHandler_CreateRole_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateUser provides a mock function with given fields: ctx, param
+func (_m *DataHandler) CreateUser(ctx context.Context, param *api.CreateUserParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.CreateUserParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_CreateUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateUser'
+type DataHandler_CreateUser_Call struct {
+	*mock.Call
+}
+
+// CreateUser is a helper method to define mock.On call
+//  - ctx context.Context
+//  - param *api.CreateUserParam
+func (_e *DataHandler_Expecter) CreateUser(ctx interface{}, param interface{}) *DataHandler_CreateUser_Call {
+	return &DataHandler_CreateUser_Call{Call: _e.mock.On("CreateUser", ctx, param)}
+}
+
+func (_c *DataHandler_CreateUser_Call) Run(run func(ctx context.Context, param *api.CreateUserParam)) *DataHandler_CreateUser_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.CreateUserParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_CreateUser_Call) Return(_a0 error) *DataHandler_CreateUser_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_CreateUser_Call) RunAndReturn(run func(context.Context, *api.CreateUserParam) error) *DataHandler_CreateUser_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Delete provides a mock function with given fields: ctx, param
 func (_m *DataHandler) Delete(ctx context.Context, param *api.DeleteParam) error {
 	ret := _m.Called(ctx, param)
@@ -234,6 +406,49 @@ func (_c *DataHandler_Delete_Call) Return(_a0 error) *DataHandler_Delete_Call {
 }
 
 func (_c *DataHandler_Delete_Call) RunAndReturn(run func(context.Context, *api.DeleteParam) error) *DataHandler_Delete_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteUser provides a mock function with given fields: ctx, param
+func (_m *DataHandler) DeleteUser(ctx context.Context, param *api.DeleteUserParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.DeleteUserParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_DeleteUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteUser'
+type DataHandler_DeleteUser_Call struct {
+	*mock.Call
+}
+
+// DeleteUser is a helper method to define mock.On call
+//  - ctx context.Context
+//  - param *api.DeleteUserParam
+func (_e *DataHandler_Expecter) DeleteUser(ctx interface{}, param interface{}) *DataHandler_DeleteUser_Call {
+	return &DataHandler_DeleteUser_Call{Call: _e.mock.On("DeleteUser", ctx, param)}
+}
+
+func (_c *DataHandler_DeleteUser_Call) Run(run func(ctx context.Context, param *api.DeleteUserParam)) *DataHandler_DeleteUser_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.DeleteUserParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_DeleteUser_Call) Return(_a0 error) *DataHandler_DeleteUser_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_DeleteUser_Call) RunAndReturn(run func(context.Context, *api.DeleteUserParam) error) *DataHandler_DeleteUser_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -539,6 +754,49 @@ func (_c *DataHandler_DropPartition_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// DropRole provides a mock function with given fields: ctx, param
+func (_m *DataHandler) DropRole(ctx context.Context, param *api.DropRoleParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.DropRoleParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_DropRole_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DropRole'
+type DataHandler_DropRole_Call struct {
+	*mock.Call
+}
+
+// DropRole is a helper method to define mock.On call
+//  - ctx context.Context
+//  - param *api.DropRoleParam
+func (_e *DataHandler_Expecter) DropRole(ctx interface{}, param interface{}) *DataHandler_DropRole_Call {
+	return &DataHandler_DropRole_Call{Call: _e.mock.On("DropRole", ctx, param)}
+}
+
+func (_c *DataHandler_DropRole_Call) Run(run func(ctx context.Context, param *api.DropRoleParam)) *DataHandler_DropRole_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.DropRoleParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_DropRole_Call) Return(_a0 error) *DataHandler_DropRole_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_DropRole_Call) RunAndReturn(run func(context.Context, *api.DropRoleParam) error) *DataHandler_DropRole_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Flush provides a mock function with given fields: ctx, param
 func (_m *DataHandler) Flush(ctx context.Context, param *api.FlushParam) error {
 	ret := _m.Called(ctx, param)
@@ -711,6 +969,92 @@ func (_c *DataHandler_LoadPartitions_Call) RunAndReturn(run func(context.Context
 	return _c
 }
 
+// OperatePrivilege provides a mock function with given fields: ctx, param
+func (_m *DataHandler) OperatePrivilege(ctx context.Context, param *api.OperatePrivilegeParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.OperatePrivilegeParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_OperatePrivilege_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'OperatePrivilege'
+type DataHandler_OperatePrivilege_Call struct {
+	*mock.Call
+}
+
+// OperatePrivilege is a helper method to define mock.On call
+//  - ctx context.Context
+//  - param *api.OperatePrivilegeParam
+func (_e *DataHandler_Expecter) OperatePrivilege(ctx interface{}, param interface{}) *DataHandler_OperatePrivilege_Call {
+	return &DataHandler_OperatePrivilege_Call{Call: _e.mock.On("OperatePrivilege", ctx, param)}
+}
+
+func (_c *DataHandler_OperatePrivilege_Call) Run(run func(ctx context.Context, param *api.OperatePrivilegeParam)) *DataHandler_OperatePrivilege_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.OperatePrivilegeParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_OperatePrivilege_Call) Return(_a0 error) *DataHandler_OperatePrivilege_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_OperatePrivilege_Call) RunAndReturn(run func(context.Context, *api.OperatePrivilegeParam) error) *DataHandler_OperatePrivilege_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// OperateUserRole provides a mock function with given fields: ctx, param
+func (_m *DataHandler) OperateUserRole(ctx context.Context, param *api.OperateUserRoleParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.OperateUserRoleParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_OperateUserRole_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'OperateUserRole'
+type DataHandler_OperateUserRole_Call struct {
+	*mock.Call
+}
+
+// OperateUserRole is a helper method to define mock.On call
+//  - ctx context.Context
+//  - param *api.OperateUserRoleParam
+func (_e *DataHandler_Expecter) OperateUserRole(ctx interface{}, param interface{}) *DataHandler_OperateUserRole_Call {
+	return &DataHandler_OperateUserRole_Call{Call: _e.mock.On("OperateUserRole", ctx, param)}
+}
+
+func (_c *DataHandler_OperateUserRole_Call) Run(run func(ctx context.Context, param *api.OperateUserRoleParam)) *DataHandler_OperateUserRole_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.OperateUserRoleParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_OperateUserRole_Call) Return(_a0 error) *DataHandler_OperateUserRole_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_OperateUserRole_Call) RunAndReturn(run func(context.Context, *api.OperateUserRoleParam) error) *DataHandler_OperateUserRole_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ReleaseCollection provides a mock function with given fields: ctx, param
 func (_m *DataHandler) ReleaseCollection(ctx context.Context, param *api.ReleaseCollectionParam) error {
 	ret := _m.Called(ctx, param)
@@ -836,6 +1180,49 @@ func (_c *DataHandler_ReplicateMessage_Call) Return(_a0 error) *DataHandler_Repl
 }
 
 func (_c *DataHandler_ReplicateMessage_Call) RunAndReturn(run func(context.Context, *api.ReplicateMessageParam) error) *DataHandler_ReplicateMessage_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateUser provides a mock function with given fields: ctx, param
+func (_m *DataHandler) UpdateUser(ctx context.Context, param *api.UpdateUserParam) error {
+	ret := _m.Called(ctx, param)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.UpdateUserParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_UpdateUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateUser'
+type DataHandler_UpdateUser_Call struct {
+	*mock.Call
+}
+
+// UpdateUser is a helper method to define mock.On call
+//  - ctx context.Context
+//  - param *api.UpdateUserParam
+func (_e *DataHandler_Expecter) UpdateUser(ctx interface{}, param interface{}) *DataHandler_UpdateUser_Call {
+	return &DataHandler_UpdateUser_Call{Call: _e.mock.On("UpdateUser", ctx, param)}
+}
+
+func (_c *DataHandler_UpdateUser_Call) Run(run func(ctx context.Context, param *api.UpdateUserParam)) *DataHandler_UpdateUser_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.UpdateUserParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_UpdateUser_Call) Return(_a0 error) *DataHandler_UpdateUser_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_UpdateUser_Call) RunAndReturn(run func(context.Context, *api.UpdateUserParam) error) *DataHandler_UpdateUser_Call {
 	_c.Call.Return(run)
 	return _c
 }

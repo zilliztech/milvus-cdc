@@ -35,4 +35,6 @@ extraConfigFiles:
   user.yaml: |+
     common:
       ttMsgEnabled: false
+      security:
+        authorizationEnabled: true
  
