@@ -278,7 +278,9 @@ func TestValidCreateRequest(t *testing.T) {
 		},
 	}
 	t.Run("empty host", func(t *testing.T) {
-		_, err := metaCDC.Create(&request.CreateRequest{})
+		_, err := metaCDC.Create(&request.CreateRequest{
+			MilvusConnectParam: model.MilvusConnectParam{},
+		})
 		assert.Error(t, err)
 	})
 	t.Run("empty port", func(t *testing.T) {

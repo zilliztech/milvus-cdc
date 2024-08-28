@@ -61,6 +61,7 @@ func (t TaskState) String() string {
 type TaskInfo struct {
 	TaskID                string
 	MilvusConnectParam    model.MilvusConnectParam
+	KafkaConnectParam     model.KafkaConnectParam
 	WriterCacheConfig     model.BufferConfig
 	CollectionInfos       []model.CollectionInfo
 	RPCRequestChannelInfo model.ChannelInfo

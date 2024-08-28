@@ -44,3 +44,31 @@ func TestConfigOption(t *testing.T) {
 	assert.Equal(t, 5, handler.connectTimeout)
 	assert.True(t, handler.ignorePartition)
 }
+
+func TestKafkaConfigOption(t *testing.T) {
+	handler := &KafkaDataHandler{}
+	saslParam := KafkaSASLParam{
+		username:         "root",
+		password:         "123456",
+		mechanisms:       "PLAIN",
+		securityProtocol: "SASL_SSL",
+	}
+	opts := []config.Option[*KafkaDataHandler]{
+		KafkaAddressOption("localhost:9092"),
+		KafkaTopicOption("test"),
+		KafkaEnableSASLOption(true),
+		KafkaSecurityOption(saslParam),
+	}
+
+	for _, opt := range opts {
+		opt.Apply(handler)
+	}
+
+	assert.Equal(t, "localhost:9092", handler.address)
+	assert.Equal(t, "test", handler.topic)
+	assert.True(t, handler.enableSASL)
+	assert.Equal(t, "root", handler.sasl.username)
+	assert.Equal(t, "123456", handler.sasl.password)
+	assert.Equal(t, "PLAIN", handler.sasl.mechanisms)
+	assert.Equal(t, "SASL_SSL", handler.sasl.securityProtocol)
+}

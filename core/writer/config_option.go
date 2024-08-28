@@ -54,3 +54,27 @@ func DialConfigOption(dialConfig util.DialConfig) config.Option[*MilvusDataHandl
 		object.dialConfig = dialConfig
 	})
 }
+
+func KafkaAddressOption(address string) config.Option[*KafkaDataHandler] {
+	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
+		object.address = address
+	})
+}
+
+func KafkaTopicOption(topic string) config.Option[*KafkaDataHandler] {
+	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
+		object.topic = topic
+	})
+}
+
+func KafkaEnableSASLOption(enableSASL bool) config.Option[*KafkaDataHandler] {
+	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
+		object.enableSASL = enableSASL
+	})
+}
+
+func KafkaSecurityOption(sasl KafkaSASLParam) config.Option[*KafkaDataHandler] {
+	return config.OptionFunc[*KafkaDataHandler](func(object *KafkaDataHandler) {
+		object.sasl = sasl
+	})
+}
