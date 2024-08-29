@@ -24,11 +24,11 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
-
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"go.uber.org/zap"
+
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
-	"go.uber.org/zap"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -159,7 +159,7 @@ func (k *KafkaDataHandler) AlterDatabase(ctx context.Context, param *api.AlterDa
 		if err != nil {
 			log.Warn("fail to format data", zap.Error(err))
 		}
-		return k.sendMessage(p, []byte(val), dc)
+		return k.sendMessage(p, val, dc)
 	})
 }
 
