@@ -24,49 +24,49 @@ import (
 	"fmt"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
+	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 type KafkaDataFormatter struct {
 	api.DataFormatter
 }
 
+type KafkaMsg struct {
+	Data []KafkaFormat `json:"data"`
+	Info string        `json:"info"`
+}
+
 type KafkaFormat struct {
 	Name  string `json:"name"`
 	Type  string `json:"type"`
 	Value any    `json:"value"`
-	Msg   string `json:"msg"`
 }
 
 func NewKafkaFormatter() *KafkaDataFormatter {
 	return &KafkaDataFormatter{}
 }
 
-// TODO format data when insert or delete
 func (k *KafkaDataFormatter) Format(data any) ([]byte, error) {
-	var kafkaData []byte
+	var msg KafkaMsg
+	var result []KafkaFormat
+	var info string
 	var err error
 	switch data := data.(type) {
 	case *api.InsertParam:
-		var result []KafkaFormat
 		for _, column := range data.Columns {
 			id := column.FieldData().FieldId
 			val, err := column.Get(int(id))
 			if err != nil {
 				return nil, err
 			}
-			msg := fmt.Sprintf("insert entity in collection %v", data.CollectionName)
 			kafkaFormat := KafkaFormat{
 				Name:  column.Name(),
 				Type:  column.Type().String(),
 				Value: val,
-				Msg:   msg,
 			}
 			result = append(result, kafkaFormat)
 		}
-		kafkaData, err = json.Marshal(result)
-		if err != nil {
-			return nil, err
-		}
+		info = fmt.Sprintf("insert entity in collection %v", data.CollectionName)
 	case *api.DeleteParam:
 		column := data.Column
 		id := column.FieldData().FieldId
@@ -74,19 +74,47 @@ func (k *KafkaDataFormatter) Format(data any) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		msg := fmt.Sprintf("delete entity in collection %v", data.CollectionName)
+		info = fmt.Sprintf("delete entity in collection %v", data.CollectionName)
 		kafkaFormat := KafkaFormat{
 			Name:  column.Name(),
 			Type:  column.Type().String(),
 			Value: val,
-			Msg:   msg,
 		}
-		kafkaData, err = json.Marshal(kafkaFormat)
-		if err != nil {
-			return nil, err
+		result = append(result, kafkaFormat)
+
+	case *api.AlterDatabaseParam:
+		properties := util.ConvertKVPairToMap(data.Properties)
+		for k, v := range properties {
+			kafkaFormat := KafkaFormat{
+				Name:  k,
+				Type:  "string",
+				Value: v,
+			}
+			result = append(result, kafkaFormat)
 		}
+		info = fmt.Sprintf("alter database %v with properties", data.DbName)
+
+	case *api.AlterIndexParam:
+		indexParams := util.ConvertKVPairToMap(data.GetExtraParams())
+		for k, v := range indexParams {
+			kafkaFormat := KafkaFormat{
+				Name:  k,
+				Type:  "string",
+				Value: v,
+			}
+			result = append(result, kafkaFormat)
+		}
+		info = fmt.Sprintf("alter index %v with indexParams", data.IndexName)
+
 	default:
 		return nil, errors.New("the data format is not supported")
+	}
+
+	msg.Data = result
+	msg.Info = info
+	kafkaData, err := json.Marshal(msg)
+	if err != nil {
+		return nil, err
 	}
 	return kafkaData, err
 }

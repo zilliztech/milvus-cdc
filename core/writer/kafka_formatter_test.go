@@ -23,6 +23,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -52,6 +54,39 @@ func TestFormat(t *testing.T) {
 		data := &api.DeleteParam{
 			CollectionName: "foo",
 			Column:         entity.NewColumnInt64("age", []int64{10}),
+		}
+		_, err := kafkaFormatter.Format(data)
+		assert.NoError(t, err)
+	})
+
+	t.Run("format alterDatabase param", func(t *testing.T) {
+		data := &api.AlterDatabaseParam{
+			AlterDatabaseRequest: &milvuspb.AlterDatabaseRequest{
+				DbName: "foo",
+				Properties: []*commonpb.KeyValuePair{
+					{
+						Key:   "foo",
+						Value: "hoo",
+					},
+				},
+			},
+		}
+		_, err := kafkaFormatter.Format(data)
+		assert.NoError(t, err)
+	})
+
+	t.Run("format alterIndex param", func(t *testing.T) {
+		data := &api.AlterIndexParam{
+			AlterIndexRequest: &milvuspb.AlterIndexRequest{
+				CollectionName: "foo",
+				IndexName:      "baz",
+				ExtraParams: []*commonpb.KeyValuePair{
+					{
+						Key:   "foo",
+						Value: "hoo",
+					},
+				},
+			},
 		}
 		_, err := kafkaFormatter.Format(data)
 		assert.NoError(t, err)
