@@ -27,6 +27,7 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -86,7 +87,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			ShardsNum: 1,
 		}
 
-		err := handler.CreateCollection(ctx, createCollectionParam)
+		err := handler.CreateCollection(ctx, createCollectionParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -98,7 +99,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.DropCollection(context.Background(), dropCollectionParam)
+		err := handler.DropCollection(context.Background(), dropCollectionParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -130,7 +131,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			PartitionName:  "bar",
 		}
 
-		err := handler.CreatePartition(ctx, createPartitionParam)
+		err := handler.CreatePartition(ctx, createPartitionParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -140,7 +141,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			PartitionName:  "bar",
 		}
 
-		err := handler.DropPartition(ctx, dropPartitionParam)
+		err := handler.DropPartition(ctx, dropPartitionParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -151,7 +152,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.CreateDatabase(ctx, createDatabaseParam)
+		err := handler.CreateDatabase(ctx, createDatabaseParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -162,7 +163,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.DropDatabase(ctx, dropDatabaseParam)
+		err := handler.DropDatabase(ctx, dropDatabaseParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -192,7 +193,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.CreateIndex(ctx, createIndexParam)
+		err := handler.CreateIndex(ctx, createIndexParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -204,7 +205,7 @@ func TestKafkaDataHandler(t *testing.T) {
 				IndexName:      "baz",
 			},
 		}
-		err := handler.DropIndex(ctx, dropIndexParam)
+		err := handler.DropIndex(ctx, dropIndexParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -234,7 +235,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.LoadCollection(ctx, loadCollectionParam)
+		err := handler.LoadCollection(ctx, loadCollectionParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -245,7 +246,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.ReleaseCollection(ctx, releaseCollectionParam)
+		err := handler.ReleaseCollection(ctx, releaseCollectionParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -257,7 +258,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.LoadPartitions(ctx, loadPartitionsParam)
+		err := handler.LoadPartitions(ctx, loadPartitionsParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -269,7 +270,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.ReleasePartitions(ctx, releasePartitionsParam)
+		err := handler.ReleasePartitions(ctx, releasePartitionsParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -280,7 +281,31 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.Flush(ctx, flushParam)
+		err := handler.Flush(ctx, flushParam, formatter)
+		assert.NoError(t, err)
+	})
+
+	t.Run("replicate message", func(t *testing.T) {
+		replicateMessageParam := &api.ReplicateMessageParam{
+			ChannelName: "foo",
+			BeginTs:     1,
+			EndTs:       2,
+			MsgsBytes:   [][]byte{{1}, {2}},
+			StartPositions: []*msgpb.MsgPosition{
+				{
+					ChannelName: "foo",
+					MsgID:       []byte{1},
+				},
+			},
+			EndPositions: []*msgpb.MsgPosition{
+				{
+					ChannelName: "foo",
+					MsgID:       []byte{1},
+				},
+			},
+		}
+
+		err := handler.ReplicateMessage(ctx, replicateMessageParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -292,7 +317,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.CreateUser(ctx, createUserParam)
+		err := handler.CreateUser(ctx, createUserParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -303,7 +328,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.DeleteUser(ctx, deleteUserParam)
+		err := handler.DeleteUser(ctx, deleteUserParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -316,7 +341,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.UpdateUser(ctx, updateUserParam)
+		err := handler.UpdateUser(ctx, updateUserParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -329,7 +354,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.CreateRole(ctx, createRoleParam)
+		err := handler.CreateRole(ctx, createRoleParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -340,7 +365,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.DropRole(ctx, dropRoleParam)
+		err := handler.DropRole(ctx, dropRoleParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -353,7 +378,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.OperateUserRole(ctx, addUser2RoleParam)
+		err := handler.OperateUserRole(ctx, addUser2RoleParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -366,7 +391,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.OperateUserRole(ctx, removeUserFromRoleParam)
+		err := handler.OperateUserRole(ctx, removeUserFromRoleParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -391,7 +416,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.OperatePrivilege(ctx, grantPrivilege2UserParam)
+		err := handler.OperatePrivilege(ctx, grantPrivilege2UserParam, formatter)
 		assert.NoError(t, err)
 	})
 
@@ -416,7 +441,7 @@ func TestKafkaDataHandler(t *testing.T) {
 			},
 		}
 
-		err := handler.OperatePrivilege(ctx, revokePrivilegeFromUserParam)
+		err := handler.OperatePrivilege(ctx, revokePrivilegeFromUserParam, formatter)
 		assert.NoError(t, err)
 	})
 }

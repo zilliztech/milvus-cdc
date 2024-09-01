@@ -20,14 +20,13 @@ package writer
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"go.uber.org/zap"
 
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -111,224 +110,288 @@ func (k *KafkaDataHandler) KafkaOp(ctx context.Context, database string, f func(
 	return kafkaFunc()
 }
 
-func (k *KafkaDataHandler) CreateCollection(ctx context.Context, param *api.CreateCollectionParam) error {
+func (k *KafkaDataHandler) CreateCollection(ctx context.Context, param *api.CreateCollectionParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("create collection %v", param.Schema.CollectionName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, createCollectionInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) DropCollection(ctx context.Context, param *api.DropCollectionParam) error {
+func (k *KafkaDataHandler) DropCollection(ctx context.Context, param *api.DropCollectionParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("drop collection %v", param.CollectionName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, dropCollectionInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) CreatePartition(ctx context.Context, param *api.CreatePartitionParam) error {
+func (k *KafkaDataHandler) CreatePartition(ctx context.Context, param *api.CreatePartitionParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("create partition %v on collection %v", param.PartitionName, param.CollectionName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, createPartitionInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) DropPartition(ctx context.Context, param *api.DropPartitionParam) error {
+func (k *KafkaDataHandler) DropPartition(ctx context.Context, param *api.DropPartitionParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("drop partition %v on collection %v", param.PartitionName, param.CollectionName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, dropPartitionInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) CreateDatabase(ctx context.Context, param *api.CreateDatabaseParam) error {
+func (k *KafkaDataHandler) CreateDatabase(ctx context.Context, param *api.CreateDatabaseParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, "", func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("create database %v", param.DbName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, createDatabaseInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) DropDatabase(ctx context.Context, param *api.DropDatabaseParam) error {
+func (k *KafkaDataHandler) DropDatabase(ctx context.Context, param *api.DropDatabaseParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, "", func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("drop database %v", param.DbName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, dropDatabaseInfo, dc)
 	})
 }
 
 func (k *KafkaDataHandler) AlterDatabase(ctx context.Context, param *api.AlterDatabaseParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, "", func(p *kafka.Producer, dc chan kafka.Event) error {
-		val, err := f.Format(param)
+		data, err := f.Format(param)
 		if err != nil {
 			log.Warn("fail to format data", zap.Error(err))
 		}
-		return k.sendMessage(p, val, dc)
+		return k.sendMessage(p, data, alterDatabaseInfo, dc)
 	})
 }
 
 func (k *KafkaDataHandler) Insert(ctx context.Context, param *api.InsertParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val, err := f.Format(param)
+		data, err := f.Format(param)
 		if err != nil {
 			log.Warn("fail to format data", zap.Error(err))
 		}
-		return k.sendMessage(p, val, dc)
+		return k.sendMessage(p, data, insertDataInfo, dc)
 	})
 }
 
 func (k *KafkaDataHandler) Delete(ctx context.Context, param *api.DeleteParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val, err := f.Format(param)
+		data, err := f.Format(param)
 		if err != nil {
 			log.Warn("fail to format data", zap.Error(err))
 		}
-		return k.sendMessage(p, val, dc)
+		return k.sendMessage(p, data, deleteDataInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) CreateIndex(ctx context.Context, param *api.CreateIndexParam) error {
+func (k *KafkaDataHandler) CreateIndex(ctx context.Context, param *api.CreateIndexParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("create index %v on collection %v field %v", param.IndexName, param.CollectionName, param.FieldName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, createIndexInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) DropIndex(ctx context.Context, param *api.DropIndexParam) error {
+func (k *KafkaDataHandler) DropIndex(ctx context.Context, param *api.DropIndexParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("drop index %v on collection %v field %v", param.IndexName, param.CollectionName, param.FieldName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, dropIndexInfo, dc)
 	})
 }
 
 func (k *KafkaDataHandler) AlterIndex(ctx context.Context, param *api.AlterIndexParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val, err := f.Format(param)
+		data, err := f.Format(param)
 		if err != nil {
 			log.Warn("fail to format data", zap.Error(err))
 		}
-		return k.sendMessage(p, val, dc)
+		return k.sendMessage(p, data, alterIndexInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) LoadCollection(ctx context.Context, param *api.LoadCollectionParam) error {
+func (k *KafkaDataHandler) LoadCollection(ctx context.Context, param *api.LoadCollectionParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("load collection %v", param.CollectionName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, loadCollectionInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) ReleaseCollection(ctx context.Context, param *api.ReleaseCollectionParam) error {
+func (k *KafkaDataHandler) ReleaseCollection(ctx context.Context, param *api.ReleaseCollectionParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("release collection %v", param.CollectionName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, releaseCollectionInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) LoadPartitions(ctx context.Context, param *api.LoadPartitionsParam) error {
+func (k *KafkaDataHandler) LoadPartitions(ctx context.Context, param *api.LoadPartitionsParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("load partitions %v on collection %v", param.PartitionNames, param.CollectionName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, loadPartitionsInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) ReleasePartitions(ctx context.Context, param *api.ReleasePartitionsParam) error {
+func (k *KafkaDataHandler) ReleasePartitions(ctx context.Context, param *api.ReleasePartitionsParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("release partitions %v on collection %v", param.PartitionNames, param.CollectionName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, releasePartitionsInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) Flush(ctx context.Context, param *api.FlushParam) error {
+func (k *KafkaDataHandler) Flush(ctx context.Context, param *api.FlushParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("flush collections %v", param.CollectionNames)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, flushInfo, dc)
+	})
+}
+
+func (k *KafkaDataHandler) ReplicateMessage(ctx context.Context, param *api.ReplicateMessageParam, f api.DataFormatter) error {
+	return k.KafkaOp(ctx, "", func(p *kafka.Producer, dc chan kafka.Event) error {
+		data, err := f.Format(param)
+		if err != nil {
+			return err
+		}
+		return k.sendMessage(p, data, replicateMessageInfo, dc)
 	})
 }
 
 // rbac messages
-func (k *KafkaDataHandler) CreateUser(ctx context.Context, param *api.CreateUserParam) error {
+func (k *KafkaDataHandler) CreateUser(ctx context.Context, param *api.CreateUserParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, "", func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("create user %v", param.Username)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, createUserInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) DeleteUser(ctx context.Context, param *api.DeleteUserParam) error {
+func (k *KafkaDataHandler) DeleteUser(ctx context.Context, param *api.DeleteUserParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, "", func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("delete user %v", param.Username)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, deleteUserInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) UpdateUser(ctx context.Context, param *api.UpdateUserParam) error {
+func (k *KafkaDataHandler) UpdateUser(ctx context.Context, param *api.UpdateUserParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, "", func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("update user %v with password", param.Username)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, updateUserInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) CreateRole(ctx context.Context, param *api.CreateRoleParam) error {
+func (k *KafkaDataHandler) CreateRole(ctx context.Context, param *api.CreateRoleParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, "", func(p *kafka.Producer, dc chan kafka.Event) error {
-		roleName := param.GetEntity().GetName()
-		val := fmt.Sprintf("create role %v", roleName)
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, createRoleInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) DropRole(ctx context.Context, param *api.DropRoleParam) error {
+func (k *KafkaDataHandler) DropRole(ctx context.Context, param *api.DropRoleParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, "", func(p *kafka.Producer, dc chan kafka.Event) error {
-		val := fmt.Sprintf("drop role %v", param.GetRoleName())
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, dropRoleInfo, dc)
 	})
 }
 
-func (k *KafkaDataHandler) OperateUserRole(ctx context.Context, param *api.OperateUserRoleParam) error {
+func (k *KafkaDataHandler) OperateUserRole(ctx context.Context, param *api.OperateUserRoleParam, f api.DataFormatter) error {
 	return k.KafkaOp(ctx, "", func(p *kafka.Producer, dc chan kafka.Event) error {
-		var val string
+		var info msgType
 		switch param.Type {
 		case milvuspb.OperateUserRoleType_AddUserToRole:
-			val = fmt.Sprintf("add user %v to role %v", param.Username, param.RoleName)
+			info = addUserToRoleInfo
 		case milvuspb.OperateUserRoleType_RemoveUserFromRole:
-			val = fmt.Sprintf("remove user %v from role %v", param.Username, param.RoleName)
+			info = removeUserFromRoleInfo
 		default:
 			log.Warn("unknown operate user role type", zap.String("type", param.Type.String()))
 			return nil
 		}
-		return k.sendMessage(p, []byte(val), dc)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, info, dc)
 	})
 }
 
-func (k *KafkaDataHandler) OperatePrivilege(ctx context.Context, param *api.OperatePrivilegeParam) error {
-	return k.KafkaOp(ctx, "", func(p *kafka.Producer, d chan kafka.Event) error {
-		var val string
-		on := param.GetEntity().GetObjectName()
-		o := param.GetEntity().GetObject().GetName()
-		role := param.GetEntity().GetRole().GetName()
-		priv := param.GetEntity().GetGrantor().GetPrivilege().GetName()
-		ot, err := k.GetObjectType(o)
-		if err != nil {
-			return err
-		}
-
+func (k *KafkaDataHandler) OperatePrivilege(ctx context.Context, param *api.OperatePrivilegeParam, f api.DataFormatter) error {
+	return k.KafkaOp(ctx, "", func(p *kafka.Producer, dc chan kafka.Event) error {
+		var info msgType
 		switch param.Type {
 		case milvuspb.OperatePrivilegeType_Grant:
-			val = fmt.Sprintf("grant %v to role %v with object %v typed %v", priv, role, on, ot)
+			info = grantPrivilegeInfo
 		case milvuspb.OperatePrivilegeType_Revoke:
-			val = fmt.Sprintf("revoke %v from role %v with object %v typed %v", priv, role, on, ot)
+			info = revokePrivilegeInfo
 		default:
 			log.Warn("unknown operate privilege type", zap.String("type", param.Type.String()))
 			return nil
 		}
-		return k.sendMessage(p, []byte(val), d)
+		data, err := f.Format(param)
+		if err != nil {
+			log.Warn("fail to format data", zap.Error(err))
+		}
+		return k.sendMessage(p, data, info, dc)
 	})
 }
 
-func (k *KafkaDataHandler) GetObjectType(o string) (string, error) {
-	objectType, ok := commonpb.ObjectType_value[o]
-	if !ok {
-		return "", errors.Newf("invalid object type, %s", o)
+func (k *KafkaDataHandler) sendMessage(p *kafka.Producer, data []byte, info msgType, dc chan kafka.Event) error {
+	kafkaMsg := KafkaMsg{
+		Data: string(data),
+		Info: info,
 	}
-	return commonpb.ObjectType_name[objectType], nil
-}
+	val, err := json.Marshal(kafkaMsg)
+	if err != nil {
+		log.Warn("fail to marshal msg", zap.Error(err))
+		return err
+	}
 
-func (k *KafkaDataHandler) sendMessage(p *kafka.Producer, val []byte, dc chan kafka.Event) error {
 	msg := &kafka.Message{
 		TopicPartition: kafka.TopicPartition{
 			Topic:     &k.topic,
@@ -336,12 +399,11 @@ func (k *KafkaDataHandler) sendMessage(p *kafka.Producer, val []byte, dc chan ka
 		},
 		Value: val,
 	}
-	err := p.Produce(msg, dc)
+	err = p.Produce(msg, dc)
 	if err != nil {
 		log.Warn("fail to produce msg", zap.Error(err))
 		return err
 	}
-
 	select {
 	case e := <-dc:
 		ev := e.(*kafka.Message)
