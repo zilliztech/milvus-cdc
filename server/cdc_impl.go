@@ -649,14 +649,23 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 		taskLog.Warn("fail to create replicate channel manager", zap.Error(err))
 		return nil, servererror.NewClientError("fail to create replicate channel manager")
 	}
-	targetConfig := milvusConnectParam
-	dataHandler, err := cdcwriter.NewMilvusDataHandler(
-		cdcwriter.URIOption(targetConfig.URI),
-		cdcwriter.TokenOption(targetConfig.Token),
-		cdcwriter.IgnorePartitionOption(targetConfig.IgnorePartition),
-		cdcwriter.ConnectTimeoutOption(targetConfig.ConnectTimeout),
-		cdcwriter.DialConfigOption(targetConfig.DialConfig),
-	)
+
+	var dataHandler api.DataHandler
+	if info.KafkaConnectParam.Address != "" {
+		dataHandler, err = cdcwriter.NewKafkaDataHandler(
+			cdcwriter.KafkaAddressOption(info.KafkaConnectParam.Address),
+			cdcwriter.KafkaTopicOption(info.KafkaConnectParam.Topic),
+		)
+	} else if info.MilvusConnectParam.URI != "" {
+		targetConfig := milvusConnectParam
+		dataHandler, err = cdcwriter.NewMilvusDataHandler(
+			cdcwriter.URIOption(targetConfig.URI),
+			cdcwriter.TokenOption(targetConfig.Token),
+			cdcwriter.IgnorePartitionOption(targetConfig.IgnorePartition),
+			cdcwriter.ConnectTimeoutOption(targetConfig.ConnectTimeout),
+			cdcwriter.DialConfigOption(targetConfig.DialConfig),
+		)
+	}
 	if err != nil {
 		taskLog.Warn("fail to new the data handler", zap.Error(err))
 		return nil, servererror.NewClientError("fail to new the data handler, task_id: ")

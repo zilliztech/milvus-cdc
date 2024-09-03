@@ -48,7 +48,6 @@ type (
 type ChannelWriter struct {
 	dataHandler    api.DataHandler
 	messageManager api.MessageManager
-	dataFormatter  api.DataFormatter
 
 	opMessageFuncs map[commonpb.MsgType]opMessageFunc
 	apiEventFuncs  map[api.ReplicateAPIEventType]apiEventFunc
@@ -64,7 +63,6 @@ type ChannelWriter struct {
 func NewChannelWriter(dataHandler api.DataHandler,
 	writerConfig config.WriterConfig,
 	droppedObjs map[string]map[string]uint64,
-	dataFormatter ...api.DataFormatter,
 ) api.Writer {
 	w := &ChannelWriter{
 		dataHandler:    dataHandler,
