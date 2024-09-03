@@ -30,7 +30,6 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/util/funcutil"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -85,15 +84,16 @@ func NewCollectionReader(id string,
 		errChan:              make(chan error),
 		retryOptions:         util.GetRetryOptions(readerConfig.Retry),
 	}
-	for _, collectionPositions := range seekPosition {
-		for channel, msgPosition := range collectionPositions {
-			pchannel := channel
-			if IsVirtualChannel(pchannel) {
-				pchannel = funcutil.ToPhysicalChannel(pchannel)
-			}
-			GetTSManager().CollectTS(pchannel, msgPosition.GetTimestamp())
-		}
-	}
+	// for _, collectionPositions := range seekPosition {
+	// 	for channel, msgPosition := range collectionPositions {
+	// 		pchannel := channel
+	// 		if IsVirtualChannel(pchannel) {
+	// 			pchannel = funcutil.ToPhysicalChannel(pchannel)
+	// 		}
+	// 		// TODO how to use the target channel
+	// 		GetTSManager().CollectTS(pchannel, msgPosition.GetTimestamp())
+	// 	}
+	// }
 	return reader, nil
 }
 
