@@ -591,6 +591,9 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 		}
 		return nil, nil
 	}
+	if sourceInfo.SeekPosition != nil {
+		GetTSManager().CollectTS(channelHandler.targetPChannel, sourceInfo.SeekPosition.GetTimestamp())
+	}
 	if channelHandler.targetPChannel != targetInfo.PChannel {
 		log.Info("diff target pchannel", zap.String("target_channel", targetInfo.PChannel), zap.String("handler_channel", channelHandler.targetPChannel))
 		r.forwardChannel(targetInfo)
@@ -743,11 +746,8 @@ type replicateChannelHandler struct {
 	isDroppedCollection func(int64) bool
 	isDroppedPartition  func(int64) bool
 
-	retryOptions   []retry.Option
-	ttLock         deadlock.Mutex
-	ttPeriod       time.Duration
-	lastSendTTTime time.Time
-	ttRateLog      *log.RateLog
+	retryOptions []retry.Option
+	ttRateLog    *log.RateLog
 
 	addCollectionLock *deadlock.RWMutex
 	addCollectionCnt  *int
@@ -1169,7 +1169,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			log.Warn("begin timestamp is 0", zap.Uint64("end_ts", pack.EndTs), zap.Any("hasValidMsg", hasValidMsg))
 		}
 	}
-	GetTSManager().CollectTS(r.pChannelName, beginTS)
+	GetTSManager().CollectTS(r.targetPChannel, beginTS)
 	r.addCollectionLock.RUnlock()
 
 	if r.msgPackCallback != nil {
@@ -1397,26 +1397,23 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		position.ChannelName = pChannel
 	}
 
-	maxTS, _ := GetTSManager().GetMaxTS(r.pChannelName)
+	maxTS, _ := GetTSManager().GetMaxTS(r.targetPChannel)
 	resetTS := resetMsgPackTimestamp(newPack, maxTS)
 	if resetTS {
-		GetTSManager().CollectTS(r.pChannelName, newPack.EndTs)
+		GetTSManager().CollectTS(r.targetPChannel, newPack.EndTs)
 	}
 
-	r.ttLock.Lock()
-	defer r.ttLock.Unlock()
+	GetTSManager().LockTargetChannel(r.targetPChannel)
+	defer GetTSManager().UnLockTargetChannel(r.targetPChannel)
 
-	if !needTsMsg && len(newPack.Msgs) == 0 && time.Since(r.lastSendTTTime) < r.ttPeriod {
+	if !needTsMsg && len(newPack.Msgs) == 0 && !GetTSManager().UnsafeShouldSendTSMsg(r.targetPChannel) {
 		return api.EmptyMsgPack
 	}
 
-	if GetTSManager().GetLastMsgTS(r.pChannelName) >= newPack.BeginTs {
-		maxTS, _ = GetTSManager().GetMaxTS(r.pChannelName)
-		resetTS2 := resetMsgPackTimestamp(newPack, maxTS)
-		if resetTS2 {
-			GetTSManager().CollectTS(r.pChannelName, newPack.EndTs)
-		}
-	}
+	GetTSManager().UnsafeUpdatePackTS(r.targetPChannel, newPack.BeginTs, func(newTS uint64) (uint64, bool) {
+		reset := resetMsgPackTimestamp(newPack, maxTS)
+		return newPack.EndTs, reset
+	})
 
 	resetLastTs := needTsMsg
 	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
@@ -1442,11 +1439,8 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		TimeTickMsg: timeTickResult,
 	}
 	newPack.Msgs = append(newPack.Msgs, timeTickMsg)
-	GetTSManager().SetLastMsgTS(r.pChannelName, generateTS)
-	r.lastSendTTTime = time.Now()
-	if resetLastTs {
-		r.lastSendTTTime = r.lastSendTTTime.Add(-r.ttPeriod)
-	}
+
+	GetTSManager().UnsafeUpdateTSInfo(r.targetPChannel, generateTS, resetLastTs)
 	r.ttRateLog.Debug("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", maxTS))
 	return api.GetReplicateMsg(sourceCollectionName, sourceCollectionID, newPack)
 }
@@ -1459,7 +1453,7 @@ func resetMsgPackTimestamp(pack *msgstream.MsgPack, newTimestamp uint64) bool {
 	deltas := make([]uint64, len(pack.Msgs))
 	lastTS := uint64(0)
 	for i, msg := range pack.Msgs {
-		if lastTS == msg.BeginTs() {
+		if i != 0 && lastTS == msg.BeginTs() {
 			deltas[i] = deltas[i-1]
 		} else {
 			deltas[i] = uint64(i) + 1
@@ -1600,14 +1594,17 @@ func initReplicateChannelHandler(ctx context.Context,
 		forwardPackChan:    make(chan *api.ReplicateMsg, opts.MessageBufferSize),
 		generatePackChan:   make(chan *api.ReplicateMsg, 30),
 		retryOptions:       opts.RetryOptions,
-		ttPeriod:           time.Duration(opts.TTInterval) * time.Millisecond,
 		sourceSeekPosition: sourceInfo.SeekPosition,
 		ttRateLog:          log.NewRateLog(0.01, log.L()),
 	}
-	channelHandler.ttLock.Lock()
-	channelHandler.lastSendTTTime = time.Now().Add(-channelHandler.ttPeriod)
-	channelHandler.ttLock.Unlock()
+	var cts uint64 = math.MaxUint64
+	if sourceInfo.SeekPosition != nil {
+		cts = sourceInfo.SeekPosition.GetTimestamp()
+	}
+	GetTSManager().InitTSInfo(channelHandler.targetPChannel,
+		time.Duration(opts.TTInterval)*time.Millisecond,
+		cts,
+	)
 	go channelHandler.AddCollection(sourceInfo, targetInfo)
-	GetTSManager().CollectTS(channelHandler.pChannelName, math.MaxUint64)
 	return channelHandler, nil
 }

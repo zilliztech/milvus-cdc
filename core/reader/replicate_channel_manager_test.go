@@ -21,6 +21,7 @@ package reader
 import (
 	"context"
 	"errors"
+	"math"
 	"sort"
 	"testing"
 	"time"
@@ -594,7 +595,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		handler.isDroppedPartition = func(i int64) bool {
 			return false
 		}
-		handler.lastSendTTTime = time.Now().Add(-handler.ttPeriod)
+		GetTSManager().InitTSInfo(handler.targetPChannel, 100*time.Millisecond, math.MaxUint64)
 
 		err = handler.AddPartitionInfo(&pb.CollectionInfo{
 			ID: 1,
@@ -626,6 +627,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 				assert.Len(t, pack.StartPositions, 1)
 				assert.Len(t, pack.EndPositions, 1)
 				assert.Len(t, pack.Msgs, 1)
+				_, ok := pack.Msgs[0].(*msgstream.TimeTickMsg)
+				assert.True(t, ok, pack.Msgs[0])
 			}
 			{
 				// insert msg
