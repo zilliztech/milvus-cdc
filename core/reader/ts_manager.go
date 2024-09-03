@@ -22,13 +22,16 @@ import (
 	"context"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
+	"github.com/milvus-io/milvus/pkg/util/lock"
 	"github.com/milvus-io/milvus/pkg/util/retry"
 	"github.com/milvus-io/milvus/pkg/util/tsoutil"
+	"github.com/milvus-io/milvus/pkg/util/typeutil"
 
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
@@ -47,31 +50,46 @@ var (
 		}, []string{"channel_name"})
 )
 
-type tsManager struct {
-	channelTS    util.Map[string, uint64]
-	channelRef   util.Map[string, *util.Value[int]]
-	retryOptions []retry.Option
-	lastTS       *util.Value[uint64]
-	lastMsgTS    util.Map[string, uint64]
-	refLock      sync.Mutex
-	rateLog      *log.RateLog
+type tsInfo struct {
+	cts    uint64        // current ts
+	lts    uint64        // last send ts
+	sts    time.Time     // the time of last send ts
+	period time.Duration // send ts period
+}
 
-	channelTS2 map[string]uint64
-	tsLock     sync.RWMutex
+type tsManager struct {
+	// deprecated
+	channelTS util.Map[string, uint64]
+	// deprecated
+	channelRef util.Map[string, *util.Value[int]]
+	// deprecated
+	refLock sync.Mutex
+	// deprecated
+	lastTS *util.Value[uint64]
+	// deprecated
+	retryOptions []retry.Option
+	// deprecated
+	lastMsgTS util.Map[string, uint64]
+
+	channelTS2     *typeutil.ConcurrentMap[string, *tsInfo]
+	channelTSLocks *lock.KeyLock[string]
+	rateLog        *log.RateLog
 }
 
 func GetTSManager() *tsManager {
 	tsOnce.Do(func() {
 		tsInstance = &tsManager{
-			retryOptions: util.GetRetryOptions(config.GetCommonConfig().Retry),
-			lastTS:       util.NewValue[uint64](0),
-			rateLog:      log.NewRateLog(1, log.L()),
-			channelTS2:   make(map[string]uint64),
+			retryOptions:   util.GetRetryOptions(config.GetCommonConfig().Retry),
+			lastTS:         util.NewValue[uint64](0),
+			rateLog:        log.NewRateLog(1, log.L()),
+			channelTS2:     typeutil.NewConcurrentMap[string, *tsInfo](),
+			channelTSLocks: lock.NewKeyLock[string](),
 		}
 	})
 	return tsInstance
 }
 
+// AddRef: not been used
 func (m *tsManager) AddRef(channelName string) {
 	v, ok := m.channelRef.Load(channelName)
 	if !ok {
@@ -89,6 +107,7 @@ func (m *tsManager) AddRef(channelName string) {
 	})
 }
 
+// RemoveRef not been used
 func (m *tsManager) RemoveRef(channelName string) {
 	v, ok := m.channelRef.Load(channelName)
 	if !ok {
@@ -100,24 +119,28 @@ func (m *tsManager) RemoveRef(channelName string) {
 	})
 }
 
+// CollectTS channel name is the target physical channel name
 func (m *tsManager) CollectTS(channelName string, currentTS uint64) {
 	m.channelTS.Store(channelName, currentTS)
 
-	m.tsLock.Lock()
-	defer m.tsLock.Unlock()
+	m.channelTSLocks.Lock(channelName)
+	defer m.channelTSLocks.Unlock(channelName)
 	if currentTS == math.MaxUint64 {
 		return
 	}
-	ts2, ok := m.channelTS2[channelName]
+	ts2, ok := m.channelTS2.Get(channelName)
 	if !ok {
-		m.channelTS2[channelName] = currentTS
+		m.channelTS2.Insert(channelName, &tsInfo{
+			cts: currentTS,
+		})
 		return
 	}
-	if ts2 < currentTS {
-		m.channelTS2[channelName] = currentTS
+	if ts2.cts == 0 || ts2.cts < currentTS {
+		ts2.cts = currentTS
 	}
 }
 
+// getUnsafeTSInfo not been used
 func (m *tsManager) getUnsafeTSInfo() (map[string]uint64, map[string]int) {
 	a := m.channelTS.GetUnsafeMap()
 	b := m.channelRef.GetUnsafeMap()
@@ -128,6 +151,7 @@ func (m *tsManager) getUnsafeTSInfo() (map[string]uint64, map[string]int) {
 	return a, c
 }
 
+// GetMinTS not been used
 func (m *tsManager) GetMinTS(channelName string) (uint64, bool) {
 	curChannelTS := m.channelTS.LoadWithDefault(channelName, math.MaxUint64)
 	minTS := curChannelTS
@@ -184,21 +208,13 @@ func (m *tsManager) GetMinTS(channelName string) (uint64, bool) {
 }
 
 func (m *tsManager) GetMaxTS(channelName string) (uint64, bool) {
-	m.tsLock.RLock()
-	defer m.tsLock.RUnlock()
-	ts, ok := m.channelTS2[channelName]
+	m.channelTSLocks.RLock(channelName)
+	defer m.channelTSLocks.RUnlock(channelName)
+	ts, ok := m.channelTS2.Get(channelName)
 	if !ok {
 		return 0, false
 	}
-	return ts, true
-}
-
-func (m *tsManager) SetLastMsgTS(channelName string, lastTS uint64) {
-	m.lastMsgTS.Store(channelName, lastTS)
-}
-
-func (m *tsManager) GetLastMsgTS(channelName string) uint64 {
-	return m.lastMsgTS.LoadWithDefault(channelName, 0)
+	return ts.cts, true
 }
 
 // EmptyTS Only for test
@@ -210,4 +226,79 @@ func (m *tsManager) EmptyTS() {
 		m.channelRef.Delete(k)
 	}
 	m.retryOptions = util.NoRetryOption()
+}
+
+func (m *tsManager) LockTargetChannel(channelName string) {
+	m.channelTSLocks.Lock(channelName)
+}
+
+func (m *tsManager) UnLockTargetChannel(channelName string) {
+	m.channelTSLocks.Unlock(channelName)
+}
+
+func (m *tsManager) InitTSInfo(channelName string, p time.Duration, c uint64) {
+	m.channelTSLocks.Lock(channelName)
+	defer m.channelTSLocks.Unlock(channelName)
+	if c == math.MaxUint64 {
+		c = 0
+	}
+	t := time.Now().Add(-p)
+	ts, ok := m.channelTS2.Get(channelName)
+	if !ok {
+		m.channelTS2.Insert(channelName, &tsInfo{
+			cts:    c,
+			sts:    t,
+			period: p,
+		})
+		return
+	}
+	if ts.sts.After(t) {
+		ts.sts = t
+	}
+	if (ts.cts == 0 || ts.cts < c) && c != 0 {
+		ts.cts = c
+	}
+	ts.period = p
+}
+
+// UnsafeShouldSendTSMsg should call the LockTargetChannel and UnLockTargetChannel before call this function
+func (m *tsManager) UnsafeShouldSendTSMsg(channelName string) bool {
+	ts, ok := m.channelTS2.Get(channelName)
+	if !ok {
+		return false
+	}
+	if ts.cts == 0 {
+		return false
+	}
+	if time.Since(ts.sts) >= ts.period {
+		return true
+	}
+	return false
+}
+
+func (m *tsManager) UnsafeUpdatePackTS(channelName string, beginTS uint64, updatePackTSFunc func(newTS uint64) (uint64, bool)) {
+	ts, ok := m.channelTS2.Get(channelName)
+	if !ok {
+		return
+	}
+	if ts.lts < beginTS {
+		return
+	}
+
+	maxTS := ts.cts
+	if updateTS, ok := updatePackTSFunc(maxTS); ok {
+		ts.cts = updateTS
+	}
+}
+
+func (m *tsManager) UnsafeUpdateTSInfo(channelName string, sendTS uint64, resetLastTime bool) {
+	ts, ok := m.channelTS2.Get(channelName)
+	if !ok {
+		return
+	}
+	ts.lts = sendTS
+	ts.sts = time.Now()
+	if resetLastTime {
+		ts.sts = ts.sts.Add(-ts.period)
+	}
 }

@@ -26,6 +26,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/milvus-io/milvus/pkg/util/lock"
+	"github.com/milvus-io/milvus/pkg/util/typeutil"
+
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/util"
@@ -74,10 +77,10 @@ func TestTS(t *testing.T) {
 			InitBackOff: 1,
 			MaxBackOff:  1,
 		}),
-		lastTS:  util.NewValue[uint64](0),
-		rateLog: log.NewRateLog(1, log.L()),
-
-		channelTS2: make(map[string]uint64),
+		lastTS:         util.NewValue[uint64](0),
+		rateLog:        log.NewRateLog(1, log.L()),
+		channelTS2:     typeutil.NewConcurrentMap[string, *tsInfo](),
+		channelTSLocks: lock.NewKeyLock[string](),
 	}
 
 	m.AddRef("a")
