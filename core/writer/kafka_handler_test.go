@@ -443,4 +443,32 @@ func TestKafkaDataHandler(t *testing.T) {
 		err := handler.OperatePrivilege(ctx, revokePrivilegeFromUserParam)
 		assert.NoError(t, err)
 	})
+
+	t.Run("describe collection", func(t *testing.T) {
+		describeCollectionParam := &api.DescribeCollectionParam{
+			Name: "foo",
+		}
+
+		err := handler.DescribeCollection(ctx, describeCollectionParam)
+		assert.NoError(t, err)
+	})
+
+	t.Run("desribe partition", func(t *testing.T) {
+		describePartitionParam := &api.DescribePartitionParam{
+			CollectionName: "foo",
+			PartitionName:  "bar",
+		}
+
+		err := handler.DescribePartition(ctx, describePartitionParam)
+		assert.NoError(t, err)
+	})
+
+	t.Run("describe database", func(t *testing.T) {
+		describeDatabaseParam := &api.DescribeDatabaseParam{
+			Name: "foo",
+		}
+
+		err := handler.DescribeDatabase(ctx, describeDatabaseParam)
+		assert.NoError(t, err)
+	})
 }

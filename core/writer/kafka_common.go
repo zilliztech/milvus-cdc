@@ -53,4 +53,7 @@ const (
 	removeUserFromRoleInfo msgType = "remove user from role"
 	grantPrivilegeInfo     msgType = "grant privilege"
 	revokePrivilegeInfo    msgType = "revoke privilege"
+	describeDatabase       msgType = "describe database"
+	describeCollection     msgType = "describe collection"
+	describePartition      msgType = "describe partition"
 )

@@ -123,6 +123,9 @@ func GetURI(address string, port int, enableTLS bool) string {
 	if strings.Contains(address, "http://") || strings.Contains(address, "https://") {
 		return address
 	}
+	if address == "" || port <= 0 {
+		return ""
+	}
 	if enableTLS {
 		return fmt.Sprintf("https://%s:%d", address, port)
 	}

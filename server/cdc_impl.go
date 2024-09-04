@@ -171,11 +171,13 @@ func (e *MetaCDC) ReloadTask() {
 
 	for _, taskInfo := range taskInfos {
 		milvusURI := GetMilvusURI(taskInfo.MilvusConnectParam)
+		kafkaAddress := GetKafkaAddress(taskInfo.KafkaConnectParam)
+		uKey := milvusURI + kafkaAddress
 		newCollectionNames := lo.Map(taskInfo.CollectionInfos, func(t model.CollectionInfo, _ int) string {
 			return t.Name
 		})
-		e.collectionNames.data[milvusURI] = append(e.collectionNames.data[milvusURI], newCollectionNames...)
-		e.collectionNames.excludeData[milvusURI] = append(e.collectionNames.excludeData[milvusURI], taskInfo.ExcludeCollections...)
+		e.collectionNames.data[uKey] = append(e.collectionNames.data[uKey], newCollectionNames...)
+		e.collectionNames.excludeData[uKey] = append(e.collectionNames.excludeData[uKey], taskInfo.ExcludeCollections...)
 		e.cdcTasks.Lock()
 		e.cdcTasks.data[taskInfo.TaskID] = taskInfo
 		e.cdcTasks.Unlock()
@@ -203,6 +205,10 @@ func GetMilvusToken(milvusConnectParam model.MilvusConnectParam) string {
 	return util.GetToken(milvusConnectParam.Username, milvusConnectParam.Password)
 }
 
+func GetKafkaAddress(kafkaConnectParam model.KafkaConnectParam) string {
+	return kafkaConnectParam.Address
+}
+
 func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateResponse, err error) {
 	defer func() {
 		log.Info("create request done")
@@ -213,12 +219,15 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	if err = e.validCreateRequest(req); err != nil {
 		return nil, err
 	}
+	var uKey string
 	milvusURI := GetMilvusURI(req.MilvusConnectParam)
+	kafkaAddress := GetKafkaAddress(req.KafkaConnectParam)
+	uKey = milvusURI + kafkaAddress
 	newCollectionNames := lo.Map(req.CollectionInfos, func(t model.CollectionInfo, _ int) string {
 		return t.Name
 	})
 	e.collectionNames.Lock()
-	if names, ok := e.collectionNames.data[milvusURI]; ok {
+	if names, ok := e.collectionNames.data[uKey]; ok {
 		existAll := lo.Contains(names, cdcreader.AllCollection)
 		duplicateCollections := lo.Filter(req.CollectionInfos, func(info model.CollectionInfo, _ int) bool {
 			return (!existAll && lo.Contains(names, info.Name)) || (existAll && info.Name == cdcreader.AllCollection)
@@ -230,7 +239,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 			})))
 		}
 		if existAll {
-			excludeCollectionNames := lo.Filter(e.collectionNames.excludeData[milvusURI], func(s string, _ int) bool {
+			excludeCollectionNames := lo.Filter(e.collectionNames.excludeData[uKey], func(s string, _ int) bool {
 				return !lo.Contains(names, s)
 			})
 			duplicateCollections = lo.Filter(req.CollectionInfos, func(info model.CollectionInfo, _ int) bool {
@@ -247,21 +256,21 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	// release lock early to accept other requests
 	var excludeCollectionNames []string
 	if newCollectionNames[0] == cdcreader.AllCollection {
-		existCollectionNames := e.collectionNames.data[milvusURI]
+		existCollectionNames := e.collectionNames.data[uKey]
 		excludeCollectionNames = make([]string, len(existCollectionNames))
 		copy(excludeCollectionNames, existCollectionNames)
-		e.collectionNames.excludeData[milvusURI] = excludeCollectionNames
+		e.collectionNames.excludeData[uKey] = excludeCollectionNames
 	}
-	e.collectionNames.data[milvusURI] = append(e.collectionNames.data[milvusURI], newCollectionNames...)
+	e.collectionNames.data[uKey] = append(e.collectionNames.data[uKey], newCollectionNames...)
 	e.collectionNames.Unlock()
 
 	revertCollectionNames := func() {
 		e.collectionNames.Lock()
 		defer e.collectionNames.Unlock()
 		if newCollectionNames[0] == cdcreader.AllCollection {
-			e.collectionNames.excludeData[milvusURI] = []string{}
+			e.collectionNames.excludeData[uKey] = []string{}
 		}
-		e.collectionNames.data[milvusURI] = lo.Without(e.collectionNames.data[milvusURI], newCollectionNames...)
+		e.collectionNames.data[uKey] = lo.Without(e.collectionNames.data[uKey], newCollectionNames...)
 	}
 
 	ctx := context.Background()
@@ -276,6 +285,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	info := &meta.TaskInfo{
 		TaskID:                e.getUUID(),
 		MilvusConnectParam:    req.MilvusConnectParam,
+		KafkaConnectParam:     req.KafkaConnectParam,
 		CollectionInfos:       req.CollectionInfos,
 		RPCRequestChannelInfo: req.RPCChannelInfo,
 		ExcludeCollections:    excludeCollectionNames,
@@ -385,7 +395,7 @@ func (e *MetaCDC) getRPCChannelName(channelInfo model.ChannelInfo) string {
 func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 	connectParam := req.MilvusConnectParam
 	if connectParam.URI == "" && connectParam.Host == "" && connectParam.Port <= 0 {
-		return servererror.NewClientError("the milvus uri is empty")
+		return servererror.NewClientError("the downstream address is empty")
 	}
 
 	if connectParam.URI == "" {
@@ -496,9 +506,13 @@ func (e *MetaCDC) getUUID() string {
 
 func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) error {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
+	var uKey string
 	milvusURI := GetMilvusURI(info.MilvusConnectParam)
+	kafkaAddress := GetKafkaAddress(info.KafkaConnectParam)
+	uKey = milvusURI + kafkaAddress
+
 	e.replicateEntityMap.RLock()
-	replicateEntity, ok := e.replicateEntityMap.data[milvusURI]
+	replicateEntity, ok := e.replicateEntityMap.data[uKey]
 	e.replicateEntityMap.RUnlock()
 
 	if !ok {
@@ -591,13 +605,17 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 
 func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, error) {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
+	var uKey string
 	milvusConnectParam := info.MilvusConnectParam
+	kafkaConnectParam := info.KafkaConnectParam
+	kafkaAddress := GetKafkaAddress(kafkaConnectParam)
 
 	ctx := context.TODO()
 	timeoutCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(milvusConnectParam.ConnectTimeout)*time.Second)
 	milvusConnectParam.Token = GetMilvusToken(milvusConnectParam)
 	milvusConnectParam.URI = GetMilvusURI(milvusConnectParam)
 	milvusAddress := milvusConnectParam.URI
+	uKey = milvusAddress + kafkaAddress
 	milvusClient, err := cdcreader.NewTarget(timeoutCtx, cdcreader.TargetConfig{
 		URI:        milvusAddress,
 		Token:      milvusConnectParam.Token,
@@ -651,12 +669,12 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	}
 
 	var dataHandler api.DataHandler
-	if info.KafkaConnectParam.Address != "" {
+	if kafkaConnectParam.Address != "" {
 		dataHandler, err = cdcwriter.NewKafkaDataHandler(
 			cdcwriter.KafkaAddressOption(info.KafkaConnectParam.Address),
 			cdcwriter.KafkaTopicOption(info.KafkaConnectParam.Topic),
 		)
-	} else if info.MilvusConnectParam.URI != "" {
+	} else if milvusConnectParam.URI != "" {
 		targetConfig := milvusConnectParam
 		dataHandler, err = cdcwriter.NewMilvusDataHandler(
 			cdcwriter.URIOption(targetConfig.URI),
@@ -676,7 +694,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	}, metaOp.GetAllDroppedObj())
 	e.replicateEntityMap.Lock()
 	defer e.replicateEntityMap.Unlock()
-	entity, ok := e.replicateEntityMap.data[milvusAddress]
+	entity, ok := e.replicateEntityMap.data[uKey]
 	if !ok {
 		replicateCtx, cancelReplicateFunc := context.WithCancel(ctx)
 		channelManager.SetCtx(replicateCtx)
@@ -690,7 +708,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 			mqTTDispatcher: msgTTDispatcherClient,
 			taskQuitFuncs:  typeutil.NewConcurrentMap[string, func()](),
 		}
-		e.replicateEntityMap.data[milvusAddress] = entity
+		e.replicateEntityMap.data[uKey] = entity
 		e.startReplicateAPIEvent(replicateCtx, info, entity)
 		e.startReplicateDMLChannel(replicateCtx, info, entity)
 	}
@@ -952,14 +970,17 @@ func (e *MetaCDC) pauseTaskWithReason(taskID, reason string, currentStates []met
 	cdcTask.Reason = reason
 	e.cdcTasks.Unlock()
 
+	var uKey string
 	milvusURI := GetMilvusURI(cdcTask.MilvusConnectParam)
+	kafkaAddress := GetKafkaAddress(cdcTask.KafkaConnectParam)
+	uKey = milvusURI + kafkaAddress
 	e.replicateEntityMap.Lock()
-	if replicateEntity, ok := e.replicateEntityMap.data[milvusURI]; ok {
+	if replicateEntity, ok := e.replicateEntityMap.data[uKey]; ok {
 		if quitFunc, ok := replicateEntity.taskQuitFuncs.GetAndRemove(taskID); ok {
 			quitFunc()
 		}
 	}
-	delete(e.replicateEntityMap.data, milvusURI)
+	delete(e.replicateEntityMap.data, uKey)
 	e.replicateEntityMap.Unlock()
 	return err
 }
@@ -994,13 +1015,16 @@ func (e *MetaCDC) delete(taskID string) error {
 	if err != nil {
 		return errors.WithMessage(err, "fail to delete the task meta, task_id: "+taskID)
 	}
+	var uKey string
 	milvusURI := GetMilvusURI(info.MilvusConnectParam)
+	kafkaAddress := GetKafkaAddress(info.KafkaConnectParam)
+	uKey = milvusURI + kafkaAddress
 	collectionNames := info.CollectionNames()
 	e.collectionNames.Lock()
 	if collectionNames[0] == cdcreader.AllCollection {
-		e.collectionNames.excludeData[milvusURI] = []string{}
+		e.collectionNames.excludeData[uKey] = []string{}
 	}
-	e.collectionNames.data[milvusURI] = lo.Without(e.collectionNames.data[milvusURI], collectionNames...)
+	e.collectionNames.data[uKey] = lo.Without(e.collectionNames.data[uKey], collectionNames...)
 	e.collectionNames.Unlock()
 
 	e.cdcTasks.Lock()
@@ -1008,7 +1032,7 @@ func (e *MetaCDC) delete(taskID string) error {
 	e.cdcTasks.Unlock()
 
 	e.replicateEntityMap.Lock()
-	if replicateEntity, ok := e.replicateEntityMap.data[milvusURI]; ok {
+	if replicateEntity, ok := e.replicateEntityMap.data[uKey]; ok {
 		if quitFunc, ok := replicateEntity.taskQuitFuncs.GetAndRemove(taskID); ok {
 			quitFunc()
 			replicateEntity.refCnt.Dec()
@@ -1017,7 +1041,7 @@ func (e *MetaCDC) delete(taskID string) error {
 			replicateEntity.entityQuitFunc()
 		}
 	}
-	delete(e.replicateEntityMap.data, milvusURI)
+	delete(e.replicateEntityMap.data, uKey)
 	e.replicateEntityMap.Unlock()
 
 	return err
