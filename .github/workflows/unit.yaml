@@ -42,6 +42,23 @@ jobs:
           ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
         ports:
           - 2379:2379
+      kafka:
+        image: apache/kafka:3.8.0
+        env:
+          KAFKA_BROKER_ID: 1
+          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+        ports:
+          - 9092:9092
+      zookeeper:
+        image: zookeeper:3.8
+        env:
+          ZOO_MY_ID: 1
+          ZOO_SERVERS: server.1=zookeeper:2888:3888
+        ports:
+          - 2181:2181
 #      pulsar:
 #        image: apachepulsar/pulsar:2.8.2
 #        ports:
