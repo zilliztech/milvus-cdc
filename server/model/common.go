@@ -57,7 +57,7 @@ type MilvusConnectParam struct {
 
 type CollectionInfo struct {
 	Name      string            `json:"name" mapstructure:"name"`
-	Positions map[string]string `json:"positions" mapstructure:"positions"`
+	Positions map[string]string `json:"positions" mapstructure:"positions"` // the key is the vchannel
 }
 
 type ChannelInfo struct {

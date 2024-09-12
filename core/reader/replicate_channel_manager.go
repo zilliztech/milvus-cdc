@@ -1456,6 +1456,7 @@ func resetMsgPackTimestamp(pack *msgstream.MsgPack, newTimestamp uint64) bool {
 		if i != 0 && lastTS == msg.BeginTs() {
 			deltas[i] = deltas[i-1]
 		} else {
+			// nolint
 			deltas[i] = uint64(i) + 1
 			lastTS = msg.BeginTs()
 		}

@@ -233,10 +233,7 @@ body:
       {
         "name":"*"
       }
-    ],
-    "rpc_channel_info": {
-      "name": "by-dev-replicate-msg"
-    }
+    ]
   }
 }
 ```

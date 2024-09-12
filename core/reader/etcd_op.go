@@ -709,7 +709,9 @@ func (e *EtcdOp) internalGetAllPartition(ctx context.Context, filters []api.Part
 		info := &pb.PartitionInfo{}
 		err = proto.Unmarshal(kv.Value, info)
 		if err != nil {
-			log.Warn("fail to unmarshal partition info", zap.String("key", util.ToString(kv.Key)), zap.String("value", util.Base64Encode(kv.Value)), zap.Error(err))
+			if !util.IsTombstone(kv.Value) {
+				log.Warn("fail to unmarshal partition info", zap.String("key", util.ToString(kv.Key)), zap.String("value", util.Base64Encode(kv.Value)), zap.Error(err))
+			}
 			continue
 		}
 		hasFilter := false
