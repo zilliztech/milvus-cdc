@@ -392,26 +392,38 @@ func (e *MetaCDC) getRPCChannelName(channelInfo model.ChannelInfo) string {
 }
 
 func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
-	connectParam := req.MilvusConnectParam
-	if connectParam.URI == "" && connectParam.Host == "" && connectParam.Port <= 0 {
+	milvusConnectParam := req.MilvusConnectParam
+	kafkaConnectParam := req.KafkaConnectParam
+	isMilvusEmpty := milvusConnectParam.URI == "" && milvusConnectParam.Host == "" && milvusConnectParam.Port <= 0
+	if isMilvusEmpty && kafkaConnectParam.Address == "" {
 		return servererror.NewClientError("the downstream address is empty")
+	} else if !isMilvusEmpty && kafkaConnectParam.Address != "" {
+		return servererror.NewClientError("dont support milvus and kafka at the same time now")
 	}
 
-	if connectParam.URI == "" {
-		if connectParam.Host == "" {
-			return servererror.NewClientError("the milvus host is empty")
+	if !isMilvusEmpty {
+		if milvusConnectParam.URI == "" {
+			if milvusConnectParam.Host == "" {
+				return servererror.NewClientError("the milvus host is empty")
+			}
+			if milvusConnectParam.Port <= 0 {
+				return servererror.NewClientError("the milvus port is less or equal zero")
+			}
 		}
-		if connectParam.Port <= 0 {
-			return servererror.NewClientError("the milvus port is less or equal zero")
+
+		if (milvusConnectParam.Username != "" && milvusConnectParam.Password == "") ||
+			(milvusConnectParam.Username == "" && milvusConnectParam.Password != "") {
+			return servererror.NewClientError("cannot set only one of the milvus username and password")
+		}
+		if milvusConnectParam.ConnectTimeout < 0 {
+			return servererror.NewClientError("the milvus connect timeout is less zero")
 		}
 	}
 
-	if (connectParam.Username != "" && connectParam.Password == "") ||
-		(connectParam.Username == "" && connectParam.Password != "") {
-		return servererror.NewClientError("cannot set only one of the milvus username and password")
-	}
-	if connectParam.ConnectTimeout < 0 {
-		return servererror.NewClientError("the milvus connect timeout is less zero")
+	if kafkaConnectParam.Address != "" {
+		if kafkaConnectParam.Topic == "" {
+			return servererror.NewClientError("the kafka topic is empty")
+		}
 	}
 	cacheParam := req.BufferConfig
 	if cacheParam.Period < 0 {
@@ -427,19 +439,31 @@ func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 	if req.RPCChannelInfo.Name != "" && req.RPCChannelInfo.Name != e.config.SourceConfig.ReplicateChan {
 		return servererror.NewClientError("the rpc channel is invalid, the channel name should be the same as the source config")
 	}
-	connectParam.Token = GetMilvusToken(connectParam)
-	connectParam.URI = GetMilvusURI(connectParam)
 
-	_, err := cdcwriter.NewMilvusDataHandler(
-		cdcwriter.URIOption(connectParam.URI),
-		cdcwriter.TokenOption(connectParam.Token),
-		cdcwriter.IgnorePartitionOption(connectParam.IgnorePartition),
-		cdcwriter.ConnectTimeoutOption(connectParam.ConnectTimeout),
-		cdcwriter.DialConfigOption(connectParam.DialConfig),
-	)
-	if err != nil {
-		log.Warn("fail to connect the milvus", zap.Any("connect_param", connectParam), zap.Error(err))
-		return errors.WithMessage(err, "fail to connect the milvus")
+	if !isMilvusEmpty {
+		milvusConnectParam.Token = GetMilvusToken(milvusConnectParam)
+		milvusConnectParam.URI = GetMilvusURI(milvusConnectParam)
+
+		_, err := cdcwriter.NewMilvusDataHandler(
+			cdcwriter.URIOption(milvusConnectParam.URI),
+			cdcwriter.TokenOption(milvusConnectParam.Token),
+			cdcwriter.IgnorePartitionOption(milvusConnectParam.IgnorePartition),
+			cdcwriter.ConnectTimeoutOption(milvusConnectParam.ConnectTimeout),
+			cdcwriter.DialConfigOption(milvusConnectParam.DialConfig),
+		)
+		if err != nil {
+			log.Warn("fail to connect the milvus", zap.Any("connect_param", milvusConnectParam), zap.Error(err))
+			return errors.WithMessage(err, "fail to connect the milvus")
+		}
+	} else if kafkaConnectParam.Address != "" {
+		_, err := cdcwriter.NewKafkaDataHandler(
+			cdcwriter.KafkaAddressOption(kafkaConnectParam.Address),
+			cdcwriter.KafkaTopicOption(kafkaConnectParam.Topic),
+		)
+		if err != nil {
+			log.Warn("fail to connect the kafka", zap.Any("connect_param", kafkaConnectParam), zap.Error(err))
+			return errors.WithMessage(err, "fail to connect the kafka")
+		}
 	}
 	return nil
 }

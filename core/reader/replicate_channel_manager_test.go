@@ -83,6 +83,7 @@ func NewReplicateChannelManagerWithFactory(mqConfig config.MQConfig,
 		msgPackCallback:         msgPackCallback,
 		addCollectionLock:       &deadlock.RWMutex{},
 		addCollectionCnt:        new(int),
+		downstream:              "milvus",
 	}, nil
 }
 

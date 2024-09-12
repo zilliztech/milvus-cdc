@@ -60,6 +60,7 @@ var (
 		Tenant:     "public",
 		Namespace:  "default",
 	}
+	kafkaAddress = "localhost:9092"
 )
 
 func createTopic(topic string) error {
@@ -277,9 +278,18 @@ func TestValidCreateRequest(t *testing.T) {
 			},
 		},
 	}
-	t.Run("empty host", func(t *testing.T) {
+	t.Run("empty downstream", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
 			MilvusConnectParam: model.MilvusConnectParam{},
+			KafkaConnectParam:  model.KafkaConnectParam{},
+		})
+		assert.Error(t, err)
+	})
+	t.Run("empty host", func(t *testing.T) {
+		_, err := metaCDC.Create(&request.CreateRequest{
+			MilvusConnectParam: model.MilvusConnectParam{
+				Port: 19530,
+			},
 		})
 		assert.Error(t, err)
 	})
@@ -307,6 +317,14 @@ func TestValidCreateRequest(t *testing.T) {
 				Host:           "localhost",
 				Port:           19530,
 				ConnectTimeout: -1,
+			},
+		})
+		assert.Error(t, err)
+	})
+	t.Run("empty kafka topic", func(t *testing.T) {
+		_, err := metaCDC.Create(&request.CreateRequest{
+			KafkaConnectParam: model.KafkaConnectParam{
+				Address: kafkaAddress,
 			},
 		})
 		assert.Error(t, err)
@@ -416,7 +434,7 @@ func TestValidCreateRequest(t *testing.T) {
 		})
 		assert.Error(t, err)
 	})
-	t.Run("success", func(t *testing.T) {
+	t.Run("success when milvus", func(t *testing.T) {
 		_, closeFunc := NewMockMilvus(t)
 		defer closeFunc()
 
@@ -425,6 +443,28 @@ func TestValidCreateRequest(t *testing.T) {
 				Host:           "localhost",
 				Port:           50051,
 				ConnectTimeout: 5,
+			},
+			BufferConfig: model.BufferConfig{
+				Period: 10,
+				Size:   10,
+			},
+			CollectionInfos: []model.CollectionInfo{
+				{
+					Name: "*",
+				},
+			},
+			RPCChannelInfo: model.ChannelInfo{
+				Name: "foo",
+			},
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("success when kafka", func(t *testing.T) {
+		err := metaCDC.validCreateRequest(&request.CreateRequest{
+			KafkaConnectParam: model.KafkaConnectParam{
+				Address: kafkaAddress,
+				Topic:   "test",
 			},
 			BufferConfig: model.BufferConfig{
 				Period: 10,
