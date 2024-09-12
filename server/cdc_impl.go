@@ -1,5 +1,4 @@
-/*
- * Licensed to the LF AI & Data foundation under one
+/* Licensed to the LF AI & Data foundation under one
  * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership. The ASF licenses this file
@@ -597,7 +596,6 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 	info.State = meta.TaskStateRunning
 	info.Reason = ""
 	e.cdcTasks.Unlock()
-
 	collectionReader.StartRead(readCtx)
 	channelReader.StartRead(readCtx)
 	return nil
@@ -610,21 +608,25 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	kafkaConnectParam := info.KafkaConnectParam
 	kafkaAddress := GetKafkaAddress(kafkaConnectParam)
 
+	var milvusClient api.TargetAPI
+	var err error
 	ctx := context.TODO()
-	timeoutCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(milvusConnectParam.ConnectTimeout)*time.Second)
 	milvusConnectParam.Token = GetMilvusToken(milvusConnectParam)
 	milvusConnectParam.URI = GetMilvusURI(milvusConnectParam)
 	milvusAddress := milvusConnectParam.URI
 	uKey = milvusAddress + kafkaAddress
-	milvusClient, err := cdcreader.NewTarget(timeoutCtx, cdcreader.TargetConfig{
-		URI:        milvusAddress,
-		Token:      milvusConnectParam.Token,
-		DialConfig: milvusConnectParam.DialConfig,
-	})
-	cancelFunc()
-	if err != nil {
-		taskLog.Warn("fail to new target", zap.String("address", milvusAddress), zap.Error(err))
-		return nil, servererror.NewClientError("fail to connect target milvus server")
+	if milvusAddress != "" {
+		timeoutCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(milvusConnectParam.ConnectTimeout)*time.Second)
+		milvusClient, err = cdcreader.NewTarget(timeoutCtx, cdcreader.TargetConfig{
+			URI:        milvusAddress,
+			Token:      milvusConnectParam.Token,
+			DialConfig: milvusConnectParam.DialConfig,
+		})
+		cancelFunc()
+		if err != nil {
+			taskLog.Warn("fail to new target", zap.String("address", milvusAddress), zap.Error(err))
+			return nil, servererror.NewClientError("fail to connect target milvus server")
+		}
 	}
 	sourceConfig := e.config.SourceConfig
 	etcdServerConfig := GetEtcdServerConfigFromSourceConfig(sourceConfig)
@@ -649,6 +651,12 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	msgTTDispatcherClient, _ := cdcreader.GetMsgDispatcherClient(e.mqFactoryCreator, mqConfig, true)
 	streamFactory, _ := cdcreader.GetStreamFactory(e.mqFactoryCreator, mqConfig, false)
 
+	var downString string
+	if milvusAddress != "" {
+		downString = "milvus"
+	} else if kafkaAddress != "" {
+		downString = "kafka"
+	}
 	// default value: 10
 	bufferSize := e.config.SourceConfig.ReadChanLen
 	ttInterval := e.config.SourceConfig.TimeTickInterval
@@ -662,7 +670,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 			Retry:             e.config.Retry,
 		}, metaOp, func(s string, pack *msgstream.MsgPack) {
 			replicateMetric(info, s, pack, metrics.OPTypeRead)
-		})
+		}, downString)
 	if err != nil {
 		taskLog.Warn("fail to create replicate channel manager", zap.Error(err))
 		return nil, servererror.NewClientError("fail to create replicate channel manager")
