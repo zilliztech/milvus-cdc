@@ -50,6 +50,9 @@ func TestKafkaDataHandler(t *testing.T) {
 		KafkaAddressOption("localhost:9092"),
 	)
 	assert.NoError(t, err)
+
+	// wait for kafka connection
+	time.Sleep(time.Second)
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancelFunc()
 
