@@ -540,7 +540,7 @@ func (c *ChannelWriter) dropDatabase(ctx context.Context, msgBase *commonpb.MsgB
 
 func (c *ChannelWriter) alterDatabase(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	alterDatabaseMsg := msg.(*msgstream.AlterDatabaseMsg)
-	alterDatabaseMsg.Base = msgBase
+	UpdateMsgBase(alterDatabaseMsg.Base, msgBase)
 	err := c.dataHandler.AlterDatabase(ctx, &api.AlterDatabaseParam{
 		AlterDatabaseRequest: alterDatabaseMsg.AlterDatabaseRequest,
 	})
@@ -599,7 +599,7 @@ func (c *ChannelWriter) createIndex(ctx context.Context, msgBase *commonpb.MsgBa
 			zap.String("collection", createIndexMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
 		return nil
 	}
-	createIndexMsg.Base = msgBase
+	UpdateMsgBase(createIndexMsg.Base, msgBase)
 	err := c.dataHandler.CreateIndex(ctx, &api.CreateIndexParam{
 		ReplicateParam: api.ReplicateParam{
 			Database: createIndexMsg.GetDbName(),
@@ -659,7 +659,7 @@ func (c *ChannelWriter) alterIndex(ctx context.Context, msgBase *commonpb.MsgBas
 			zap.String("collection", alterIndexMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
 		return nil
 	}
-	alterIndexMsg.Base = msgBase
+	UpdateMsgBase(alterIndexMsg.Base, msgBase)
 	err := c.dataHandler.AlterIndex(ctx, &api.AlterIndexParam{
 		AlterIndexRequest: alterIndexMsg.AlterIndexRequest,
 	})
@@ -679,7 +679,7 @@ func (c *ChannelWriter) loadCollection(ctx context.Context, msgBase *commonpb.Ms
 			zap.String("collection", loadCollectionMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
 		return nil
 	}
-	loadCollectionMsg.Base = msgBase
+	UpdateMsgBase(loadCollectionMsg.Base, msgBase)
 	err := c.dataHandler.LoadCollection(ctx, &api.LoadCollectionParam{
 		ReplicateParam: api.ReplicateParam{
 			Database: loadCollectionMsg.GetDbName(),
@@ -811,7 +811,7 @@ func (c *ChannelWriter) releasePartitions(ctx context.Context, msgBase *commonpb
 
 func (c *ChannelWriter) createCredential(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	createUserMsg := msg.(*msgstream.CreateUserMsg)
-	createUserMsg.Base = msgBase
+	UpdateMsgBase(createUserMsg.Base, msgBase)
 	err := c.dataHandler.CreateUser(ctx, &api.CreateUserParam{
 		CreateCredentialRequest: createUserMsg.CreateCredentialRequest,
 	})
@@ -824,7 +824,7 @@ func (c *ChannelWriter) createCredential(ctx context.Context, msgBase *commonpb.
 
 func (c *ChannelWriter) deleteCredential(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	deleteUserMsg := msg.(*msgstream.DeleteUserMsg)
-	deleteUserMsg.Base = msgBase
+	UpdateMsgBase(deleteUserMsg.Base, msgBase)
 	err := c.dataHandler.DeleteUser(ctx, &api.DeleteUserParam{
 		DeleteCredentialRequest: deleteUserMsg.DeleteCredentialRequest,
 	})
@@ -837,7 +837,7 @@ func (c *ChannelWriter) deleteCredential(ctx context.Context, msgBase *commonpb.
 
 func (c *ChannelWriter) updateCredential(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	updateUserMsg := msg.(*msgstream.UpdateUserMsg)
-	updateUserMsg.Base = msgBase
+	UpdateMsgBase(updateUserMsg.Base, msgBase)
 	err := c.dataHandler.UpdateUser(ctx, &api.UpdateUserParam{
 		UpdateCredentialRequest: updateUserMsg.UpdateCredentialRequest,
 	})
@@ -850,7 +850,7 @@ func (c *ChannelWriter) updateCredential(ctx context.Context, msgBase *commonpb.
 
 func (c *ChannelWriter) createRole(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	createRoleMsg := msg.(*msgstream.CreateRoleMsg)
-	createRoleMsg.Base = msgBase
+	UpdateMsgBase(createRoleMsg.Base, msgBase)
 	err := c.dataHandler.CreateRole(ctx, &api.CreateRoleParam{
 		CreateRoleRequest: createRoleMsg.CreateRoleRequest,
 	})
@@ -863,7 +863,7 @@ func (c *ChannelWriter) createRole(ctx context.Context, msgBase *commonpb.MsgBas
 
 func (c *ChannelWriter) dropRole(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	dropRoleMsg := msg.(*msgstream.DropRoleMsg)
-	dropRoleMsg.Base = msgBase
+	UpdateMsgBase(dropRoleMsg.Base, msgBase)
 	err := c.dataHandler.DropRole(ctx, &api.DropRoleParam{
 		DropRoleRequest: dropRoleMsg.DropRoleRequest,
 	})
@@ -876,7 +876,7 @@ func (c *ChannelWriter) dropRole(ctx context.Context, msgBase *commonpb.MsgBase,
 
 func (c *ChannelWriter) operateUserRole(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	operateUserRoleMsg := msg.(*msgstream.OperateUserRoleMsg)
-	operateUserRoleMsg.Base = msgBase
+	UpdateMsgBase(operateUserRoleMsg.Base, msgBase)
 	err := c.dataHandler.OperateUserRole(ctx, &api.OperateUserRoleParam{
 		OperateUserRoleRequest: operateUserRoleMsg.OperateUserRoleRequest,
 	})
@@ -889,7 +889,7 @@ func (c *ChannelWriter) operateUserRole(ctx context.Context, msgBase *commonpb.M
 
 func (c *ChannelWriter) operatePrivilege(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	operatePrivilegeMsg := msg.(*msgstream.OperatePrivilegeMsg)
-	operatePrivilegeMsg.Base = msgBase
+	UpdateMsgBase(operatePrivilegeMsg.Base, msgBase)
 	err := c.dataHandler.OperatePrivilege(ctx, &api.OperatePrivilegeParam{
 		OperatePrivilegeRequest: operatePrivilegeMsg.OperatePrivilegeRequest,
 	})
@@ -898,6 +898,10 @@ func (c *ChannelWriter) operatePrivilege(ctx context.Context, msgBase *commonpb.
 		return err
 	}
 	return nil
+}
+
+func UpdateMsgBase(msgBase *commonpb.MsgBase, withReplicateInfo *commonpb.MsgBase) {
+	msgBase.ReplicateInfo = withReplicateInfo.ReplicateInfo
 }
 
 // shouldSkipOp, mtime: msg time, ctime: create time, dtime: drop time
