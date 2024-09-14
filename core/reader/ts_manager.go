@@ -285,7 +285,7 @@ func (m *tsManager) UnsafeUpdatePackTS(channelName string, beginTS uint64, updat
 		return
 	}
 
-	maxTS := ts.cts
+	maxTS := ts.lts
 	if updateTS, ok := updatePackTSFunc(maxTS); ok {
 		ts.cts = updateTS
 	}
@@ -301,4 +301,12 @@ func (m *tsManager) UnsafeUpdateTSInfo(channelName string, sendTS uint64, resetL
 	if resetLastTime {
 		ts.sts = ts.sts.Add(-ts.period)
 	}
+}
+
+func (m *tsManager) UnsafeGetMaxTS(channelName string) (uint64, bool) {
+	ts, ok := m.channelTS2.Get(channelName)
+	if !ok {
+		return 0, false
+	}
+	return ts.cts, true
 }

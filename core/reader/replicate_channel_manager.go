@@ -20,6 +20,7 @@ package reader
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math"
 	"sort"
@@ -587,6 +588,7 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 		r.channelHandlerMap[sourceInfo.PChannelName] = channelHandler
 		r.channelChan <- sourceInfo.PChannelName
 		if !hasReplicateForTargetChannel {
+			log.Info("create a replicate handler")
 			return channelHandler, nil
 		}
 		return nil, nil
@@ -1411,7 +1413,8 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	}
 
 	GetTSManager().UnsafeUpdatePackTS(r.targetPChannel, newPack.BeginTs, func(newTS uint64) (uint64, bool) {
-		reset := resetMsgPackTimestamp(newPack, maxTS)
+		maxTS = newTS
+		reset := resetMsgPackTimestamp(newPack, newTS)
 		return newPack.EndTs, reset
 	})
 
@@ -1420,7 +1423,12 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	if !needTsMsg {
 		return api.GetReplicateMsg(sourceCollectionName, sourceCollectionID, newPack)
 	}
-	generateTS := maxTS
+	generateTS, ok := GetTSManager().UnsafeGetMaxTS(r.targetPChannel)
+	if !ok {
+		log.Warn("not found the max ts", zap.String("channel", r.targetPChannel))
+		r.sendErrEvent(fmt.Errorf("not found the max ts"))
+		return nil
+	}
 	timeTickResult := &msgpb.TimeTickMsg{
 		Base: commonpbutil.NewMsgBase(
 			commonpbutil.WithMsgType(commonpb.MsgType_TimeTick),
@@ -1441,7 +1449,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	newPack.Msgs = append(newPack.Msgs, timeTickMsg)
 
 	GetTSManager().UnsafeUpdateTSInfo(r.targetPChannel, generateTS, resetLastTs)
-	r.ttRateLog.Debug("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", maxTS))
+	r.ttRateLog.Debug("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", generateTS))
 	return api.GetReplicateMsg(sourceCollectionName, sourceCollectionID, newPack)
 }
 
