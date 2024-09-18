@@ -195,7 +195,7 @@ func (m *tsManager) GetMinTS(channelName string) (uint64, bool) {
 	// 	return old
 	// })
 	msgTime, _ := tsoutil.ParseHybridTs(minTS)
-	TSMetricVec.WithLabelValues(channelName).Set(float64(msgTime))
+	// TSMetricVec.WithLabelValues(channelName).Set(float64(msgTime))
 
 	channelTime, _ := tsoutil.ParseHybridTs(curChannelTS)
 	diffTimeValue := channelTime - msgTime
