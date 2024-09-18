@@ -40,6 +40,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/util/conc"
 	"github.com/milvus-io/milvus/pkg/util/funcutil"
 	"github.com/milvus-io/milvus/pkg/util/retry"
+	"github.com/milvus-io/milvus/pkg/util/tsoutil"
 	"github.com/milvus-io/milvus/pkg/util/typeutil"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -1449,6 +1450,8 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	newPack.Msgs = append(newPack.Msgs, timeTickMsg)
 
 	GetTSManager().UnsafeUpdateTSInfo(r.targetPChannel, generateTS, resetLastTs)
+	msgTime, _ := tsoutil.ParseHybridTs(generateTS)
+	TSMetricVec.WithLabelValues(r.targetPChannel).Set(float64(msgTime))
 	r.ttRateLog.Debug("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", generateTS))
 	return api.GetReplicateMsg(sourceCollectionName, sourceCollectionID, newPack)
 }
