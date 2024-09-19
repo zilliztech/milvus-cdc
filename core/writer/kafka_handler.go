@@ -279,24 +279,6 @@ func (k *KafkaDataHandler) OperatePrivilege(ctx context.Context, param *api.Oper
 	})
 }
 
-func (k *KafkaDataHandler) DescribeCollection(ctx context.Context, param *api.DescribeCollectionParam) error {
-	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		return k.sendMessage(p, param, describeCollection, dc)
-	})
-}
-
-func (k *KafkaDataHandler) DescribeDatabase(ctx context.Context, param *api.DescribeDatabaseParam) error {
-	return k.KafkaOp(ctx, "", func(p *kafka.Producer, dc chan kafka.Event) error {
-		return k.sendMessage(p, param, describeDatabase, dc)
-	})
-}
-
-func (k *KafkaDataHandler) DescribePartition(ctx context.Context, param *api.DescribePartitionParam) error {
-	return k.KafkaOp(ctx, param.Database, func(p *kafka.Producer, dc chan kafka.Event) error {
-		return k.sendMessage(p, param, describePartition, dc)
-	})
-}
-
 func (k *KafkaDataHandler) sendMessage(p *kafka.Producer, param any, info msgType, dc chan kafka.Event) error {
 	var data []byte
 	var err error

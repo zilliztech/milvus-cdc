@@ -169,9 +169,7 @@ func (e *MetaCDC) ReloadTask() {
 	}
 
 	for _, taskInfo := range taskInfos {
-		milvusURI := GetMilvusURI(taskInfo.MilvusConnectParam)
-		kafkaAddress := GetKafkaAddress(taskInfo.KafkaConnectParam)
-		uKey := milvusURI + kafkaAddress
+		uKey := getTaskUniqueIDFromInfo(taskInfo)
 		newCollectionNames := lo.Map(taskInfo.CollectionInfos, func(t model.CollectionInfo, _ int) string {
 			return t.Name
 		})
@@ -208,6 +206,30 @@ func GetKafkaAddress(kafkaConnectParam model.KafkaConnectParam) string {
 	return kafkaConnectParam.Address
 }
 
+func getTaskUniqueIDFromInfo(info *meta.TaskInfo) string {
+	milvusURI := GetMilvusURI(info.MilvusConnectParam)
+	if milvusURI != "" {
+		return milvusURI
+	}
+	kafkaAddress := GetKafkaAddress(info.KafkaConnectParam)
+	if kafkaAddress != "" {
+		return kafkaAddress
+	}
+	panic("fail to get the task unique id")
+}
+
+func getTaskUniqueIDFromReq(req *request.CreateRequest) string {
+	milvusURI := GetMilvusURI(req.MilvusConnectParam)
+	if milvusURI != "" {
+		return milvusURI
+	}
+	kafkaAddress := GetKafkaAddress(req.KafkaConnectParam)
+	if kafkaAddress != "" {
+		return kafkaAddress
+	}
+	panic("fail to get the task unique id")
+}
+
 func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateResponse, err error) {
 	defer func() {
 		log.Info("create request done")
@@ -218,10 +240,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	if err = e.validCreateRequest(req); err != nil {
 		return nil, err
 	}
-	var uKey string
-	milvusURI := GetMilvusURI(req.MilvusConnectParam)
-	kafkaAddress := GetKafkaAddress(req.KafkaConnectParam)
-	uKey = milvusURI + kafkaAddress
+	uKey := getTaskUniqueIDFromReq(req)
 	newCollectionNames := lo.Map(req.CollectionInfos, func(t model.CollectionInfo, _ int) string {
 		return t.Name
 	})
@@ -529,10 +548,7 @@ func (e *MetaCDC) getUUID() string {
 
 func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) error {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
-	var uKey string
-	milvusURI := GetMilvusURI(info.MilvusConnectParam)
-	kafkaAddress := GetKafkaAddress(info.KafkaConnectParam)
-	uKey = milvusURI + kafkaAddress
+	uKey := getTaskUniqueIDFromInfo(info)
 
 	e.replicateEntityMap.RLock()
 	replicateEntity, ok := e.replicateEntityMap.data[uKey]
@@ -627,10 +643,9 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 
 func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, error) {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
-	var uKey string
 	milvusConnectParam := info.MilvusConnectParam
-	kafkaConnectParam := info.KafkaConnectParam
-	kafkaAddress := GetKafkaAddress(kafkaConnectParam)
+	kafkaAddress := GetKafkaAddress(info.KafkaConnectParam)
+	uKey := getTaskUniqueIDFromInfo(info)
 
 	var milvusClient api.TargetAPI
 	var err error
@@ -638,7 +653,6 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	milvusConnectParam.Token = GetMilvusToken(milvusConnectParam)
 	milvusConnectParam.URI = GetMilvusURI(milvusConnectParam)
 	milvusAddress := milvusConnectParam.URI
-	uKey = milvusAddress + kafkaAddress
 	if milvusAddress != "" {
 		timeoutCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(milvusConnectParam.ConnectTimeout)*time.Second)
 		milvusClient, err = cdcreader.NewTarget(timeoutCtx, cdcreader.TargetConfig{
@@ -675,11 +689,11 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	msgTTDispatcherClient, _ := cdcreader.GetMsgDispatcherClient(e.mqFactoryCreator, mqConfig, true)
 	streamFactory, _ := cdcreader.GetStreamFactory(e.mqFactoryCreator, mqConfig, false)
 
-	var downString string
+	var downstream string
 	if milvusAddress != "" {
-		downString = "milvus"
+		downstream = "milvus"
 	} else if kafkaAddress != "" {
-		downString = "kafka"
+		downstream = "kafka"
 	}
 	// default value: 10
 	bufferSize := e.config.SourceConfig.ReadChanLen
@@ -694,14 +708,14 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 			Retry:             e.config.Retry,
 		}, metaOp, func(s string, pack *msgstream.MsgPack) {
 			replicateMetric(info, s, pack, metrics.OPTypeRead)
-		}, downString)
+		}, downstream)
 	if err != nil {
 		taskLog.Warn("fail to create replicate channel manager", zap.Error(err))
 		return nil, servererror.NewClientError("fail to create replicate channel manager")
 	}
 
 	var dataHandler api.DataHandler
-	if kafkaConnectParam.Address != "" {
+	if kafkaAddress != "" {
 		dataHandler, err = cdcwriter.NewKafkaDataHandler(
 			cdcwriter.KafkaAddressOption(info.KafkaConnectParam.Address),
 			cdcwriter.KafkaTopicOption(info.KafkaConnectParam.Topic),

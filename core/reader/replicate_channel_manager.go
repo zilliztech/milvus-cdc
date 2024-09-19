@@ -162,6 +162,129 @@ func (r *replicateChannelManager) AddDroppedPartition(ids []int64) {
 	log.Info("has removed dropped partitions", zap.Int64s("ids", ids))
 }
 
+func (r *replicateChannelManager) startReadCollectionForKafka(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) (*model.CollectionInfo, error) {
+	r.collectionLock.RLock()
+	_, ok := r.replicateCollections[info.ID]
+	r.collectionLock.RUnlock()
+	if ok {
+		return nil, errors.Newf("the collection has been replicated, wait it [collection name: %s] to drop...", info.Schema.Name)
+	}
+
+	// send api event when the collection is not replicated and ctx is not done
+	if err := r.sendAPIEvent(ctx, info, sourceDBInfo); err != nil {
+		return nil, err
+	}
+
+	// get targetCollectionInfo from source
+	var targetInfo *model.CollectionInfo
+	partitions := make(map[string]int64)
+	partitionInfos, err := r.metaOp.GetAllPartition(ctx, func(partitionInfo *pb.PartitionInfo) bool {
+		if partitionInfo.CollectionId != info.ID {
+			return true
+		}
+		return false
+	})
+	if err != nil {
+		log.Warn("failed to get partition info", zap.Error(err))
+		return nil, err
+	}
+
+	for _, partitionInfo := range partitionInfos {
+		partitions[partitionInfo.PartitionName] = partitionInfo.PartitionID
+	}
+	targetInfo = &model.CollectionInfo{
+		CollectionID:   info.ID,
+		CollectionName: info.Schema.Name,
+		DatabaseName:   sourceDBInfo.Name,
+		VChannels:      info.VirtualChannelNames,
+		Partitions:     partitions,
+	}
+	// source collection has dropped
+	if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
+		targetInfo.Dropped = true
+		log.Info("the collection is dropped in the source instance and it's existed in the target instance", zap.String("collection_name", info.Schema.Name))
+	}
+
+	return targetInfo, nil
+}
+
+func (r *replicateChannelManager) startReadCollectionForMilvus(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) (*model.CollectionInfo, error) {
+	var err error
+	retryErr := retry.Do(ctx, func() error {
+		_, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.GetName(), sourceDBInfo.Name)
+		if err != nil && !IsCollectionNotFoundError(err) && !IsDatabaseNotFoundError(err) {
+			return err
+		}
+		r.collectionLock.RLock()
+		_, ok := r.replicateCollections[info.ID]
+		r.collectionLock.RUnlock()
+		if ok {
+			return errors.Newf("the collection has been replicated, wait it [collection name: %s] to drop...", info.Schema.Name)
+		}
+		// collection not found will exit the retry
+		return nil
+	}, r.startReadRetryOptions...)
+
+	if retryErr != nil {
+		return nil, retryErr
+	}
+
+	if err != nil {
+		// the collection is not existed in the target and source collection has dropped, skip it
+		if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
+			r.droppedCollections.Store(info.ID, struct{}{})
+			log.Info("the collection is dropped in the target instance",
+				zap.Int64("collection_id", info.ID), zap.String("collection_name", info.Schema.Name))
+			return nil, nil
+		}
+		if IsDatabaseNotFoundError(err) {
+			log.Panic("the database has been dropped but the collection is existed in the source instance",
+				zap.String("collection_name", info.Schema.Name))
+			return nil, nil
+		}
+		err = r.sendAPIEvent(ctx, info, sourceDBInfo)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var targetInfo *model.CollectionInfo
+	err = retry.Do(ctx, func() error {
+		targetInfo, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.Name, sourceDBInfo.Name)
+		return err
+	}, r.startReadRetryOptions...)
+	if err != nil {
+		log.Warn("failed to get target collection info", zap.Error(err))
+		return nil, err
+	}
+	log.Info("success to get the collection info in the target instance", zap.String("collection_name", targetInfo.CollectionName))
+	if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
+		targetInfo.Dropped = true
+		log.Info("the collection is dropped in the source instance and it's existed in the target instance", zap.String("collection_name", info.Schema.Name))
+	}
+
+	return targetInfo, nil
+}
+
+func (r *replicateChannelManager) sendAPIEvent(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) error {
+	select {
+	case <-ctx.Done():
+		log.Warn("context is done in the start read collection")
+		return ctx.Err()
+	default:
+		r.apiEventChan <- &api.ReplicateAPIEvent{
+			EventType:      api.ReplicateCreateCollection,
+			CollectionInfo: info,
+			ReplicateInfo: &commonpb.ReplicateInfo{
+				IsReplicate:  true,
+				MsgTimestamp: info.CreateTime,
+			},
+			ReplicateParam: api.ReplicateParam{Database: sourceDBInfo.Name},
+		}
+	}
+	return nil
+}
+
 func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
 	r.addCollectionLock.Lock()
 	*r.addCollectionCnt++
@@ -178,98 +301,13 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 		return nil
 	}
 
-	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, info.ID)
-
-	var shouldSendAPIEvent bool
-	var err error
-	if r.downstream == "milvus" {
-		retryErr := retry.Do(ctx, func() error {
-			_, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.GetName(), sourceDBInfo.Name)
-			if err != nil &&
-				!IsCollectionNotFoundError(err) && !IsDatabaseNotFoundError(err) {
-				return err
-			}
-			r.collectionLock.RLock()
-			_, ok := r.replicateCollections[info.ID]
-			r.collectionLock.RUnlock()
-			if ok {
-				return errors.Newf("the collection has been replicated, wait it [collection name: %s] to drop...", info.Schema.Name)
-			}
-			// collection not found will exit the retry
-			return nil
-		}, r.startReadRetryOptions...)
-
-		if retryErr != nil {
-			return retryErr
-		}
-
-		if err != nil {
-			// the collection is not existed in the target and source collection has dropped, skip it
-			if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
-				r.droppedCollections.Store(info.ID, struct{}{})
-				log.Info("the collection is dropped in the target instance",
-					zap.Int64("collection_id", info.ID), zap.String("collection_name", info.Schema.Name))
-				return nil
-			}
-			if IsDatabaseNotFoundError(err) {
-				log.Panic("the database has been dropped but the collection is existed in the source instance",
-					zap.String("collection_name", info.Schema.Name))
-				return nil
-			}
-			select {
-			case <-ctx.Done():
-				log.Warn("context is done in the start read collection")
-				return ctx.Err()
-			default:
-				shouldSendAPIEvent = true
-			}
-		}
-	} else {
-		shouldSendAPIEvent = true
-	}
-
-	if shouldSendAPIEvent {
-		r.apiEventChan <- &api.ReplicateAPIEvent{
-			EventType:      api.ReplicateCreateCollection,
-			CollectionInfo: info,
-			ReplicateInfo: &commonpb.ReplicateInfo{
-				IsReplicate:  true,
-				MsgTimestamp: info.CreateTime,
-			},
-			ReplicateParam: api.ReplicateParam{Database: sourceDBInfo.Name},
-		}
-	}
-
 	var targetInfo *model.CollectionInfo
-
+	var err error
+	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, info.ID)
 	if r.downstream == "milvus" {
-		err = retry.Do(ctx, func() error {
-			targetInfo, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.Name, sourceDBInfo.Name)
-			return err
-		}, r.startReadRetryOptions...)
-		if err != nil {
-			log.Warn("failed to get target collection info", zap.Error(err))
-			return err
-		}
-		log.Info("success to get the collection info in the target instance", zap.String("collection_name", targetInfo.CollectionName))
-		if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
-			targetInfo.Dropped = true
-			log.Info("the collection is dropped in the source instance and it's existed in the target instance", zap.String("collection_name", info.Schema.Name))
-		}
-	} else {
-		partitions := make(map[string]int64)
-		// may be error
-		for idx, name := range info.GetPartitionNames() {
-			partitions[name] = info.GetPartitionIDs()[idx]
-		}
-		targetInfo = &model.CollectionInfo{
-			CollectionID:   info.ID,
-			CollectionName: info.Schema.Name,
-			DatabaseName:   sourceDBInfo.Name,
-			VChannels:      info.VirtualChannelNames,
-			Partitions:     partitions, // how to get source partitions info
-			Dropped:        false,
-		}
+		targetInfo, err = r.startReadCollectionForMilvus(ctx, info, sourceDBInfo)
+	} else if r.downstream == "kafka" {
+		targetInfo, err = r.startReadCollectionForKafka(ctx, info, sourceDBInfo)
 	}
 
 	getSeekPosition := func(channelName string) *msgpb.MsgPosition {
@@ -280,7 +318,6 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 		}
 		return nil
 	}
-
 	r.collectionLock.Lock()
 	if _, ok := r.replicateCollections[info.ID]; ok {
 		r.collectionLock.Unlock()
