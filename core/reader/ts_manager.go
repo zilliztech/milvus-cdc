@@ -285,7 +285,7 @@ func (m *tsManager) UnsafeUpdatePackTS(channelName string, beginTS uint64, updat
 		return
 	}
 
-	maxTS := ts.lts
+	maxTS := ts.cts
 	if updateTS, ok := updatePackTSFunc(maxTS); ok {
 		ts.cts = updateTS
 	}
