@@ -744,6 +744,7 @@ func PutTS(rootPath string) {
 		Endpoints:   []string{"localhost:2379"},
 		DialTimeout: 5 * time.Second,
 	})
+	// nolint
 	data := typeutil.Uint64ToBytesBigEndian(uint64(time.Now().UnixNano()))
 	_, _ = etcdCli.Put(context.Background(), rootPath+"/kv/gid/timestamp", string(data))
 	_ = etcdCli.Close()

@@ -20,6 +20,7 @@ package reader
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math"
 	"sort"
@@ -39,6 +40,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/util/conc"
 	"github.com/milvus-io/milvus/pkg/util/funcutil"
 	"github.com/milvus-io/milvus/pkg/util/retry"
+	"github.com/milvus-io/milvus/pkg/util/tsoutil"
 	"github.com/milvus-io/milvus/pkg/util/typeutil"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -617,6 +619,7 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 		r.channelHandlerMap[sourceInfo.PChannelName] = channelHandler
 		r.channelChan <- sourceInfo.PChannelName
 		if !hasReplicateForTargetChannel {
+			log.Info("create a replicate handler")
 			return channelHandler, nil
 		}
 		return nil, nil
@@ -1447,7 +1450,8 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	}
 
 	GetTSManager().UnsafeUpdatePackTS(r.targetPChannel, newPack.BeginTs, func(newTS uint64) (uint64, bool) {
-		reset := resetMsgPackTimestamp(newPack, maxTS)
+		maxTS = newTS
+		reset := resetMsgPackTimestamp(newPack, newTS)
 		return newPack.EndTs, reset
 	})
 
@@ -1456,7 +1460,12 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	if !needTsMsg {
 		return api.GetReplicateMsg(sourceCollectionName, sourceCollectionID, newPack)
 	}
-	generateTS := maxTS
+	generateTS, ok := GetTSManager().UnsafeGetMaxTS(r.targetPChannel)
+	if !ok {
+		log.Warn("not found the max ts", zap.String("channel", r.targetPChannel))
+		r.sendErrEvent(fmt.Errorf("not found the max ts"))
+		return nil
+	}
 	timeTickResult := &msgpb.TimeTickMsg{
 		Base: commonpbutil.NewMsgBase(
 			commonpbutil.WithMsgType(commonpb.MsgType_TimeTick),
@@ -1477,7 +1486,9 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	newPack.Msgs = append(newPack.Msgs, timeTickMsg)
 
 	GetTSManager().UnsafeUpdateTSInfo(r.targetPChannel, generateTS, resetLastTs)
-	r.ttRateLog.Debug("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", maxTS))
+	msgTime, _ := tsoutil.ParseHybridTs(generateTS)
+	TSMetricVec.WithLabelValues(r.targetPChannel).Set(float64(msgTime))
+	r.ttRateLog.Debug("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", generateTS))
 	return api.GetReplicateMsg(sourceCollectionName, sourceCollectionID, newPack)
 }
 
@@ -1492,6 +1503,7 @@ func resetMsgPackTimestamp(pack *msgstream.MsgPack, newTimestamp uint64) bool {
 		if i != 0 && lastTS == msg.BeginTs() {
 			deltas[i] = deltas[i-1]
 		} else {
+			// nolint
 			deltas[i] = uint64(i) + 1
 			lastTS = msg.BeginTs()
 		}
