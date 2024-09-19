@@ -179,10 +179,7 @@ func (r *replicateChannelManager) startReadCollectionForKafka(ctx context.Contex
 	var targetInfo *model.CollectionInfo
 	partitions := make(map[string]int64)
 	partitionInfos, err := r.metaOp.GetAllPartition(ctx, func(partitionInfo *pb.PartitionInfo) bool {
-		if partitionInfo.CollectionId != info.ID {
-			return true
-		}
-		return false
+		return partitionInfo.CollectionId != info.ID
 	})
 	if err != nil {
 		log.Warn("failed to get partition info", zap.Error(err))
@@ -308,6 +305,11 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 		targetInfo, err = r.startReadCollectionForMilvus(ctx, info, sourceDBInfo)
 	} else if r.downstream == "kafka" {
 		targetInfo, err = r.startReadCollectionForKafka(ctx, info, sourceDBInfo)
+	}
+
+	if err != nil {
+		log.Warn("failed to start read collection", zap.Error(err), zap.String("downstream", r.downstream))
+		return err
 	}
 
 	getSeekPosition := func(channelName string) *msgpb.MsgPosition {
