@@ -44,7 +44,7 @@ type FactoryCreator_NewKmsFactory_Call struct {
 }
 
 // NewKmsFactory is a helper method to define mock.On call
-//   - cfg *config.KafkaConfig
+//  - cfg *config.KafkaConfig
 func (_e *FactoryCreator_Expecter) NewKmsFactory(cfg interface{}) *FactoryCreator_NewKmsFactory_Call {
 	return &FactoryCreator_NewKmsFactory_Call{Call: _e.mock.On("NewKmsFactory", cfg)}
 }
@@ -88,7 +88,7 @@ type FactoryCreator_NewPmsFactory_Call struct {
 }
 
 // NewPmsFactory is a helper method to define mock.On call
-//   - cfg *config.PulsarConfig
+//  - cfg *config.PulsarConfig
 func (_e *FactoryCreator_Expecter) NewPmsFactory(cfg interface{}) *FactoryCreator_NewPmsFactory_Call {
 	return &FactoryCreator_NewPmsFactory_Call{Call: _e.mock.On("NewPmsFactory", cfg)}
 }

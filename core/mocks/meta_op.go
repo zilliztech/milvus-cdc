@@ -59,8 +59,8 @@ type MetaOp_GetAllCollection_Call struct {
 }
 
 // GetAllCollection is a helper method to define mock.On call
-//   - ctx context.Context
-//   - filter api.CollectionFilter
+//  - ctx context.Context
+//  - filter api.CollectionFilter
 func (_e *MetaOp_Expecter) GetAllCollection(ctx interface{}, filter interface{}) *MetaOp_GetAllCollection_Call {
 	return &MetaOp_GetAllCollection_Call{Call: _e.mock.On("GetAllCollection", ctx, filter)}
 }
@@ -157,8 +157,8 @@ type MetaOp_GetAllPartition_Call struct {
 }
 
 // GetAllPartition is a helper method to define mock.On call
-//   - ctx context.Context
-//   - filter api.PartitionFilter
+//  - ctx context.Context
+//  - filter api.PartitionFilter
 func (_e *MetaOp_Expecter) GetAllPartition(ctx interface{}, filter interface{}) *MetaOp_GetAllPartition_Call {
 	return &MetaOp_GetAllPartition_Call{Call: _e.mock.On("GetAllPartition", ctx, filter)}
 }
@@ -200,8 +200,8 @@ type MetaOp_GetCollectionNameByID_Call struct {
 }
 
 // GetCollectionNameByID is a helper method to define mock.On call
-//   - ctx context.Context
-//   - id int64
+//  - ctx context.Context
+//  - id int64
 func (_e *MetaOp_Expecter) GetCollectionNameByID(ctx interface{}, id interface{}) *MetaOp_GetCollectionNameByID_Call {
 	return &MetaOp_GetCollectionNameByID_Call{Call: _e.mock.On("GetCollectionNameByID", ctx, id)}
 }
@@ -243,8 +243,8 @@ type MetaOp_GetDatabaseInfoForCollection_Call struct {
 }
 
 // GetDatabaseInfoForCollection is a helper method to define mock.On call
-//   - ctx context.Context
-//   - id int64
+//  - ctx context.Context
+//  - id int64
 func (_e *MetaOp_Expecter) GetDatabaseInfoForCollection(ctx interface{}, id interface{}) *MetaOp_GetDatabaseInfoForCollection_Call {
 	return &MetaOp_GetDatabaseInfoForCollection_Call{Call: _e.mock.On("GetDatabaseInfoForCollection", ctx, id)}
 }
@@ -309,8 +309,8 @@ type MetaOp_SubscribeCollectionEvent_Call struct {
 }
 
 // SubscribeCollectionEvent is a helper method to define mock.On call
-//   - taskID string
-//   - consumer api.CollectionEventConsumer
+//  - taskID string
+//  - consumer api.CollectionEventConsumer
 func (_e *MetaOp_Expecter) SubscribeCollectionEvent(taskID interface{}, consumer interface{}) *MetaOp_SubscribeCollectionEvent_Call {
 	return &MetaOp_SubscribeCollectionEvent_Call{Call: _e.mock.On("SubscribeCollectionEvent", taskID, consumer)}
 }
@@ -343,8 +343,8 @@ type MetaOp_SubscribePartitionEvent_Call struct {
 }
 
 // SubscribePartitionEvent is a helper method to define mock.On call
-//   - taskID string
-//   - consumer api.PartitionEventConsumer
+//  - taskID string
+//  - consumer api.PartitionEventConsumer
 func (_e *MetaOp_Expecter) SubscribePartitionEvent(taskID interface{}, consumer interface{}) *MetaOp_SubscribePartitionEvent_Call {
 	return &MetaOp_SubscribePartitionEvent_Call{Call: _e.mock.On("SubscribePartitionEvent", taskID, consumer)}
 }
@@ -377,8 +377,8 @@ type MetaOp_UnsubscribeEvent_Call struct {
 }
 
 // UnsubscribeEvent is a helper method to define mock.On call
-//   - taskID string
-//   - eventType api.WatchEventType
+//  - taskID string
+//  - eventType api.WatchEventType
 func (_e *MetaOp_Expecter) UnsubscribeEvent(taskID interface{}, eventType interface{}) *MetaOp_UnsubscribeEvent_Call {
 	return &MetaOp_UnsubscribeEvent_Call{Call: _e.mock.On("UnsubscribeEvent", taskID, eventType)}
 }
@@ -411,8 +411,8 @@ type MetaOp_WatchCollection_Call struct {
 }
 
 // WatchCollection is a helper method to define mock.On call
-//   - ctx context.Context
-//   - filter api.CollectionFilter
+//  - ctx context.Context
+//  - filter api.CollectionFilter
 func (_e *MetaOp_Expecter) WatchCollection(ctx interface{}, filter interface{}) *MetaOp_WatchCollection_Call {
 	return &MetaOp_WatchCollection_Call{Call: _e.mock.On("WatchCollection", ctx, filter)}
 }
@@ -445,8 +445,8 @@ type MetaOp_WatchPartition_Call struct {
 }
 
 // WatchPartition is a helper method to define mock.On call
-//   - ctx context.Context
-//   - filter api.PartitionFilter
+//  - ctx context.Context
+//  - filter api.PartitionFilter
 func (_e *MetaOp_Expecter) WatchPartition(ctx interface{}, filter interface{}) *MetaOp_WatchPartition_Call {
 	return &MetaOp_WatchPartition_Call{Call: _e.mock.On("WatchPartition", ctx, filter)}
 }
