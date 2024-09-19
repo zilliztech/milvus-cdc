@@ -1413,8 +1413,14 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		return api.EmptyMsgPack
 	}
 
+	generateTS, ok := GetTSManager().UnsafeGetMaxTS(r.targetPChannel)
+	if !ok {
+		log.Warn("not found the max ts", zap.String("channel", r.targetPChannel))
+		r.sendErrEvent(fmt.Errorf("not found the max ts"))
+		return nil
+	}
 	GetTSManager().UnsafeUpdatePackTS(r.targetPChannel, newPack.BeginTs, func(newTS uint64) (uint64, bool) {
-		maxTS = newTS
+		generateTS = newTS
 		reset := resetMsgPackTimestamp(newPack, newTS)
 		return newPack.EndTs, reset
 	})
@@ -1423,12 +1429,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
 	if !needTsMsg {
 		return api.GetReplicateMsg(sourceCollectionName, sourceCollectionID, newPack)
-	}
-	generateTS, ok := GetTSManager().UnsafeGetMaxTS(r.targetPChannel)
-	if !ok {
-		log.Warn("not found the max ts", zap.String("channel", r.targetPChannel))
-		r.sendErrEvent(fmt.Errorf("not found the max ts"))
-		return nil
 	}
 	timeTickResult := &msgpb.TimeTickMsg{
 		Base: commonpbutil.NewMsgBase(
