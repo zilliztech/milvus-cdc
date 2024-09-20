@@ -1022,10 +1022,15 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 func (r *replicateChannelHandler) updateTargetPartitionInfo(collectionID int64, collectionName string, partitionName string) int64 {
 	ctx, cancelFunc := context.WithTimeout(r.replicateCtx, 10*time.Second)
 	defer cancelFunc()
-	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, collectionID)
+	var collectionInfo *model.CollectionInfo
+	var err error
 
-	collectionInfo, err := r.targetClient.GetPartitionInfo(ctx, collectionName, sourceDBInfo.Name)
-	if err != nil {
+	if r.downstream == "milvus" {
+		collectionInfo, err = r.getPartitionInfoForMilvus(ctx, collectionName, collectionID)
+	} else if r.downstream == "kafka" {
+		collectionInfo, err = r.getPartitionInfoForKafka(ctx, collectionName)
+	}
+	if err != nil || collectionInfo == nil {
 		log.Warn("fail to get partition info", zap.String("collection_name", collectionName), zap.Error(err))
 		return 0
 	}
@@ -1038,6 +1043,33 @@ func (r *replicateChannelHandler) updateTargetPartitionInfo(collectionID int64, 
 	}
 	targetInfo.PartitionInfo = collectionInfo.Partitions
 	return targetInfo.PartitionInfo[partitionName]
+}
+
+func (r *replicateChannelHandler) getPartitionInfoForMilvus(ctx context.Context, collectionName string, collectionID int64) (*model.CollectionInfo, error) {
+	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, collectionID)
+	partitionInfo, err := r.targetClient.GetPartitionInfo(ctx, collectionName, sourceDBInfo.Name)
+	if err != nil {
+		return nil, err
+	}
+	return partitionInfo, nil
+}
+
+func (r *replicateChannelHandler) getPartitionInfoForKafka(ctx context.Context, collectionName string) (*model.CollectionInfo, error) {
+	partitions := make(map[string]int64)
+	partitionInfos, err := r.metaOp.GetAllPartition(ctx, func(info *pb.PartitionInfo) bool {
+		targetCollectionName := r.metaOp.GetCollectionNameByID(ctx, info.CollectionId)
+		return collectionName != targetCollectionName
+	})
+	if err != nil {
+		return nil, err
+	}
+	collectionInfo := &model.CollectionInfo{}
+
+	for _, partitionInfo := range partitionInfos {
+		partitions[partitionInfo.PartitionName] = partitionInfo.PartitionID
+	}
+	collectionInfo.Partitions = partitions
+	return collectionInfo, nil
 }
 
 func (r *replicateChannelHandler) RemovePartitionInfo(collectionID int64, name string, id int64) {
@@ -1167,27 +1199,23 @@ func (r *replicateChannelHandler) getPartitionID(sourceCollectionID, sourceParti
 
 	// Sleep for a short time to avoid invalid requests
 	time.Sleep(500 * time.Millisecond)
-	if r.downstream == "milvus" {
-		err := retry.Do(r.replicateCtx, func() error {
-			log.Warn("wait partition info", zap.Int64("collection_id", info.CollectionID), zap.String("partition_name", name))
-			id = r.updateTargetPartitionInfo(sourceCollectionID, info.CollectionName, name)
-			if id != 0 {
-				return nil
-			}
-			if r.isDroppedCollection(sourceCollectionID) ||
-				r.isDroppedPartition(sourcePartitionID) {
-				id = -1
-				return nil
-			}
-			return errors.Newf("not found the partition [%s]", name)
-		}, r.retryOptions...)
-		if err != nil {
-			log.Warn("fail to find the partition id", zap.Int64("source_collection", sourceCollectionID), zap.Any("target_collection", info.CollectionID), zap.String("partition_name", name))
-			return 0, err
+	err := retry.Do(r.replicateCtx, func() error {
+		log.Warn("wait partition info", zap.Int64("collection_id", info.CollectionID), zap.String("partition_name", name))
+		id = r.updateTargetPartitionInfo(sourceCollectionID, info.CollectionName, name)
+		if id != 0 {
+			return nil
 		}
-	} else {
-		id = sourcePartitionID
+		if r.isDroppedCollection(sourceCollectionID) || r.isDroppedPartition(sourcePartitionID) {
+			id = -1
+			return nil
+		}
+		return errors.Newf("not found the partition [%s]", name)
+	}, r.retryOptions...)
+	if err != nil {
+		log.Warn("fail to find the partition id", zap.Int64("source_collection", sourceCollectionID), zap.Any("target_collection", info.CollectionID), zap.String("partition_name", name))
+		return 0, err
 	}
+
 	return id, nil
 }
 
