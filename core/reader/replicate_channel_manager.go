@@ -629,7 +629,8 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 				TTInterval:        r.ttInterval,
 				RetryOptions:      r.retryOptions,
 			},
-			r.streamCreator)
+			r.streamCreator,
+			r.downstream)
 		if err != nil {
 			channelLog.Warn("init replicate channel handler failed", zap.Error(err))
 			return nil, err
@@ -641,7 +642,6 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 		channelHandler.isDroppedCollection = r.isDroppedCollection
 		channelHandler.isDroppedPartition = r.isDroppedPartition
 		hasReplicateForTargetChannel := false
-		channelHandler.downstream = r.downstream
 		for _, handler := range r.channelHandlerMap {
 			handler.recordLock.RLock()
 			if handler.targetPChannel == targetInfo.PChannel {
@@ -1680,7 +1680,7 @@ func initReplicateChannelHandler(ctx context.Context,
 	sourceInfo *model.SourceCollectionInfo,
 	targetInfo *model.TargetCollectionInfo,
 	targetClient api.TargetAPI, metaOp api.MetaOp, apiEventChan chan *api.ReplicateAPIEvent,
-	opts *model.HandlerOpts, streamCreator StreamCreator,
+	opts *model.HandlerOpts, streamCreator StreamCreator, downstream string,
 ) (*replicateChannelHandler, error) {
 	err := streamCreator.CheckConnection(ctx, sourceInfo.VChannelName, sourceInfo.SeekPosition)
 	if err != nil {
@@ -1711,6 +1711,7 @@ func initReplicateChannelHandler(ctx context.Context,
 		retryOptions:       opts.RetryOptions,
 		sourceSeekPosition: sourceInfo.SeekPosition,
 		ttRateLog:          log.NewRateLog(0.01, log.L()),
+		downstream:         downstream,
 	}
 	var cts uint64 = math.MaxUint64
 	if sourceInfo.SeekPosition != nil {

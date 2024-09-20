@@ -372,7 +372,7 @@ func newReplicateChannelHandler(ctx context.Context,
 		sourceInfo, targetInfo,
 		targetClient, metaOp,
 		apiEventChan, opts,
-		creator)
+		creator, "milvus")
 	if err == nil {
 		channelHandler.addCollectionCnt = new(int)
 		channelHandler.addCollectionLock = &deadlock.RWMutex{}
