@@ -58,16 +58,19 @@ type ChannelWriter struct {
 	partitionInfos  util.Map[string, uint64]
 
 	retryOptions []retry.Option
+	downstream   string
 }
 
 func NewChannelWriter(dataHandler api.DataHandler,
 	writerConfig config.WriterConfig,
 	droppedObjs map[string]map[string]uint64,
+	downstream string,
 ) api.Writer {
 	w := &ChannelWriter{
 		dataHandler:    dataHandler,
 		messageManager: NewReplicateMessageManager(dataHandler, writerConfig.MessageBufferSize),
 		retryOptions:   util.GetRetryOptions(writerConfig.Retry),
+		downstream:     downstream,
 	}
 	w.initAPIEventFuncs()
 	w.initOPMessageFuncs()
@@ -363,6 +366,10 @@ func (c *ChannelWriter) WaitObjReadyForAPIEvent(ctx context.Context, apiEvent *a
 }
 
 func (c *ChannelWriter) WaitObjReady(ctx context.Context, db, collection, partition string, ts uint64) (bool, error) {
+	// if downstream is not milvus, skip WaitObjReady
+	if c.downstream != "milvus" {
+		return false, nil
+	}
 	if db != "" {
 		state := c.WaitDatabaseReady(ctx, db, ts)
 		if state == InfoStateUnknown {

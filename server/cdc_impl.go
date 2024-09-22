@@ -737,7 +737,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	writerObj := cdcwriter.NewChannelWriter(dataHandler, config.WriterConfig{
 		MessageBufferSize: bufferSize,
 		Retry:             e.config.Retry,
-	}, metaOp.GetAllDroppedObj())
+	}, metaOp.GetAllDroppedObj(), downstream)
 	e.replicateEntityMap.Lock()
 	defer e.replicateEntityMap.Unlock()
 	entity, ok := e.replicateEntityMap.data[uKey]
