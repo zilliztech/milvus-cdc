@@ -1,5 +1,4 @@
-/*
- * Licensed to the LF AI & Data foundation under one
+/* Licensed to the LF AI & Data foundation under one
  * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership. The ASF licenses this file
@@ -170,12 +169,12 @@ func (e *MetaCDC) ReloadTask() {
 	}
 
 	for _, taskInfo := range taskInfos {
-		milvusURI := GetMilvusURI(taskInfo.MilvusConnectParam)
+		uKey := getTaskUniqueIDFromInfo(taskInfo)
 		newCollectionNames := lo.Map(taskInfo.CollectionInfos, func(t model.CollectionInfo, _ int) string {
 			return t.Name
 		})
-		e.collectionNames.data[milvusURI] = append(e.collectionNames.data[milvusURI], newCollectionNames...)
-		e.collectionNames.excludeData[milvusURI] = append(e.collectionNames.excludeData[milvusURI], taskInfo.ExcludeCollections...)
+		e.collectionNames.data[uKey] = append(e.collectionNames.data[uKey], newCollectionNames...)
+		e.collectionNames.excludeData[uKey] = append(e.collectionNames.excludeData[uKey], taskInfo.ExcludeCollections...)
 		e.cdcTasks.Lock()
 		e.cdcTasks.data[taskInfo.TaskID] = taskInfo
 		e.cdcTasks.Unlock()
@@ -203,6 +202,34 @@ func GetMilvusToken(milvusConnectParam model.MilvusConnectParam) string {
 	return util.GetToken(milvusConnectParam.Username, milvusConnectParam.Password)
 }
 
+func GetKafkaAddress(kafkaConnectParam model.KafkaConnectParam) string {
+	return kafkaConnectParam.Address
+}
+
+func getTaskUniqueIDFromInfo(info *meta.TaskInfo) string {
+	milvusURI := GetMilvusURI(info.MilvusConnectParam)
+	if milvusURI != "" {
+		return milvusURI
+	}
+	kafkaAddress := GetKafkaAddress(info.KafkaConnectParam)
+	if kafkaAddress != "" {
+		return kafkaAddress
+	}
+	panic("fail to get the task unique id")
+}
+
+func getTaskUniqueIDFromReq(req *request.CreateRequest) string {
+	milvusURI := GetMilvusURI(req.MilvusConnectParam)
+	if milvusURI != "" {
+		return milvusURI
+	}
+	kafkaAddress := GetKafkaAddress(req.KafkaConnectParam)
+	if kafkaAddress != "" {
+		return kafkaAddress
+	}
+	panic("fail to get the task unique id")
+}
+
 func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateResponse, err error) {
 	defer func() {
 		log.Info("create request done")
@@ -213,12 +240,12 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	if err = e.validCreateRequest(req); err != nil {
 		return nil, err
 	}
-	milvusURI := GetMilvusURI(req.MilvusConnectParam)
+	uKey := getTaskUniqueIDFromReq(req)
 	newCollectionNames := lo.Map(req.CollectionInfos, func(t model.CollectionInfo, _ int) string {
 		return t.Name
 	})
 	e.collectionNames.Lock()
-	if names, ok := e.collectionNames.data[milvusURI]; ok {
+	if names, ok := e.collectionNames.data[uKey]; ok {
 		existAll := lo.Contains(names, cdcreader.AllCollection)
 		duplicateCollections := lo.Filter(req.CollectionInfos, func(info model.CollectionInfo, _ int) bool {
 			return (!existAll && lo.Contains(names, info.Name)) || (existAll && info.Name == cdcreader.AllCollection)
@@ -230,7 +257,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 			})))
 		}
 		if existAll {
-			excludeCollectionNames := lo.Filter(e.collectionNames.excludeData[milvusURI], func(s string, _ int) bool {
+			excludeCollectionNames := lo.Filter(e.collectionNames.excludeData[uKey], func(s string, _ int) bool {
 				return !lo.Contains(names, s)
 			})
 			duplicateCollections = lo.Filter(req.CollectionInfos, func(info model.CollectionInfo, _ int) bool {
@@ -247,21 +274,21 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	// release lock early to accept other requests
 	var excludeCollectionNames []string
 	if newCollectionNames[0] == cdcreader.AllCollection {
-		existCollectionNames := e.collectionNames.data[milvusURI]
+		existCollectionNames := e.collectionNames.data[uKey]
 		excludeCollectionNames = make([]string, len(existCollectionNames))
 		copy(excludeCollectionNames, existCollectionNames)
-		e.collectionNames.excludeData[milvusURI] = excludeCollectionNames
+		e.collectionNames.excludeData[uKey] = excludeCollectionNames
 	}
-	e.collectionNames.data[milvusURI] = append(e.collectionNames.data[milvusURI], newCollectionNames...)
+	e.collectionNames.data[uKey] = append(e.collectionNames.data[uKey], newCollectionNames...)
 	e.collectionNames.Unlock()
 
 	revertCollectionNames := func() {
 		e.collectionNames.Lock()
 		defer e.collectionNames.Unlock()
 		if newCollectionNames[0] == cdcreader.AllCollection {
-			e.collectionNames.excludeData[milvusURI] = []string{}
+			e.collectionNames.excludeData[uKey] = []string{}
 		}
-		e.collectionNames.data[milvusURI] = lo.Without(e.collectionNames.data[milvusURI], newCollectionNames...)
+		e.collectionNames.data[uKey] = lo.Without(e.collectionNames.data[uKey], newCollectionNames...)
 	}
 
 	ctx := context.Background()
@@ -276,6 +303,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	info := &meta.TaskInfo{
 		TaskID:                e.getUUID(),
 		MilvusConnectParam:    req.MilvusConnectParam,
+		KafkaConnectParam:     req.KafkaConnectParam,
 		CollectionInfos:       req.CollectionInfos,
 		RPCRequestChannelInfo: req.RPCChannelInfo,
 		ExcludeCollections:    excludeCollectionNames,
@@ -383,26 +411,38 @@ func (e *MetaCDC) getRPCChannelName(channelInfo model.ChannelInfo) string {
 }
 
 func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
-	connectParam := req.MilvusConnectParam
-	if connectParam.URI == "" && connectParam.Host == "" && connectParam.Port <= 0 {
-		return servererror.NewClientError("the milvus uri is empty")
+	milvusConnectParam := req.MilvusConnectParam
+	kafkaConnectParam := req.KafkaConnectParam
+	isMilvusEmpty := milvusConnectParam.URI == "" && milvusConnectParam.Host == "" && milvusConnectParam.Port <= 0
+	if isMilvusEmpty && kafkaConnectParam.Address == "" {
+		return servererror.NewClientError("the downstream address is empty")
+	} else if !isMilvusEmpty && kafkaConnectParam.Address != "" {
+		return servererror.NewClientError("dont support milvus and kafka at the same time now")
 	}
 
-	if connectParam.URI == "" {
-		if connectParam.Host == "" {
-			return servererror.NewClientError("the milvus host is empty")
+	if !isMilvusEmpty {
+		if milvusConnectParam.URI == "" {
+			if milvusConnectParam.Host == "" {
+				return servererror.NewClientError("the milvus host is empty")
+			}
+			if milvusConnectParam.Port <= 0 {
+				return servererror.NewClientError("the milvus port is less or equal zero")
+			}
 		}
-		if connectParam.Port <= 0 {
-			return servererror.NewClientError("the milvus port is less or equal zero")
+
+		if (milvusConnectParam.Username != "" && milvusConnectParam.Password == "") ||
+			(milvusConnectParam.Username == "" && milvusConnectParam.Password != "") {
+			return servererror.NewClientError("cannot set only one of the milvus username and password")
+		}
+		if milvusConnectParam.ConnectTimeout < 0 {
+			return servererror.NewClientError("the milvus connect timeout is less zero")
 		}
 	}
 
-	if (connectParam.Username != "" && connectParam.Password == "") ||
-		(connectParam.Username == "" && connectParam.Password != "") {
-		return servererror.NewClientError("cannot set only one of the milvus username and password")
-	}
-	if connectParam.ConnectTimeout < 0 {
-		return servererror.NewClientError("the milvus connect timeout is less zero")
+	if kafkaConnectParam.Address != "" {
+		if kafkaConnectParam.Topic == "" {
+			return servererror.NewClientError("the kafka topic is empty")
+		}
 	}
 	cacheParam := req.BufferConfig
 	if cacheParam.Period < 0 {
@@ -418,19 +458,31 @@ func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 	if req.RPCChannelInfo.Name != "" && req.RPCChannelInfo.Name != e.config.SourceConfig.ReplicateChan {
 		return servererror.NewClientError("the rpc channel is invalid, the channel name should be the same as the source config")
 	}
-	connectParam.Token = GetMilvusToken(connectParam)
-	connectParam.URI = GetMilvusURI(connectParam)
 
-	_, err := cdcwriter.NewMilvusDataHandler(
-		cdcwriter.URIOption(connectParam.URI),
-		cdcwriter.TokenOption(connectParam.Token),
-		cdcwriter.IgnorePartitionOption(connectParam.IgnorePartition),
-		cdcwriter.ConnectTimeoutOption(connectParam.ConnectTimeout),
-		cdcwriter.DialConfigOption(connectParam.DialConfig),
-	)
-	if err != nil {
-		log.Warn("fail to connect the milvus", zap.Any("connect_param", connectParam), zap.Error(err))
-		return errors.WithMessage(err, "fail to connect the milvus")
+	if !isMilvusEmpty {
+		milvusConnectParam.Token = GetMilvusToken(milvusConnectParam)
+		milvusConnectParam.URI = GetMilvusURI(milvusConnectParam)
+
+		_, err := cdcwriter.NewMilvusDataHandler(
+			cdcwriter.URIOption(milvusConnectParam.URI),
+			cdcwriter.TokenOption(milvusConnectParam.Token),
+			cdcwriter.IgnorePartitionOption(milvusConnectParam.IgnorePartition),
+			cdcwriter.ConnectTimeoutOption(milvusConnectParam.ConnectTimeout),
+			cdcwriter.DialConfigOption(milvusConnectParam.DialConfig),
+		)
+		if err != nil {
+			log.Warn("fail to connect the milvus", zap.Any("connect_param", milvusConnectParam), zap.Error(err))
+			return errors.WithMessage(err, "fail to connect the milvus")
+		}
+	} else if kafkaConnectParam.Address != "" {
+		_, err := cdcwriter.NewKafkaDataHandler(
+			cdcwriter.KafkaAddressOption(kafkaConnectParam.Address),
+			cdcwriter.KafkaTopicOption(kafkaConnectParam.Topic),
+		)
+		if err != nil {
+			log.Warn("fail to connect the kafka", zap.Any("connect_param", kafkaConnectParam), zap.Error(err))
+			return errors.WithMessage(err, "fail to connect the kafka")
+		}
 	}
 	return nil
 }
@@ -496,9 +548,10 @@ func (e *MetaCDC) getUUID() string {
 
 func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) error {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
-	milvusURI := GetMilvusURI(info.MilvusConnectParam)
+	uKey := getTaskUniqueIDFromInfo(info)
+
 	e.replicateEntityMap.RLock()
-	replicateEntity, ok := e.replicateEntityMap.data[milvusURI]
+	replicateEntity, ok := e.replicateEntityMap.data[uKey]
 	e.replicateEntityMap.RUnlock()
 
 	if !ok {
@@ -583,7 +636,6 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 	info.State = meta.TaskStateRunning
 	info.Reason = ""
 	e.cdcTasks.Unlock()
-
 	collectionReader.StartRead(readCtx)
 	channelReader.StartRead(readCtx)
 	return nil
@@ -592,21 +644,27 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, error) {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
 	milvusConnectParam := info.MilvusConnectParam
+	kafkaAddress := GetKafkaAddress(info.KafkaConnectParam)
+	uKey := getTaskUniqueIDFromInfo(info)
 
+	var milvusClient api.TargetAPI
+	var err error
 	ctx := context.TODO()
-	timeoutCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(milvusConnectParam.ConnectTimeout)*time.Second)
 	milvusConnectParam.Token = GetMilvusToken(milvusConnectParam)
 	milvusConnectParam.URI = GetMilvusURI(milvusConnectParam)
 	milvusAddress := milvusConnectParam.URI
-	milvusClient, err := cdcreader.NewTarget(timeoutCtx, cdcreader.TargetConfig{
-		URI:        milvusAddress,
-		Token:      milvusConnectParam.Token,
-		DialConfig: milvusConnectParam.DialConfig,
-	})
-	cancelFunc()
-	if err != nil {
-		taskLog.Warn("fail to new target", zap.String("address", milvusAddress), zap.Error(err))
-		return nil, servererror.NewClientError("fail to connect target milvus server")
+	if milvusAddress != "" {
+		timeoutCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(milvusConnectParam.ConnectTimeout)*time.Second)
+		milvusClient, err = cdcreader.NewTarget(timeoutCtx, cdcreader.TargetConfig{
+			URI:        milvusAddress,
+			Token:      milvusConnectParam.Token,
+			DialConfig: milvusConnectParam.DialConfig,
+		})
+		cancelFunc()
+		if err != nil {
+			taskLog.Warn("fail to new target", zap.String("address", milvusAddress), zap.Error(err))
+			return nil, servererror.NewClientError("fail to connect target milvus server")
+		}
 	}
 	sourceConfig := e.config.SourceConfig
 	etcdServerConfig := GetEtcdServerConfigFromSourceConfig(sourceConfig)
@@ -631,6 +689,12 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	msgTTDispatcherClient, _ := cdcreader.GetMsgDispatcherClient(e.mqFactoryCreator, mqConfig, true)
 	streamFactory, _ := cdcreader.GetStreamFactory(e.mqFactoryCreator, mqConfig, false)
 
+	var downstream string
+	if milvusAddress != "" {
+		downstream = "milvus"
+	} else if kafkaAddress != "" {
+		downstream = "kafka"
+	}
 	// default value: 10
 	bufferSize := e.config.SourceConfig.ReadChanLen
 	ttInterval := e.config.SourceConfig.TimeTickInterval
@@ -644,19 +708,28 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 			Retry:             e.config.Retry,
 		}, metaOp, func(s string, pack *msgstream.MsgPack) {
 			replicateMetric(info, s, pack, metrics.OPTypeRead)
-		})
+		}, downstream)
 	if err != nil {
 		taskLog.Warn("fail to create replicate channel manager", zap.Error(err))
 		return nil, servererror.NewClientError("fail to create replicate channel manager")
 	}
-	targetConfig := milvusConnectParam
-	dataHandler, err := cdcwriter.NewMilvusDataHandler(
-		cdcwriter.URIOption(targetConfig.URI),
-		cdcwriter.TokenOption(targetConfig.Token),
-		cdcwriter.IgnorePartitionOption(targetConfig.IgnorePartition),
-		cdcwriter.ConnectTimeoutOption(targetConfig.ConnectTimeout),
-		cdcwriter.DialConfigOption(targetConfig.DialConfig),
-	)
+
+	var dataHandler api.DataHandler
+	if kafkaAddress != "" {
+		dataHandler, err = cdcwriter.NewKafkaDataHandler(
+			cdcwriter.KafkaAddressOption(info.KafkaConnectParam.Address),
+			cdcwriter.KafkaTopicOption(info.KafkaConnectParam.Topic),
+		)
+	} else if milvusConnectParam.URI != "" {
+		targetConfig := milvusConnectParam
+		dataHandler, err = cdcwriter.NewMilvusDataHandler(
+			cdcwriter.URIOption(targetConfig.URI),
+			cdcwriter.TokenOption(targetConfig.Token),
+			cdcwriter.IgnorePartitionOption(targetConfig.IgnorePartition),
+			cdcwriter.ConnectTimeoutOption(targetConfig.ConnectTimeout),
+			cdcwriter.DialConfigOption(targetConfig.DialConfig),
+		)
+	}
 	if err != nil {
 		taskLog.Warn("fail to new the data handler", zap.Error(err))
 		return nil, servererror.NewClientError("fail to new the data handler, task_id: ")
@@ -664,10 +737,10 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	writerObj := cdcwriter.NewChannelWriter(dataHandler, config.WriterConfig{
 		MessageBufferSize: bufferSize,
 		Retry:             e.config.Retry,
-	}, metaOp.GetAllDroppedObj())
+	}, metaOp.GetAllDroppedObj(), downstream)
 	e.replicateEntityMap.Lock()
 	defer e.replicateEntityMap.Unlock()
-	entity, ok := e.replicateEntityMap.data[milvusAddress]
+	entity, ok := e.replicateEntityMap.data[uKey]
 	if !ok {
 		replicateCtx, cancelReplicateFunc := context.WithCancel(ctx)
 		channelManager.SetCtx(replicateCtx)
@@ -681,7 +754,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 			mqTTDispatcher: msgTTDispatcherClient,
 			taskQuitFuncs:  typeutil.NewConcurrentMap[string, func()](),
 		}
-		e.replicateEntityMap.data[milvusAddress] = entity
+		e.replicateEntityMap.data[uKey] = entity
 		e.startReplicateAPIEvent(replicateCtx, info, entity)
 		e.startReplicateDMLChannel(replicateCtx, info, entity)
 	}
@@ -943,14 +1016,17 @@ func (e *MetaCDC) pauseTaskWithReason(taskID, reason string, currentStates []met
 	cdcTask.Reason = reason
 	e.cdcTasks.Unlock()
 
+	var uKey string
 	milvusURI := GetMilvusURI(cdcTask.MilvusConnectParam)
+	kafkaAddress := GetKafkaAddress(cdcTask.KafkaConnectParam)
+	uKey = milvusURI + kafkaAddress
 	e.replicateEntityMap.Lock()
-	if replicateEntity, ok := e.replicateEntityMap.data[milvusURI]; ok {
+	if replicateEntity, ok := e.replicateEntityMap.data[uKey]; ok {
 		if quitFunc, ok := replicateEntity.taskQuitFuncs.GetAndRemove(taskID); ok {
 			quitFunc()
 		}
 	}
-	delete(e.replicateEntityMap.data, milvusURI)
+	delete(e.replicateEntityMap.data, uKey)
 	e.replicateEntityMap.Unlock()
 	return err
 }
@@ -985,13 +1061,16 @@ func (e *MetaCDC) delete(taskID string) error {
 	if err != nil {
 		return errors.WithMessage(err, "fail to delete the task meta, task_id: "+taskID)
 	}
+	var uKey string
 	milvusURI := GetMilvusURI(info.MilvusConnectParam)
+	kafkaAddress := GetKafkaAddress(info.KafkaConnectParam)
+	uKey = milvusURI + kafkaAddress
 	collectionNames := info.CollectionNames()
 	e.collectionNames.Lock()
 	if collectionNames[0] == cdcreader.AllCollection {
-		e.collectionNames.excludeData[milvusURI] = []string{}
+		e.collectionNames.excludeData[uKey] = []string{}
 	}
-	e.collectionNames.data[milvusURI] = lo.Without(e.collectionNames.data[milvusURI], collectionNames...)
+	e.collectionNames.data[uKey] = lo.Without(e.collectionNames.data[uKey], collectionNames...)
 	e.collectionNames.Unlock()
 
 	e.cdcTasks.Lock()
@@ -999,7 +1078,7 @@ func (e *MetaCDC) delete(taskID string) error {
 	e.cdcTasks.Unlock()
 
 	e.replicateEntityMap.Lock()
-	if replicateEntity, ok := e.replicateEntityMap.data[milvusURI]; ok {
+	if replicateEntity, ok := e.replicateEntityMap.data[uKey]; ok {
 		if quitFunc, ok := replicateEntity.taskQuitFuncs.GetAndRemove(taskID); ok {
 			quitFunc()
 			replicateEntity.refCnt.Dec()
@@ -1008,7 +1087,7 @@ func (e *MetaCDC) delete(taskID string) error {
 			replicateEntity.entityQuitFunc()
 		}
 	}
-	delete(e.replicateEntityMap.data, milvusURI)
+	delete(e.replicateEntityMap.data, uKey)
 	e.replicateEntityMap.Unlock()
 
 	return err

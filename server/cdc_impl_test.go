@@ -60,6 +60,7 @@ var (
 		Tenant:     "public",
 		Namespace:  "default",
 	}
+	kafkaAddress = "localhost:9092"
 )
 
 func createTopic(topic string) error {
@@ -277,9 +278,18 @@ func TestValidCreateRequest(t *testing.T) {
 			},
 		},
 	}
-	t.Run("empty host", func(t *testing.T) {
+	t.Run("empty downstream", func(t *testing.T) {
 		_, err := metaCDC.Create(&request.CreateRequest{
 			MilvusConnectParam: model.MilvusConnectParam{},
+			KafkaConnectParam:  model.KafkaConnectParam{},
+		})
+		assert.Error(t, err)
+	})
+	t.Run("empty host", func(t *testing.T) {
+		_, err := metaCDC.Create(&request.CreateRequest{
+			MilvusConnectParam: model.MilvusConnectParam{
+				Port: 19530,
+			},
 		})
 		assert.Error(t, err)
 	})
@@ -307,6 +317,14 @@ func TestValidCreateRequest(t *testing.T) {
 				Host:           "localhost",
 				Port:           19530,
 				ConnectTimeout: -1,
+			},
+		})
+		assert.Error(t, err)
+	})
+	t.Run("empty kafka topic", func(t *testing.T) {
+		_, err := metaCDC.Create(&request.CreateRequest{
+			KafkaConnectParam: model.KafkaConnectParam{
+				Address: kafkaAddress,
 			},
 		})
 		assert.Error(t, err)
@@ -416,7 +434,7 @@ func TestValidCreateRequest(t *testing.T) {
 		})
 		assert.Error(t, err)
 	})
-	t.Run("success", func(t *testing.T) {
+	t.Run("success when milvus", func(t *testing.T) {
 		_, closeFunc := NewMockMilvus(t)
 		defer closeFunc()
 
@@ -441,11 +459,33 @@ func TestValidCreateRequest(t *testing.T) {
 		})
 		assert.NoError(t, err)
 	})
+
+	t.Run("success when kafka", func(t *testing.T) {
+		err := metaCDC.validCreateRequest(&request.CreateRequest{
+			KafkaConnectParam: model.KafkaConnectParam{
+				Address: kafkaAddress,
+				Topic:   "test",
+			},
+			BufferConfig: model.BufferConfig{
+				Period: 10,
+				Size:   10,
+			},
+			CollectionInfos: []model.CollectionInfo{
+				{
+					Name: "*",
+				},
+			},
+			RPCChannelInfo: model.ChannelInfo{
+				Name: "foo",
+			},
+		})
+		assert.NoError(t, err)
+	})
 }
 
 func TestCreateRequest(t *testing.T) {
 	util.InitMilvusPkgParam()
-	t.Run("success", func(t *testing.T) {
+	t.Run("success when milvus", func(t *testing.T) {
 		metaCDC := &MetaCDC{
 			config: &CDCServerConfig{
 				MaxTaskNum: 10,
@@ -519,13 +559,112 @@ func TestCreateRequest(t *testing.T) {
 
 		_, closeFunc := NewMockMilvus(t)
 		defer closeFunc()
-
 		{
 			_, err := metaCDC.Create(&request.CreateRequest{
 				MilvusConnectParam: model.MilvusConnectParam{
 					Host:           "localhost",
 					Port:           50051,
 					ConnectTimeout: 5,
+				},
+				BufferConfig: model.BufferConfig{
+					Period: 10,
+					Size:   10,
+				},
+				CollectionInfos: []model.CollectionInfo{
+					{
+						Name: "hello_milvus",
+						Positions: map[string]string{
+							"rootcoord-dml-channel_1_123v0": util.Base64MsgPosition(&msgstream.MsgPosition{
+								ChannelName: "rootcoord-dml-channel_1_123v0",
+								MsgID:       []byte("123v0"),
+							}),
+						},
+					},
+				},
+				RPCChannelInfo: model.ChannelInfo{
+					Name: "foo",
+				},
+			})
+			assert.NoError(t, err)
+		}
+	})
+
+	t.Run("success when kafka", func(t *testing.T) {
+		metaCDC := &MetaCDC{
+			config: &CDCServerConfig{
+				MaxTaskNum: 10,
+				SourceConfig: MilvusSourceConfig{
+					ReadChanLen: 10,
+					Pulsar: config.PulsarConfig{
+						Address: "localhost:6650",
+					},
+					EtcdAddress:          []string{"localhost:2379"},
+					EtcdRootPath:         "source-cdc-test",
+					EtcdMetaSubPath:      "meta",
+					DefaultPartitionName: "_default",
+					ReplicateChan:        "foo",
+				},
+				MaxNameLength: 256,
+			},
+		}
+		initMetaCDCMap(metaCDC)
+		defer ClearEtcdData("source-cdc-test")
+		PutTS("source-cdc-test")
+
+		factory := mocks.NewMetaStoreFactory(t)
+		store := mocks.NewMetaStore[*meta.TaskInfo](t)
+		positionStore := mocks.NewMetaStore[*meta.TaskCollectionPosition](t)
+		mqFactoryCreator := coremocks.NewFactoryCreator(t)
+		mqFactory := msgstream.NewMockFactory(t)
+		mq := msgstream.NewMockMsgStream(t)
+
+		metaCDC.mqFactoryCreator = mqFactoryCreator
+
+		factory.EXPECT().GetTaskInfoMetaStore(mock.Anything).Return(store)
+		factory.EXPECT().GetTaskCollectionPositionMetaStore(mock.Anything).Return(positionStore)
+		// check the task num
+		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{}, nil).Once()
+		// save position
+		positionStore.EXPECT().Put(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		// save task meta
+		store.EXPECT().Put(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		// new channel manager
+		mqFactoryCreator.EXPECT().NewPmsFactory(mock.Anything).Return(mqFactory)
+		// get task position
+		positionStore.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskCollectionPosition{
+			{
+				Positions: map[string]*meta.PositionInfo{
+					"ch1_v0": {
+						Time: 1,
+						DataPair: &commonpb.KeyDataPair{
+							Key:  "rootcoord-dml-channel_1_123v0",
+							Data: []byte("ch1-position"),
+						},
+					},
+				},
+			},
+		}, nil).Once()
+		// new channel reader
+		mqFactory.EXPECT().NewMsgStream(mock.Anything).Return(mq, nil).Once()
+		mq.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		// start read channel
+		streamChan := make(chan *msgstream.MsgPack)
+		mq.EXPECT().Chan().Return(streamChan)
+		// update state
+		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{
+			{
+				TaskID: "1",
+				State:  meta.TaskStateInitial,
+			},
+		}, nil).Once()
+		store.EXPECT().Put(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+
+		metaCDC.metaStoreFactory = factory
+		{
+			_, err := metaCDC.Create(&request.CreateRequest{
+				KafkaConnectParam: model.KafkaConnectParam{
+					Address: kafkaAddress,
+					Topic:   "test",
 				},
 				BufferConfig: model.BufferConfig{
 					Period: 10,

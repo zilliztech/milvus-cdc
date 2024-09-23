@@ -20,8 +20,6 @@ package writer
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 )
@@ -29,41 +27,36 @@ import (
 type KafkaDataFormatter struct {
 	api.DataFormatter
 }
-
 type KafkaFormat struct {
 	Name  string `json:"name"`
 	Type  string `json:"type"`
 	Value any    `json:"value"`
-	Msg   string `json:"msg"`
 }
 
 func NewKafkaFormatter() *KafkaDataFormatter {
 	return &KafkaDataFormatter{}
 }
 
-// TODO format data when insert or delete
 func (k *KafkaDataFormatter) Format(data any) ([]byte, error) {
-	var kafkaData []byte
+	var res []byte
 	var err error
 	switch data := data.(type) {
 	case *api.InsertParam:
-		var result []KafkaFormat
+		var kafkaFormatList []KafkaFormat
 		for _, column := range data.Columns {
 			id := column.FieldData().FieldId
 			val, err := column.Get(int(id))
 			if err != nil {
 				return nil, err
 			}
-			msg := fmt.Sprintf("insert entity in collection %v", data.CollectionName)
 			kafkaFormat := KafkaFormat{
 				Name:  column.Name(),
 				Type:  column.Type().String(),
 				Value: val,
-				Msg:   msg,
 			}
-			result = append(result, kafkaFormat)
+			kafkaFormatList = append(kafkaFormatList, kafkaFormat)
 		}
-		kafkaData, err = json.Marshal(result)
+		res, err = json.Marshal(kafkaFormatList)
 		if err != nil {
 			return nil, err
 		}
@@ -74,19 +67,21 @@ func (k *KafkaDataFormatter) Format(data any) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		msg := fmt.Sprintf("delete entity in collection %v", data.CollectionName)
 		kafkaFormat := KafkaFormat{
 			Name:  column.Name(),
 			Type:  column.Type().String(),
 			Value: val,
-			Msg:   msg,
 		}
-		kafkaData, err = json.Marshal(kafkaFormat)
+		res, err = json.Marshal(kafkaFormat)
 		if err != nil {
 			return nil, err
 		}
 	default:
-		return nil, errors.New("the data format is not supported")
+		res, err = json.Marshal(data)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return kafkaData, err
+
+	return res, nil
 }

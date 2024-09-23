@@ -88,6 +88,8 @@ type replicateChannelManager struct {
 
 	addCollectionLock *deadlock.RWMutex
 	addCollectionCnt  *int
+
+	downstream string
 }
 
 func NewReplicateChannelManagerWithDispatchClient(
@@ -97,6 +99,7 @@ func NewReplicateChannelManagerWithDispatchClient(
 	readConfig config.ReaderConfig,
 	metaOp api.MetaOp,
 	msgPackCallback func(string, *msgstream.MsgPack),
+	downstream string,
 ) (api.ChannelManager, error) {
 	return &replicateChannelManager{
 		streamDispatchClient: dispatchClient,
@@ -122,6 +125,7 @@ func NewReplicateChannelManagerWithDispatchClient(
 
 		addCollectionLock: &deadlock.RWMutex{},
 		addCollectionCnt:  new(int),
+		downstream:        downstream,
 	}, nil
 }
 
@@ -158,6 +162,126 @@ func (r *replicateChannelManager) AddDroppedPartition(ids []int64) {
 	log.Info("has removed dropped partitions", zap.Int64s("ids", ids))
 }
 
+func (r *replicateChannelManager) startReadCollectionForKafka(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) (*model.CollectionInfo, error) {
+	r.collectionLock.RLock()
+	_, ok := r.replicateCollections[info.ID]
+	r.collectionLock.RUnlock()
+	if ok {
+		return nil, errors.Newf("the collection has been replicated, wait it [collection name: %s] to drop...", info.Schema.Name)
+	}
+
+	// send api event when the collection is not replicated and ctx is not done
+	if err := r.sendAPIEvent(ctx, info, sourceDBInfo); err != nil {
+		return nil, err
+	}
+
+	// get targetCollectionInfo from source
+	var targetInfo *model.CollectionInfo
+	partitions := make(map[string]int64)
+	partitionInfos, err := r.metaOp.GetAllPartition(ctx, func(partitionInfo *pb.PartitionInfo) bool {
+		return partitionInfo.CollectionId != info.ID
+	})
+	if err != nil {
+		log.Warn("failed to get partition info", zap.Error(err))
+		return nil, err
+	}
+
+	for _, partitionInfo := range partitionInfos {
+		partitions[partitionInfo.PartitionName] = partitionInfo.PartitionID
+	}
+	targetInfo = &model.CollectionInfo{
+		CollectionID:   info.ID,
+		CollectionName: info.Schema.Name,
+		DatabaseName:   sourceDBInfo.Name,
+		VChannels:      info.VirtualChannelNames,
+		Partitions:     partitions,
+	}
+	// source collection has dropped
+	if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
+		targetInfo.Dropped = true
+		log.Info("the collection is dropped in the source instance and it's existed in the target instance", zap.String("collection_name", info.Schema.Name))
+	}
+
+	return targetInfo, nil
+}
+
+func (r *replicateChannelManager) startReadCollectionForMilvus(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) (*model.CollectionInfo, error) {
+	var err error
+	retryErr := retry.Do(ctx, func() error {
+		_, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.GetName(), sourceDBInfo.Name)
+		if err != nil && !IsCollectionNotFoundError(err) && !IsDatabaseNotFoundError(err) {
+			return err
+		}
+		r.collectionLock.RLock()
+		_, ok := r.replicateCollections[info.ID]
+		r.collectionLock.RUnlock()
+		if ok {
+			return errors.Newf("the collection has been replicated, wait it [collection name: %s] to drop...", info.Schema.Name)
+		}
+		// collection not found will exit the retry
+		return nil
+	}, r.startReadRetryOptions...)
+
+	if retryErr != nil {
+		return nil, retryErr
+	}
+
+	if err != nil {
+		// the collection is not existed in the target and source collection has dropped, skip it
+		if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
+			r.droppedCollections.Store(info.ID, struct{}{})
+			log.Info("the collection is dropped in the target instance",
+				zap.Int64("collection_id", info.ID), zap.String("collection_name", info.Schema.Name))
+			return nil, nil
+		}
+		if IsDatabaseNotFoundError(err) {
+			log.Panic("the database has been dropped but the collection is existed in the source instance",
+				zap.String("collection_name", info.Schema.Name))
+			return nil, nil
+		}
+		err = r.sendAPIEvent(ctx, info, sourceDBInfo)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var targetInfo *model.CollectionInfo
+	err = retry.Do(ctx, func() error {
+		targetInfo, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.Name, sourceDBInfo.Name)
+		return err
+	}, r.startReadRetryOptions...)
+	if err != nil {
+		log.Warn("failed to get target collection info", zap.Error(err))
+		return nil, err
+	}
+	log.Info("success to get the collection info in the target instance", zap.String("collection_name", targetInfo.CollectionName))
+	if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
+		targetInfo.Dropped = true
+		log.Info("the collection is dropped in the source instance and it's existed in the target instance", zap.String("collection_name", info.Schema.Name))
+	}
+
+	return targetInfo, nil
+}
+
+func (r *replicateChannelManager) sendAPIEvent(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) error {
+	select {
+	case <-ctx.Done():
+		log.Warn("context is done in the start read collection")
+		return ctx.Err()
+	default:
+		r.apiEventChan <- &api.ReplicateAPIEvent{
+			EventType:      api.ReplicateCreateCollection,
+			CollectionInfo: info,
+			ReplicateInfo: &commonpb.ReplicateInfo{
+				IsReplicate:  true,
+				MsgTimestamp: info.CreateTime,
+			},
+			ReplicateParam: api.ReplicateParam{Database: sourceDBInfo.Name},
+		}
+	}
+	return nil
+}
+
 func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
 	r.addCollectionLock.Lock()
 	*r.addCollectionCnt++
@@ -174,73 +298,18 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 		return nil
 	}
 
-	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, info.ID)
-
-	var err error
-	retryErr := retry.Do(ctx, func() error {
-		_, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.GetName(), sourceDBInfo.Name)
-		if err != nil &&
-			!IsCollectionNotFoundError(err) && !IsDatabaseNotFoundError(err) {
-			return err
-		}
-		r.collectionLock.RLock()
-		_, ok := r.replicateCollections[info.ID]
-		r.collectionLock.RUnlock()
-		if ok {
-			return errors.Newf("the collection has been replicated, wait it [collection name: %s] to drop...", info.Schema.Name)
-		}
-		// collection not found will exit the retry
-		return nil
-	}, r.startReadRetryOptions...)
-
-	if retryErr != nil {
-		return retryErr
-	}
-
-	if err != nil {
-		// the collection is not existed in the target and source collection has dropped, skip it
-		if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
-			r.droppedCollections.Store(info.ID, struct{}{})
-			log.Info("the collection is dropped in the target instance",
-				zap.Int64("collection_id", info.ID), zap.String("collection_name", info.Schema.Name))
-			return nil
-		}
-		if IsDatabaseNotFoundError(err) {
-			log.Panic("the database has been dropped but the collection is existed in the source instance",
-				zap.String("collection_name", info.Schema.Name))
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			log.Warn("context is done in the start read collection")
-			return ctx.Err()
-		default:
-			r.apiEventChan <- &api.ReplicateAPIEvent{
-				EventType:      api.ReplicateCreateCollection,
-				CollectionInfo: info,
-				ReplicateInfo: &commonpb.ReplicateInfo{
-					IsReplicate:  true,
-					MsgTimestamp: info.CreateTime,
-				},
-				ReplicateParam: api.ReplicateParam{Database: sourceDBInfo.Name},
-			}
-		}
-	}
-
 	var targetInfo *model.CollectionInfo
-
-	err = retry.Do(ctx, func() error {
-		targetInfo, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.Name, sourceDBInfo.Name)
-		return err
-	}, r.startReadRetryOptions...)
-	if err != nil {
-		log.Warn("failed to get target collection info", zap.Error(err))
-		return err
+	var err error
+	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, info.ID)
+	if r.downstream == "milvus" {
+		targetInfo, err = r.startReadCollectionForMilvus(ctx, info, sourceDBInfo)
+	} else if r.downstream == "kafka" {
+		targetInfo, err = r.startReadCollectionForKafka(ctx, info, sourceDBInfo)
 	}
-	log.Info("success to get the collection info in the target instance", zap.String("collection_name", targetInfo.CollectionName))
-	if info.State == pb.CollectionState_CollectionDropped || info.State == pb.CollectionState_CollectionDropping {
-		targetInfo.Dropped = true
-		log.Info("the collection is dropped in the source instance and it's existed in the target instance", zap.String("collection_name", info.Schema.Name))
+
+	if err != nil {
+		log.Warn("failed to start read collection", zap.Error(err), zap.String("downstream", r.downstream))
+		return err
 	}
 
 	getSeekPosition := func(channelName string) *msgpb.MsgPosition {
@@ -251,7 +320,6 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 		}
 		return nil
 	}
-
 	r.collectionLock.Lock()
 	if _, ok := r.replicateCollections[info.ID]; ok {
 		r.collectionLock.Unlock()
@@ -561,7 +629,8 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 				TTInterval:        r.ttInterval,
 				RetryOptions:      r.retryOptions,
 			},
-			r.streamCreator)
+			r.streamCreator,
+			r.downstream)
 		if err != nil {
 			channelLog.Warn("init replicate channel handler failed", zap.Error(err))
 			return nil, err
@@ -756,6 +825,8 @@ type replicateChannelHandler struct {
 	addCollectionCnt  *int
 
 	sourceSeekPosition *msgstream.MsgPosition
+
+	downstream string
 }
 
 func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollectionInfo, targetInfo *model.TargetCollectionInfo) {
@@ -951,10 +1022,15 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 func (r *replicateChannelHandler) updateTargetPartitionInfo(collectionID int64, collectionName string, partitionName string) int64 {
 	ctx, cancelFunc := context.WithTimeout(r.replicateCtx, 10*time.Second)
 	defer cancelFunc()
-	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, collectionID)
+	var collectionInfo *model.CollectionInfo
+	var err error
 
-	collectionInfo, err := r.targetClient.GetPartitionInfo(ctx, collectionName, sourceDBInfo.Name)
-	if err != nil {
+	if r.downstream == "milvus" {
+		collectionInfo, err = r.getPartitionInfoForMilvus(ctx, collectionName, collectionID)
+	} else if r.downstream == "kafka" {
+		collectionInfo, err = r.getPartitionInfoForKafka(ctx, collectionName)
+	}
+	if err != nil || collectionInfo == nil {
 		log.Warn("fail to get partition info", zap.String("collection_name", collectionName), zap.Error(err))
 		return 0
 	}
@@ -967,6 +1043,33 @@ func (r *replicateChannelHandler) updateTargetPartitionInfo(collectionID int64, 
 	}
 	targetInfo.PartitionInfo = collectionInfo.Partitions
 	return targetInfo.PartitionInfo[partitionName]
+}
+
+func (r *replicateChannelHandler) getPartitionInfoForMilvus(ctx context.Context, collectionName string, collectionID int64) (*model.CollectionInfo, error) {
+	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, collectionID)
+	partitionInfo, err := r.targetClient.GetPartitionInfo(ctx, collectionName, sourceDBInfo.Name)
+	if err != nil {
+		return nil, err
+	}
+	return partitionInfo, nil
+}
+
+func (r *replicateChannelHandler) getPartitionInfoForKafka(ctx context.Context, collectionName string) (*model.CollectionInfo, error) {
+	partitions := make(map[string]int64)
+	partitionInfos, err := r.metaOp.GetAllPartition(ctx, func(info *pb.PartitionInfo) bool {
+		targetCollectionName := r.metaOp.GetCollectionNameByID(ctx, info.CollectionId)
+		return collectionName != targetCollectionName
+	})
+	if err != nil {
+		return nil, err
+	}
+	collectionInfo := &model.CollectionInfo{}
+
+	for _, partitionInfo := range partitionInfos {
+		partitions[partitionInfo.PartitionName] = partitionInfo.PartitionID
+	}
+	collectionInfo.Partitions = partitions
+	return collectionInfo, nil
 }
 
 func (r *replicateChannelHandler) RemovePartitionInfo(collectionID int64, name string, id int64) {
@@ -1102,8 +1205,7 @@ func (r *replicateChannelHandler) getPartitionID(sourceCollectionID, sourceParti
 		if id != 0 {
 			return nil
 		}
-		if r.isDroppedCollection(sourceCollectionID) ||
-			r.isDroppedPartition(sourcePartitionID) {
+		if r.isDroppedCollection(sourceCollectionID) || r.isDroppedPartition(sourcePartitionID) {
 			id = -1
 			return nil
 		}
@@ -1113,6 +1215,7 @@ func (r *replicateChannelHandler) getPartitionID(sourceCollectionID, sourceParti
 		log.Warn("fail to find the partition id", zap.Int64("source_collection", sourceCollectionID), zap.Any("target_collection", info.CollectionID), zap.String("partition_name", name))
 		return 0, err
 	}
+
 	return id, nil
 }
 
@@ -1577,7 +1680,7 @@ func initReplicateChannelHandler(ctx context.Context,
 	sourceInfo *model.SourceCollectionInfo,
 	targetInfo *model.TargetCollectionInfo,
 	targetClient api.TargetAPI, metaOp api.MetaOp, apiEventChan chan *api.ReplicateAPIEvent,
-	opts *model.HandlerOpts, streamCreator StreamCreator,
+	opts *model.HandlerOpts, streamCreator StreamCreator, downstream string,
 ) (*replicateChannelHandler, error) {
 	err := streamCreator.CheckConnection(ctx, sourceInfo.VChannelName, sourceInfo.SeekPosition)
 	if err != nil {
@@ -1608,6 +1711,7 @@ func initReplicateChannelHandler(ctx context.Context,
 		retryOptions:       opts.RetryOptions,
 		sourceSeekPosition: sourceInfo.SeekPosition,
 		ttRateLog:          log.NewRateLog(0.01, log.L()),
+		downstream:         downstream,
 	}
 	var cts uint64 = math.MaxUint64
 	if sourceInfo.SeekPosition != nil {

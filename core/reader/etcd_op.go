@@ -814,6 +814,7 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 		return dbName
 	}
 
+	var dbName string
 	for _, collection := range collections {
 		collectionName := collection.Schema.Name
 		originDBName := getDBNameForCollection(collection.ID)
@@ -822,18 +823,23 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 			continue
 		}
 		// maybe the database has been drop, so get the database name from the target
-		dbName, err := e.targetMilvus.GetDatabaseName(context.Background(), collectionName, originDBName)
-		if IsDatabaseNotFoundError(err) {
-			log.Info("the collection info has been dropped in the source and target", zap.String("collection_name", collectionName))
-			continue
-		}
-		if err != nil {
-			log.Panic("fail to get database name", zap.String("collection_name", collectionName), zap.Error(err))
-			continue
-		}
-		if originDBName != dbName {
-			_, dropDBKey := util.GetDBInfoKeys(dbName)
-			res[droppedDatabaseKey][dropDBKey] = tt - 1
+		// targetMilvus is nil when downstream is not milvus
+		if e.targetMilvus != nil {
+			dbName, err = e.targetMilvus.GetDatabaseName(context.Background(), collectionName, originDBName)
+			if IsDatabaseNotFoundError(err) {
+				log.Info("the collection info has been dropped in the source and target", zap.String("collection_name", collectionName))
+				continue
+			}
+			if err != nil {
+				log.Panic("fail to get database name", zap.String("collection_name", collectionName), zap.Error(err))
+				continue
+			}
+			if originDBName != dbName {
+				_, dropDBKey := util.GetDBInfoKeys(dbName)
+				res[droppedDatabaseKey][dropDBKey] = tt - 1
+			}
+		} else {
+			dbName = originDBName
 		}
 
 		_, dropKey := util.GetCollectionInfoKeys(collectionName, dbName)
@@ -856,14 +862,17 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 			log.Panic("fail to get db name for collection", zap.Int64("collection_id", partition.CollectionId))
 			continue
 		}
-		dbName, err := e.targetMilvus.GetDatabaseName(context.Background(), collectionName, originDBName)
-		if IsDatabaseNotFoundError(err) {
-			log.Info("the collection info has been dropped in the source and target", zap.String("collection_name", collectionName))
-			continue
-		}
-		if err != nil {
-			log.Panic("fail to get database name", zap.String("collection_name", collectionName), zap.Error(err))
-			continue
+		// targetMilvus is nil when downstream is not milvus
+		if e.targetMilvus != nil {
+			dbName, err = e.targetMilvus.GetDatabaseName(context.Background(), collectionName, originDBName)
+			if IsDatabaseNotFoundError(err) {
+				log.Info("the collection info has been dropped in the source and target", zap.String("collection_name", collectionName))
+				continue
+			}
+			if err != nil {
+				log.Panic("fail to get database name", zap.String("collection_name", collectionName), zap.Error(err))
+				continue
+			}
 		}
 		partitionName := partition.PartitionName
 		_, dropKey := util.GetPartitionInfoKeys(partitionName, collectionName, dbName)

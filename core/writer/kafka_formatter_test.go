@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
@@ -30,11 +31,40 @@ import (
 
 func TestFormat(t *testing.T) {
 	kafkaFormatter := &KafkaDataFormatter{}
-
-	t.Run("unsupport data format", func(t *testing.T) {
-		data := "test"
+	t.Run("format common param", func(t *testing.T) {
+		data := &api.CreateCollectionParam{
+			Properties: []*commonpb.KeyValuePair{
+				{
+					Key:   "foo",
+					Value: "hoo",
+				},
+			},
+			ConsistencyLevel: commonpb.ConsistencyLevel_Strong,
+			MsgBaseParam: api.MsgBaseParam{
+				Base: &commonpb.MsgBase{
+					ReplicateInfo: &commonpb.ReplicateInfo{
+						IsReplicate:  true,
+						MsgTimestamp: 1000,
+					},
+				},
+			},
+			Schema: &entity.Schema{
+				CollectionName: "foo",
+				Fields: []*entity.Field{
+					{
+						Name:     "age",
+						DataType: entity.FieldTypeInt8,
+					},
+					{
+						Name:     "data",
+						DataType: entity.FieldTypeBinaryVector,
+					},
+				},
+			},
+			ShardsNum: 1,
+		}
 		_, err := kafkaFormatter.Format(data)
-		assert.Error(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("format insert param", func(t *testing.T) {
