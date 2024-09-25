@@ -89,7 +89,7 @@ func (d *DefaultFactoryCreator) NewKmsFactory(cfg *config.KafkaConfig) msgstream
 				SaslUsername:        config.NewParamItem(cfg.SaslUsername),
 				SaslPassword:        config.NewParamItem(cfg.SaslPassword),
 				SaslMechanisms:      config.NewParamItem(cfg.SaslMechanisms),
-				SecurityProtocol:    config.NewParamItem(cfg.SaslMechanisms),
+				SecurityProtocol:    config.NewParamItem(cfg.SecurityProtocol),
 				ConsumerExtraConfig: config.NewParamGroup(cfg.Consumer),
 				ProducerExtraConfig: config.NewParamGroup(cfg.Producer),
 				ReadTimeout:         config.NewParamItem("10"),
