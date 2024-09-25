@@ -56,6 +56,7 @@ type MilvusSourceConfig struct {
 	EtcdMetaSubPath      string
 	Etcd                 config.EtcdServerConfig
 	ReadChanLen          int
+	ChannelNum           int
 	TimeTickInterval     int
 	DefaultPartitionName string
 	ReplicateChan        string

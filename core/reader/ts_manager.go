@@ -33,6 +33,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/util/tsoutil"
 	"github.com/milvus-io/milvus/pkg/util/typeutil"
 
+	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/util"
@@ -51,10 +52,11 @@ var (
 )
 
 type tsInfo struct {
-	cts    uint64        // current ts
-	lts    uint64        // last send ts
-	sts    time.Time     // the time of last send ts
-	period time.Duration // send ts period
+	cts           uint64        // current ts
+	lts           uint64        // last send ts
+	sts           time.Time     // the time of last send ts
+	period        time.Duration // send ts period
+	targetMsgChan chan *api.ReplicateMsg
 }
 
 type tsManager struct {
@@ -71,19 +73,21 @@ type tsManager struct {
 	// deprecated
 	lastMsgTS util.Map[string, uint64]
 
-	channelTS2     *typeutil.ConcurrentMap[string, *tsInfo]
-	channelTSLocks *lock.KeyLock[string]
-	rateLog        *log.RateLog
+	channelTS2        *typeutil.ConcurrentMap[string, *tsInfo]
+	channelTSLocks    *lock.KeyLock[string]
+	rateLog           *log.RateLog
+	targetChannelChan chan string
 }
 
 func GetTSManager() *tsManager {
 	tsOnce.Do(func() {
 		tsInstance = &tsManager{
-			retryOptions:   util.GetRetryOptions(config.GetCommonConfig().Retry),
-			lastTS:         util.NewValue[uint64](0),
-			rateLog:        log.NewRateLog(1, log.L()),
-			channelTS2:     typeutil.NewConcurrentMap[string, *tsInfo](),
-			channelTSLocks: lock.NewKeyLock[string](),
+			retryOptions:      util.GetRetryOptions(config.GetCommonConfig().Retry),
+			lastTS:            util.NewValue[uint64](0),
+			rateLog:           log.NewRateLog(1, log.L()),
+			channelTS2:        typeutil.NewConcurrentMap[string, *tsInfo](),
+			channelTSLocks:    lock.NewKeyLock[string](),
+			targetChannelChan: make(chan string, 10),
 		}
 	})
 	return tsInstance
@@ -236,7 +240,34 @@ func (m *tsManager) UnLockTargetChannel(channelName string) {
 	m.channelTSLocks.Unlock(channelName)
 }
 
-func (m *tsManager) InitTSInfo(channelName string, p time.Duration, c uint64) {
+func (m *tsManager) GetTargetChannelChan() <-chan string {
+	return m.targetChannelChan
+}
+
+func (m *tsManager) GetTargetMsgChan(channelName string) <-chan *api.ReplicateMsg {
+	m.channelTSLocks.RLock(channelName)
+	defer m.channelTSLocks.RUnlock(channelName)
+
+	ts, ok := m.channelTS2.Get(channelName)
+	if !ok {
+		return nil
+	}
+	return ts.targetMsgChan
+}
+
+func (m *tsManager) SendTargetMsg(channelName string, msg *api.ReplicateMsg) {
+	m.channelTSLocks.RLock(channelName)
+	defer m.channelTSLocks.RUnlock(channelName)
+
+	ts, ok := m.channelTS2.Get(channelName)
+	if !ok {
+		log.Panic("send target msg failed", zap.String("channelName", channelName))
+		return
+	}
+	ts.targetMsgChan <- msg
+}
+
+func (m *tsManager) InitTSInfo(channelName string, p time.Duration, c uint64, channeBufferSize int) {
 	m.channelTSLocks.Lock(channelName)
 	defer m.channelTSLocks.Unlock(channelName)
 	if c == math.MaxUint64 {
@@ -245,10 +276,12 @@ func (m *tsManager) InitTSInfo(channelName string, p time.Duration, c uint64) {
 	t := time.Now().Add(-p)
 	ts, ok := m.channelTS2.Get(channelName)
 	if !ok {
+		m.targetChannelChan <- channelName
 		m.channelTS2.Insert(channelName, &tsInfo{
-			cts:    c,
-			sts:    t,
-			period: p,
+			cts:           c,
+			sts:           t,
+			period:        p,
+			targetMsgChan: make(chan *api.ReplicateMsg, channeBufferSize),
 		})
 		return
 	}

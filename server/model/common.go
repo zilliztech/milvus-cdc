@@ -50,6 +50,7 @@ type MilvusConnectParam struct {
 	URI             string          `json:"uri" mapstructure:"uri"`
 	Token           string          `json:"token,omitempty" mapstructure:"token,omitempty"`
 	DialConfig      util.DialConfig `json:"dial_config,omitempty" mapstructure:"dial_config,omitempty"`
+	ChannelNum      int             `json:"channel_num" mapstructure:"channel_num"`
 	IgnorePartition bool            `json:"ignore_partition" mapstructure:"ignore_partition"`
 	// ConnectTimeout unit: s
 	ConnectTimeout int `json:"connect_timeout" mapstructure:"connect_timeout"`

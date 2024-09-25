@@ -26,8 +26,8 @@ import (
 )
 
 type SourceCollectionInfo struct {
-	PChannelName string
-	VChannelName string
+	PChannel     string
+	VChannel     string
 	CollectionID int64
 	SeekPosition *msgstream.MsgPosition
 	ShardNum     int
@@ -49,7 +49,7 @@ type TargetCollectionInfo struct {
 type HandlerOpts struct {
 	MessageBufferSize int
 	TTInterval        int
-	// Factory which only be used in the unit test case
+	// Deprecate Factory which only be used in the unit test case
 	Factory      msgstream.Factory
 	RetryOptions []retry.Option
 }

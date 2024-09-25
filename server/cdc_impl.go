@@ -706,6 +706,8 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 			MessageBufferSize: bufferSize,
 			TTInterval:        ttInterval,
 			Retry:             e.config.Retry,
+			SourceChannelNum:  e.config.SourceConfig.ChannelNum,
+			TargetChannelNum:  info.MilvusConnectParam.ChannelNum,
 		}, metaOp, func(s string, pack *msgstream.MsgPack) {
 			replicateMetric(info, s, pack, metrics.OPTypeRead)
 		}, downstream)

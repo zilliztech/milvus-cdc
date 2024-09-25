@@ -22,4 +22,6 @@ type ReaderConfig struct {
 	MessageBufferSize int
 	TTInterval        int
 	Retry             RetrySettings
+	SourceChannelNum  int
+	TargetChannelNum  int
 }

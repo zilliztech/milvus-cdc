@@ -67,9 +67,16 @@ type replicateChannelManager struct {
 	messageBufferSize     int
 	ttInterval            int
 
-	channelLock       deadlock.RWMutex
+	channelLock    deadlock.RWMutex
+	channelMapping *util.ChannelMapping
+	// the key is source/target milvus channel,
+	// when the source is equal or more than the target, the key is source channel, otherwise is target channel
 	channelHandlerMap map[string]*replicateChannelHandler
+	// the key is the handler map value channel
+	// when the source is equal or more than the target, the key is target channel, otherwise is source channel
 	channelForwardMap map[string]struct{}
+	// the key is collection id, and the value is the map, which key is pchannel name and the value is the handler map key
+	sourcePChannelKeyMap map[int64]map[string]string
 
 	collectionLock       deadlock.RWMutex
 	replicateCollections map[int64]chan struct{}
@@ -77,7 +84,6 @@ type replicateChannelManager struct {
 	partitionLock       deadlock.Mutex
 	replicatePartitions map[int64]map[int64]chan struct{}
 
-	channelChan             chan string
 	apiEventChan            chan *api.ReplicateAPIEvent
 	forwardReplicateChannel chan string
 
@@ -114,11 +120,12 @@ func NewReplicateChannelManagerWithDispatchClient(
 		}),
 		messageBufferSize:       readConfig.MessageBufferSize,
 		ttInterval:              readConfig.TTInterval,
+		channelMapping:          util.NewChannelMapping(readConfig.SourceChannelNum, readConfig.TargetChannelNum),
 		channelHandlerMap:       make(map[string]*replicateChannelHandler),
 		channelForwardMap:       make(map[string]struct{}),
+		sourcePChannelKeyMap:    make(map[int64]map[string]string),
 		replicateCollections:    make(map[int64]chan struct{}),
 		replicatePartitions:     make(map[int64]map[int64]chan struct{}),
-		channelChan:             make(chan string, 10),
 		apiEventChan:            make(chan *api.ReplicateAPIEvent, 10),
 		forwardReplicateChannel: make(chan string),
 		msgPackCallback:         msgPackCallback,
@@ -171,7 +178,7 @@ func (r *replicateChannelManager) startReadCollectionForKafka(ctx context.Contex
 	}
 
 	// send api event when the collection is not replicated and ctx is not done
-	if err := r.sendAPIEvent(ctx, info, sourceDBInfo); err != nil {
+	if err := r.sendCreateCollectionvent(ctx, info, sourceDBInfo); err != nil {
 		return nil, err
 	}
 
@@ -239,7 +246,7 @@ func (r *replicateChannelManager) startReadCollectionForMilvus(ctx context.Conte
 				zap.String("collection_name", info.Schema.Name))
 			return nil, nil
 		}
-		err = r.sendAPIEvent(ctx, info, sourceDBInfo)
+		err = r.sendCreateCollectionvent(ctx, info, sourceDBInfo)
 		if err != nil {
 			return nil, err
 		}
@@ -263,12 +270,13 @@ func (r *replicateChannelManager) startReadCollectionForMilvus(ctx context.Conte
 	return targetInfo, nil
 }
 
-func (r *replicateChannelManager) sendAPIEvent(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) error {
+func (r *replicateChannelManager) sendCreateCollectionvent(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) error {
 	select {
 	case <-ctx.Done():
 		log.Warn("context is done in the start read collection")
 		return ctx.Err()
 	default:
+		// TODO fubang should give a error when the collection shard num is more than the target dml channel num
 		r.apiEventChan <- &api.ReplicateAPIEvent{
 			EventType:      api.ReplicateCreateCollection,
 			CollectionInfo: info,
@@ -358,8 +366,8 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 		sourcePChannel := funcutil.ToPhysicalChannel(sourceVChannel)
 		targetPChannel := funcutil.ToPhysicalChannel(targetVChannel)
 		channelHandler, err := r.startReadChannel(&model.SourceCollectionInfo{
-			PChannelName: sourcePChannel,
-			VChannelName: sourceVChannel,
+			PChannel:     sourcePChannel,
+			VChannel:     sourceVChannel,
 			CollectionID: info.ID,
 			SeekPosition: getSeekPosition(sourcePChannel),
 		}, &model.TargetCollectionInfo{
@@ -395,7 +403,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 	if err == nil {
 		for _, channelHandler := range channelHandlers {
 			channelHandler.startReadChannel()
-			log.Info("start read the source channel", zap.String("channel_name", channelHandler.pChannelName))
+			log.Info("start read the source channel", zap.String("channel_name", channelHandler.sourcePChannel))
 		}
 	}
 	return err
@@ -552,8 +560,8 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 }
 
 func (r *replicateChannelManager) StopReadCollection(ctx context.Context, info *pb.CollectionInfo) error {
-	for _, position := range info.StartPositions {
-		r.stopReadChannel(position.GetKey(), info.ID)
+	for _, channel := range info.GetPhysicalChannelNames() {
+		r.stopReadChannel(channel, info.ID)
 	}
 	r.collectionLock.Lock()
 	closeChan, ok := r.replicateCollections[info.ID]
@@ -583,18 +591,11 @@ func (r *replicateChannelManager) StopReadCollection(ctx context.Context, info *
 }
 
 func (r *replicateChannelManager) GetChannelChan() <-chan string {
-	return r.channelChan
+	return GetTSManager().GetTargetChannelChan()
 }
 
 func (r *replicateChannelManager) GetMsgChan(pChannel string) <-chan *api.ReplicateMsg {
-	r.channelLock.RLock()
-	defer r.channelLock.RUnlock()
-
-	handler := r.channelHandlerMap[pChannel]
-	if handler != nil {
-		return handler.msgPackChan
-	}
-	return nil
+	return GetTSManager().GetTargetMsgChan(pChannel)
 }
 
 func (r *replicateChannelManager) GetEventChan() <-chan *api.ReplicateAPIEvent {
@@ -606,7 +607,7 @@ func (r *replicateChannelManager) GetChannelLatestMsgID(ctx context.Context, cha
 }
 
 // startReadChannel start read channel
-// pChannelName: source milvus channel name, collectionID: source milvus collection id, startPosition: start position of the source milvus collection
+// sourcePChannel: source milvus channel name, collectionID: source milvus collection id, startPosition: start position of the source milvus collection
 // targetInfo: target collection info, it will be used to replace the message info in the source milvus channel
 func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceCollectionInfo, targetInfo *model.TargetCollectionInfo) (*replicateChannelHandler, error) {
 	r.channelLock.Lock()
@@ -615,25 +616,21 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 	channelLog := log.With(
 		zap.Int64("collection_id", sourceInfo.CollectionID),
 		zap.String("collection_name", targetInfo.CollectionName),
-		zap.String("source_channel", sourceInfo.PChannelName),
+		zap.String("source_channel", sourceInfo.PChannel),
 		zap.String("target_channel", targetInfo.PChannel),
 	)
+	channelMappingKey := r.channelMapping.GetMapKey(sourceInfo.PChannel, targetInfo.PChannel)
+	channelMappingValue := r.channelMapping.GetMapValue(sourceInfo.PChannel, targetInfo.PChannel)
 
 	// TODO how to handle the seek position when the pchannel has been replicated
-	channelHandler, ok := r.channelHandlerMap[sourceInfo.PChannelName]
+	channelHandler, ok := r.channelHandlerMap[channelMappingKey]
 	if !ok {
 		var err error
-		channelHandler, err = initReplicateChannelHandler(r.getCtx(),
-			sourceInfo, targetInfo,
-			r.targetClient, r.metaOp,
-			r.apiEventChan,
-			&model.HandlerOpts{
-				MessageBufferSize: r.messageBufferSize,
-				TTInterval:        r.ttInterval,
-				RetryOptions:      r.retryOptions,
-			},
-			r.streamCreator,
-			r.downstream)
+		channelHandler, err = initReplicateChannelHandler(r.getCtx(), sourceInfo, targetInfo, r.targetClient, r.metaOp, r.apiEventChan, &model.HandlerOpts{
+			MessageBufferSize: r.messageBufferSize,
+			TTInterval:        r.ttInterval,
+			RetryOptions:      r.retryOptions,
+		}, r.streamCreator, r.downstream, channelMappingKey == sourceInfo.PChannel)
 		if err != nil {
 			channelLog.Warn("init replicate channel handler failed", zap.Error(err))
 			return nil, err
@@ -644,24 +641,19 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 		channelHandler.forwardMsgFunc = r.forwardMsg
 		channelHandler.isDroppedCollection = r.isDroppedCollection
 		channelHandler.isDroppedPartition = r.isDroppedPartition
-		hasReplicateForTargetChannel := false
-		for _, handler := range r.channelHandlerMap {
-			handler.recordLock.RLock()
-			if handler.targetPChannel == targetInfo.PChannel {
-				hasReplicateForTargetChannel = true
-			}
-			handler.recordLock.RUnlock()
-		}
-		if hasReplicateForTargetChannel {
-			channelLog.Info("channel already has replicate for target channel", zap.String("channel_name", sourceInfo.PChannelName))
+		diffValueForKey := r.channelMapping.CheckKeyNotExist(sourceInfo.PChannel, targetInfo.PChannel)
+
+		if !diffValueForKey {
+			channelLog.Info("channel already has replicate for target channel")
 			r.waitChannel(sourceInfo, targetInfo, channelHandler)
 		} else {
-			r.channelForwardMap[channelHandler.targetPChannel] = struct{}{}
+			r.channelForwardMap[channelMappingValue] = struct{}{}
+			r.channelMapping.AddKeyValue(sourceInfo.PChannel, targetInfo.PChannel)
 		}
-		r.channelHandlerMap[sourceInfo.PChannelName] = channelHandler
-		r.channelChan <- sourceInfo.PChannelName
-		if !hasReplicateForTargetChannel {
-			log.Info("create a replicate handler")
+		r.channelHandlerMap[channelMappingKey] = channelHandler
+		r.updateSourcePChannelMap(sourceInfo.CollectionID, sourceInfo.PChannel, channelMappingKey)
+		if diffValueForKey {
+			log.Info("create a replicate handler", zap.String("source_channel", sourceInfo.PChannel), zap.String("target_channel", targetInfo.PChannel))
 			return channelHandler, nil
 		}
 		return nil, nil
@@ -669,14 +661,38 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 	if sourceInfo.SeekPosition != nil {
 		GetTSManager().CollectTS(channelHandler.targetPChannel, sourceInfo.SeekPosition.GetTimestamp())
 	}
-	if channelHandler.targetPChannel != targetInfo.PChannel {
-		log.Info("diff target pchannel", zap.String("target_channel", targetInfo.PChannel), zap.String("handler_channel", channelHandler.targetPChannel))
-		r.forwardChannel(targetInfo)
+	if !r.channelMapping.CheckKeyExist(sourceInfo.PChannel, targetInfo.PChannel) {
+		log.Info("diff target pchannel",
+			zap.String("source_channel", sourceInfo.PChannel),
+			zap.String("target_channel", targetInfo.PChannel),
+			zap.String("mapping_value", channelMappingValue))
+		r.forwardChannel(channelMappingValue)
 	}
 	// the msg dispatch client maybe blocked, and has get the target channel,
 	// so we can use the goroutine and release the channelLock
 	go channelHandler.AddCollection(sourceInfo, targetInfo)
 	return nil, nil
+}
+
+// need the channel lock when call this function
+func (r *replicateChannelManager) updateSourcePChannelMap(collectionID int64, pchannel string, channelMappingKey string) {
+	keyMap, ok := r.sourcePChannelKeyMap[collectionID]
+	if !ok {
+		r.sourcePChannelKeyMap[collectionID] = map[string]string{
+			pchannel: channelMappingKey,
+		}
+		return
+	}
+	keyMap[pchannel] = channelMappingKey
+}
+
+// need the channel lock when call this function
+func (r *replicateChannelManager) getChannelMapKey(collectionID int64, pchannel string) string {
+	keyMap, ok := r.sourcePChannelKeyMap[collectionID]
+	if !ok {
+		return ""
+	}
+	return keyMap[pchannel]
 }
 
 func (r *replicateChannelManager) waitChannel(sourceInfo *model.SourceCollectionInfo, targetInfo *model.TargetCollectionInfo, channelHandler *replicateChannelHandler) {
@@ -688,22 +704,29 @@ func (r *replicateChannelManager) waitChannel(sourceInfo *model.SourceCollection
 			case <-tick.C:
 				log.Info("wait the new replicate channel", zap.String("target_pchannel", targetInfo.PChannel))
 			case targetChannel := <-r.forwardReplicateChannel:
-				isRepeatedChannel := false
 				r.channelLock.Lock()
-				for _, handler := range r.channelHandlerMap {
-					handler.recordLock.RLock()
-					if handler.targetPChannel == targetChannel {
-						isRepeatedChannel = true
-					}
-					handler.recordLock.RUnlock()
+				var isRepeatedChannel bool
+				if channelHandler.sourceKey {
+					isRepeatedChannel = r.channelMapping.CheckKeyExist(sourceInfo.PChannel, targetChannel)
+				} else {
+					isRepeatedChannel = r.channelMapping.CheckKeyExist(targetChannel, targetInfo.PChannel)
 				}
 				if isRepeatedChannel {
 					r.channelLock.Unlock()
 					continue
 				}
-				log.Info("success to get the new replicate channel", zap.String("source_pchannel", sourceInfo.PChannelName), zap.String("target_pchannel", targetInfo.PChannel))
-				channelHandler.targetPChannel = targetChannel
-				r.channelForwardMap[channelHandler.targetPChannel] = struct{}{}
+				log.Info("success to get the new replicate channel",
+					zap.Bool("source_key", channelHandler.sourceKey),
+					zap.String("target_pchannel", targetChannel),
+					zap.String("source_pchannel", sourceInfo.PChannel),
+					zap.String("target_pchannel", targetInfo.PChannel))
+				if channelHandler.sourceKey {
+					channelHandler.targetPChannel = targetChannel
+				} else {
+					channelHandler.sourcePChannel = targetChannel
+				}
+				r.channelForwardMap[targetChannel] = struct{}{}
+				r.channelMapping.AddKeyValue(channelHandler.sourcePChannel, channelHandler.targetPChannel)
 				channelHandler.startReadChannel()
 				r.channelLock.Unlock()
 				return
@@ -712,12 +735,12 @@ func (r *replicateChannelManager) waitChannel(sourceInfo *model.SourceCollection
 	}()
 }
 
-func (r *replicateChannelManager) forwardChannel(targetInfo *model.TargetCollectionInfo) {
+func (r *replicateChannelManager) forwardChannel(channelName string) {
 	go func() {
 		r.channelLock.Lock()
-		_, hasForward := r.channelForwardMap[targetInfo.PChannel]
+		_, hasForward := r.channelForwardMap[channelName]
 		if !hasForward {
-			r.channelForwardMap[targetInfo.PChannel] = struct{}{}
+			r.channelForwardMap[channelName] = struct{}{}
 		}
 		r.channelLock.Unlock()
 		if !hasForward {
@@ -726,9 +749,9 @@ func (r *replicateChannelManager) forwardChannel(targetInfo *model.TargetCollect
 			for {
 				select {
 				case <-tick.C:
-					log.Info("forward the diff replicate channel", zap.String("target_channel", targetInfo.PChannel))
-				case r.forwardReplicateChannel <- targetInfo.PChannel:
-					log.Info("success to forward the diff replicate channel", zap.String("target_channel", targetInfo.PChannel))
+					log.Info("forward the diff replicate channel", zap.String("target_channel", channelName))
+				case r.forwardReplicateChannel <- channelName:
+					log.Info("success to forward the diff replicate channel", zap.String("target_channel", channelName))
 					return
 				}
 			}
@@ -743,8 +766,10 @@ func (r *replicateChannelManager) forwardMsg(targetPChannel string, msg *api.Rep
 		r.channelLock.RLock()
 		defer r.channelLock.RUnlock()
 
+		sourceKey := r.channelMapping.UsingSourceKey()
 		for _, channelHandler := range r.channelHandlerMap {
-			if channelHandler.targetPChannel == targetPChannel {
+			if (sourceKey && channelHandler.targetPChannel == targetPChannel) ||
+				(!sourceKey && channelHandler.sourcePChannel == targetPChannel) {
 				handler = channelHandler
 				break
 			}
@@ -784,7 +809,12 @@ func (r *replicateChannelManager) isDroppedPartition(partition int64) bool {
 
 func (r *replicateChannelManager) stopReadChannel(pChannelName string, collectionID int64) {
 	r.channelLock.RLock()
-	channelHandler, ok := r.channelHandlerMap[pChannelName]
+	mapKey := r.getChannelMapKey(collectionID, pChannelName)
+	if mapKey == "" {
+		r.channelLock.RUnlock()
+		return
+	}
+	channelHandler, ok := r.channelHandlerMap[mapKey]
 	if !ok {
 		r.channelLock.RUnlock()
 		return
@@ -799,7 +829,7 @@ func (r *replicateChannelManager) stopReadChannel(pChannelName string, collectio
 
 type replicateChannelHandler struct {
 	replicateCtx   context.Context
-	pChannelName   string
+	sourcePChannel string
 	targetPChannel string
 	targetClient   api.TargetAPI
 	metaOp         api.MetaOp
@@ -811,7 +841,6 @@ type replicateChannelHandler struct {
 	collectionNames   map[string]int64
 	closeStreamFuncs  map[int64]io.Closer
 
-	msgPackChan      chan *api.ReplicateMsg
 	forwardPackChan  chan *api.ReplicateMsg
 	generatePackChan chan *api.ReplicateMsg
 	apiEventChan     chan *api.ReplicateAPIEvent
@@ -821,23 +850,26 @@ type replicateChannelHandler struct {
 	isDroppedCollection func(int64) bool
 	isDroppedPartition  func(int64) bool
 
-	retryOptions []retry.Option
-	ttRateLog    *log.RateLog
+	handlerOpts *model.HandlerOpts
+	ttRateLog   *log.RateLog
 
 	addCollectionLock *deadlock.RWMutex
 	addCollectionCnt  *int
 
 	sourceSeekPosition *msgstream.MsgPosition
 
-	downstream string
+	downstream    string
+	sourceKey     bool // whether the pchannel of source milvus is key
+	startReadChan chan struct{}
 }
 
 func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollectionInfo, targetInfo *model.TargetCollectionInfo) {
+	<-r.startReadChan
 	collectionID := sourceInfo.CollectionID
-	streamChan, closeStreamFunc, err := r.streamCreator.GetStreamChan(r.replicateCtx, sourceInfo.VChannelName, sourceInfo.SeekPosition)
+	streamChan, closeStreamFunc, err := r.streamCreator.GetStreamChan(r.replicateCtx, sourceInfo.VChannel, sourceInfo.SeekPosition)
 	if err != nil {
 		log.Warn("fail to get the msg pack channel",
-			zap.String("channel_name", sourceInfo.VChannelName),
+			zap.String("channel_name", sourceInfo.VChannel),
 			zap.Int64("collection_id", sourceInfo.CollectionID),
 			zap.Error(err))
 		return
@@ -846,9 +878,9 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 	r.collectionRecords[collectionID] = targetInfo
 	r.collectionNames[targetInfo.CollectionName] = collectionID
 	r.closeStreamFuncs[collectionID] = closeStreamFunc
-	GetTSManager().AddRef(r.pChannelName)
+	GetTSManager().AddRef(r.sourcePChannel)
 	go func() {
-		log.Info("start to handle the msg pack", zap.String("channel_name", sourceInfo.VChannelName))
+		log.Info("start to handle the msg pack", zap.String("channel_name", sourceInfo.VChannel))
 		for {
 			select {
 			case <-r.replicateCtx.Done():
@@ -856,7 +888,7 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 				return
 			case msgPack, ok := <-streamChan:
 				if !ok {
-					log.Warn("replicate channel closed", zap.String("channel_name", sourceInfo.VChannelName))
+					log.Warn("replicate channel closed", zap.String("channel_name", sourceInfo.VChannel))
 					return
 				}
 
@@ -866,7 +898,7 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 	}()
 	r.recordLock.Unlock()
 	log.Info("add collection to channel handler",
-		zap.String("channel_name", sourceInfo.VChannelName),
+		zap.String("channel_name", sourceInfo.VChannel),
 		zap.Int64("collection_id", collectionID), zap.String("collection_name", targetInfo.CollectionName))
 
 	if targetInfo.Dropped {
@@ -936,7 +968,7 @@ func (r *replicateChannelHandler) RemoveCollection(collectionID int64) {
 			_ = closeStreamFunc.Close()
 		}()
 	}
-	GetTSManager().RemoveRef(r.pChannelName)
+	GetTSManager().RemoveRef(r.sourcePChannel)
 	log.Info("remove collection from handler", zap.Int64("collection_id", collectionID))
 }
 
@@ -1116,10 +1148,20 @@ func (r *replicateChannelHandler) innerHandleReplicateMsg(forward bool, msg *api
 	}
 	p.CollectionID = msg.CollectionID
 	p.CollectionName = msg.CollectionName
-	r.msgPackChan <- p
+	GetTSManager().SendTargetMsg(r.targetPChannel, p)
 }
 
 func (r *replicateChannelHandler) startReadChannel() {
+	close(r.startReadChan)
+	var cts uint64 = math.MaxUint64
+	if r.sourceSeekPosition != nil {
+		cts = r.sourceSeekPosition.GetTimestamp()
+	}
+	GetTSManager().InitTSInfo(r.targetPChannel, time.Duration(r.handlerOpts.TTInterval)*time.Millisecond, cts, r.handlerOpts.MessageBufferSize)
+	log.Info("start read channel",
+		zap.String("channel_name", r.sourcePChannel),
+		zap.String("target_channel", r.targetPChannel),
+	)
 	go func() {
 		for {
 			select {
@@ -1178,7 +1220,7 @@ func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) (*
 			return nil
 		}
 		return errors.Newf("not found the collection [%d]", collectionID)
-	}, r.retryOptions...)
+	}, r.handlerOpts.RetryOptions...)
 	if err != nil {
 		log.Warn("fail to find the collection info", zap.Error(err))
 		return nil, err
@@ -1213,7 +1255,7 @@ func (r *replicateChannelHandler) getPartitionID(sourceCollectionID, sourceParti
 			return nil
 		}
 		return errors.Newf("not found the partition [%s]", name)
-	}, r.retryOptions...)
+	}, r.handlerOpts.RetryOptions...)
 	if err != nil {
 		log.Warn("fail to find the partition id", zap.Int64("source_collection", sourceCollectionID), zap.Any("target_collection", info.CollectionID), zap.String("partition_name", name))
 		return 0, err
@@ -1282,7 +1324,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	r.addCollectionLock.RUnlock()
 
 	if r.msgPackCallback != nil {
-		r.msgPackCallback(r.pChannelName, pack)
+		r.msgPackCallback(r.sourcePChannel, pack)
 	}
 	newPack := &msgstream.MsgPack{
 		BeginTs:        pack.BeginTs,
@@ -1435,7 +1477,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 					return nil
 				}
 				return err
-			}, r.retryOptions...)
+			}, r.handlerOpts.RetryOptions...)
 			if retryErr != nil && err == nil {
 				err = retryErr
 			}
@@ -1463,6 +1505,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			return nil
 		}
 		originPosition := msg.Position()
+		originPositionPChannel := funcutil.ToPhysicalChannel(originPosition.GetChannelName())
 		positionChannel := info.PChannel
 		if IsVirtualChannel(originPosition.GetChannelName()) {
 			positionChannel = info.VChannel
@@ -1480,10 +1523,15 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		if dataLen != 0 {
 			logFields = append(logFields, zap.Int("data_len", dataLen))
 		}
-		if pChannel != info.PChannel {
-			logFields = append(logFields, zap.String("pChannel", pChannel), zap.String("info_pChannel", info.PChannel))
+		if r.targetPChannel != info.PChannel || r.sourcePChannel != originPositionPChannel {
+			logFields = append(logFields,
+				zap.Bool("source_key", r.sourceKey), zap.String("origin_position_channel", originPositionPChannel),
+				zap.String("pChannel", pChannel), zap.String("info_pChannel", info.PChannel))
 			log.Debug("forward the msg", logFields...)
 			forwardChannel = info.PChannel
+			if !r.sourceKey {
+				forwardChannel = originPositionPChannel
+			}
 		} else {
 			log.Debug("receive msg", logFields...)
 			if forwardChannel != "" {
@@ -1682,13 +1730,16 @@ func (r *replicateChannelHandler) sendErrEvent(err error) {
 func initReplicateChannelHandler(ctx context.Context,
 	sourceInfo *model.SourceCollectionInfo,
 	targetInfo *model.TargetCollectionInfo,
-	targetClient api.TargetAPI, metaOp api.MetaOp, apiEventChan chan *api.ReplicateAPIEvent,
-	opts *model.HandlerOpts, streamCreator StreamCreator, downstream string,
+	targetClient api.TargetAPI, metaOp api.MetaOp,
+	apiEventChan chan *api.ReplicateAPIEvent,
+	opts *model.HandlerOpts,
+	streamCreator StreamCreator,
+	downstream string, sourceKey bool,
 ) (*replicateChannelHandler, error) {
-	err := streamCreator.CheckConnection(ctx, sourceInfo.VChannelName, sourceInfo.SeekPosition)
+	err := streamCreator.CheckConnection(ctx, sourceInfo.VChannel, sourceInfo.SeekPosition)
 	if err != nil {
 		log.Warn("fail to connect the mq stream",
-			zap.String("channel_name", sourceInfo.VChannelName),
+			zap.String("channel_name", sourceInfo.VChannel),
 			zap.Int64("collection_id", sourceInfo.CollectionID),
 			zap.Error(err))
 		return nil, err
@@ -1699,7 +1750,7 @@ func initReplicateChannelHandler(ctx context.Context,
 	}
 	channelHandler := &replicateChannelHandler{
 		replicateCtx:       ctx,
-		pChannelName:       sourceInfo.PChannelName,
+		sourcePChannel:     sourceInfo.PChannel,
 		targetPChannel:     targetInfo.PChannel,
 		targetClient:       targetClient,
 		metaOp:             metaOp,
@@ -1708,22 +1759,15 @@ func initReplicateChannelHandler(ctx context.Context,
 		collectionNames:    make(map[string]int64),
 		closeStreamFuncs:   make(map[int64]io.Closer),
 		apiEventChan:       apiEventChan,
-		msgPackChan:        make(chan *api.ReplicateMsg, opts.MessageBufferSize),
 		forwardPackChan:    make(chan *api.ReplicateMsg, opts.MessageBufferSize),
 		generatePackChan:   make(chan *api.ReplicateMsg, 30),
-		retryOptions:       opts.RetryOptions,
+		handlerOpts:        opts,
 		sourceSeekPosition: sourceInfo.SeekPosition,
 		ttRateLog:          log.NewRateLog(0.01, log.L()),
 		downstream:         downstream,
+		sourceKey:          sourceKey,
+		startReadChan:      make(chan struct{}),
 	}
-	var cts uint64 = math.MaxUint64
-	if sourceInfo.SeekPosition != nil {
-		cts = sourceInfo.SeekPosition.GetTimestamp()
-	}
-	GetTSManager().InitTSInfo(channelHandler.targetPChannel,
-		time.Duration(opts.TTInterval)*time.Millisecond,
-		cts,
-	)
 	go channelHandler.AddCollection(sourceInfo, targetInfo)
 	return channelHandler, nil
 }
