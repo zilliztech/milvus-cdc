@@ -5,7 +5,7 @@ log:
 image:
   all:
     repository: simfg/milvus-dev
-    tag: SimFG-master-3c6fff3-20240823
+    tag: 2.4-20240925-bdc59f3b-amd64
     pullPolicy: IfNotPresent
 standalone:
   messageQueue: kafka

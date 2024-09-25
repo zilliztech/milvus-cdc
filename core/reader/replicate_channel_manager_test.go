@@ -234,7 +234,7 @@ func TestStartReadCollection(t *testing.T) {
 	t.Run("read channel", func(t *testing.T) {
 		{
 			// start read
-			_, err := realManager.startReadChannel(&model.SourceCollectionInfo{
+			handler, err := realManager.startReadChannel(&model.SourceCollectionInfo{
 				PChannel:     "test_read_channel",
 				VChannel:     "test_read_channel_v0",
 				CollectionID: 11001,
@@ -253,6 +253,7 @@ func TestStartReadCollection(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
+			handler.startReadChannel()
 			assert.Equal(t, "ttest_read_channel", <-realManager.GetChannelChan())
 
 			_, err = realManager.startReadChannel(&model.SourceCollectionInfo{
@@ -424,6 +425,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			&model.SourceCollectionInfo{PChannel: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}},
 			&model.TargetCollectionInfo{PChannel: "test_p"}, api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		assert.NoError(t, err)
+		handler.startReadChannel()
 		noRetry(handler)
 		time.Sleep(100 * time.Millisecond)
 		handler.Close()
@@ -452,6 +454,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}, targetClient, &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		assert.NoError(t, err)
 		noRetry(handler)
+		handler.startReadChannel()
 		time.Sleep(100 * time.Millisecond)
 		assert.True(t, handler.containCollection("foo"))
 		handler.Close()
@@ -494,7 +497,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			return false
 		}
 		time.Sleep(100 * time.Millisecond)
-		handler.Close()
+		handler.startReadChannel()
 
 		go func() {
 			time.Sleep(600 * time.Millisecond)
@@ -586,6 +589,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			TTInterval: 10000,
 		})
 		assert.NoError(t, err)
+		handler.startReadChannel()
 
 		handler.isDroppedCollection = func(i int64) bool {
 			return false
@@ -608,7 +612,6 @@ func TestReplicateChannelHandler(t *testing.T) {
 		assert.NoError(t, err)
 
 		noRetry(handler)
-		handler.startReadChannel()
 
 		done := make(chan struct{})
 		targetMsgChan := GetTSManager().GetTargetMsgChan(handler.targetPChannel)
