@@ -35,6 +35,6 @@ extraConfigFiles:
   user.yaml: |+
     common:
       ttMsgEnabled: false
-      security:
-        authorizationEnabled: true
+    rootcoord:
+      dmlChannelNum: 8
  

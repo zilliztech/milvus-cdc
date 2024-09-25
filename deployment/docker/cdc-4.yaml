@@ -1,0 +1,47 @@
+address: 0.0.0.0:8444
+maxTaskNum: 100
+metaStoreConfig:
+  storeType: etcd
+  etcd:
+    address:
+      - http://127.0.0.1:2379
+    enableAuth: false
+    username: root
+    password: root123456
+    enableTLS: false
+    tlsCertPath: deployment/cert/client.pem # path to your cert file
+    tlsKeyPath: deployment/cert/client.key # path to your key file
+    tlsCACertPath: deployment/cert/ca.pem # path to your CACert file
+    tlsMinVersion: 1.3
+  mysqlSourceUrl: root:root@tcp(127.0.0.1:3306)/milvuscdc?charset=utf8
+  rootPath: cdc-by-dev
+sourceConfig:
+  etcd:
+    address:
+      - http://127.0.0.1:2379
+    rootPath: by-dev
+    metaSubPath: meta
+    enableAuth: false
+    username: root
+    password: root123456
+    enableTLS: false
+    tlsCertPath: deployment/cert/client.pem # path to your cert file
+    tlsKeyPath: deployment/cert/client.key # path to your key file
+    tlsCACertPath: deployment/cert/ca.pem # path to your CACert file
+    tlsMinVersion: 1.3
+  readChanLen: 10
+  defaultPartitionName: _default
+  replicateChan: by-dev-replicate-msg
+  channelNum: 4
+  pulsar:
+    address: pulsar://localhost:6650
+    webAddress: localhost:80
+    maxMessageSize: 5242880
+    tenant: public
+    namespace: default
+#    authPlugin: org.apache.pulsar.client.impl.auth.AuthenticationToken
+#    authParams: token:xxx
+#  kafka:
+#    address: 127.0.0.1:9092
+maxNameLength: 256
+logLevel: info
