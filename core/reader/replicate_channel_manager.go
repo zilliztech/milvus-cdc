@@ -311,6 +311,9 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 		log.Warn("failed to start read collection", zap.Error(err), zap.String("downstream", r.downstream))
 		return err
 	}
+	if targetInfo == nil {
+		return nil
+	}
 
 	getSeekPosition := func(channelName string) *msgpb.MsgPosition {
 		for _, seekPosition := range seekPositions {
