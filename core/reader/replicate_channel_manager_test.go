@@ -73,11 +73,12 @@ func NewReplicateChannelManagerWithFactory(mqConfig config.MQConfig,
 		}),
 		messageBufferSize:       readConfig.MessageBufferSize,
 		ttInterval:              readConfig.TTInterval,
+		channelMapping:          util.NewChannelMapping(0, 0),
 		channelHandlerMap:       make(map[string]*replicateChannelHandler),
 		channelForwardMap:       make(map[string]struct{}),
+		sourcePChannelKeyMap:    make(map[int64]map[string]string),
 		replicateCollections:    make(map[int64]chan struct{}),
 		replicatePartitions:     make(map[int64]map[int64]chan struct{}),
-		channelChan:             make(chan string, 10),
 		apiEventChan:            make(chan *api.ReplicateAPIEvent, 10),
 		forwardReplicateChannel: make(chan string),
 		msgPackCallback:         msgPackCallback,
@@ -234,8 +235,8 @@ func TestStartReadCollection(t *testing.T) {
 		{
 			// start read
 			_, err := realManager.startReadChannel(&model.SourceCollectionInfo{
-				PChannelName: "test_read_channel",
-				VChannelName: "test_read_channel_v0",
+				PChannel:     "test_read_channel",
+				VChannel:     "test_read_channel_v0",
 				CollectionID: 11001,
 				ShardNum:     1,
 			}, &model.TargetCollectionInfo{
@@ -252,11 +253,11 @@ func TestStartReadCollection(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-			assert.Equal(t, "test_read_channel", <-realManager.channelChan)
+			assert.Equal(t, "ttest_read_channel", <-realManager.GetChannelChan())
 
 			_, err = realManager.startReadChannel(&model.SourceCollectionInfo{
-				PChannelName: "test_read_channel_2",
-				VChannelName: "test_read_channel_2_v0",
+				PChannel:     "test_read_channel_2",
+				VChannel:     "test_read_channel_2_v0",
 				CollectionID: 11002,
 			}, &model.TargetCollectionInfo{
 				CollectionName: "read_channel_2",
@@ -266,7 +267,7 @@ func TestStartReadCollection(t *testing.T) {
 			assert.NoError(t, err)
 		}
 		{
-			assert.NotNil(t, realManager.GetMsgChan("test_read_channel"))
+			assert.NotNil(t, realManager.GetMsgChan("ttest_read_channel"))
 			assert.Nil(t, realManager.GetMsgChan("no_exist_channel"))
 		}
 		{
@@ -352,7 +353,7 @@ func TestStartReadCollection(t *testing.T) {
 }
 
 func noRetry(handler *replicateChannelHandler) {
-	handler.retryOptions = util.GetRetryOptions(config.RetrySettings{
+	handler.handlerOpts.RetryOptions = util.GetRetryOptions(config.RetrySettings{
 		RetryTimes:  1,
 		MaxBackOff:  1,
 		InitBackOff: 1,
@@ -368,11 +369,7 @@ func newReplicateChannelHandler(ctx context.Context,
 		factory: opts.Factory,
 	}
 
-	channelHandler, err := initReplicateChannelHandler(ctx,
-		sourceInfo, targetInfo,
-		targetClient, metaOp,
-		apiEventChan, opts,
-		creator, "milvus")
+	channelHandler, err := initReplicateChannelHandler(ctx, sourceInfo, targetInfo, targetClient, metaOp, apiEventChan, opts, creator, "milvus", true)
 	if err == nil {
 		channelHandler.addCollectionCnt = new(int)
 		channelHandler.addCollectionLock = &deadlock.RWMutex{}
@@ -387,7 +384,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		factory := msgstream.NewMockFactory(t)
 		factory.EXPECT().NewMsgStream(mock.Anything).Return(nil, errors.New("mock error"))
 
-		_, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{PChannelName: "test_p"}, (*model.TargetCollectionInfo)(nil), api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
+		_, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{PChannel: "test_p"}, (*model.TargetCollectionInfo)(nil), api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		assert.Error(t, err)
 	})
 
@@ -399,7 +396,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		{
 			stream.EXPECT().Close().Return().Once()
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock error")).Once()
-			_, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{PChannelName: "test_p"}, (*model.TargetCollectionInfo)(nil), api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
+			_, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{PChannel: "test_p"}, (*model.TargetCollectionInfo)(nil), api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 			assert.Error(t, err)
 		}
 
@@ -407,7 +404,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 			stream.EXPECT().Close().Return().Once()
 			stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock error")).Once()
-			_, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, (*model.TargetCollectionInfo)(nil), api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
+			_, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{PChannel: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, (*model.TargetCollectionInfo)(nil), api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 			assert.Error(t, err)
 		}
 	})
@@ -424,7 +421,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(nil).Twice()
 		stream.EXPECT().Chan().Return(make(chan *msgstream.MsgPack)).Maybe()
 		handler, err := newReplicateChannelHandler(context.Background(),
-			&model.SourceCollectionInfo{PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}},
+			&model.SourceCollectionInfo{PChannel: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}},
 			&model.TargetCollectionInfo{PChannel: "test_p"}, api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		assert.NoError(t, err)
 		noRetry(handler)
@@ -444,7 +441,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream.EXPECT().Chan().Return(make(chan *msgstream.MsgPack)).Maybe()
 
 		handler, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{
-			PChannelName: "test_p",
+			PChannel: "test_p",
 			SeekPosition: &msgstream.MsgPosition{
 				ChannelName: "test_p", MsgID: []byte("test"),
 			},
@@ -482,10 +479,10 @@ func TestReplicateChannelHandler(t *testing.T) {
 		apiEventChan := make(chan *api.ReplicateAPIEvent)
 		handler, err := func() (*replicateChannelHandler, error) {
 			var _ chan<- *api.ReplicateAPIEvent = apiEventChan
-			return newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{CollectionID: 1, PChannelName: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, &model.TargetCollectionInfo{CollectionID: 100, CollectionName: "test", PChannel: "test_p"}, api.TargetAPI(targetClient), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
+			return newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{CollectionID: 1, PChannel: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}}, &model.TargetCollectionInfo{CollectionID: 100, CollectionName: "test", PChannel: "test_p"}, api.TargetAPI(targetClient), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
 		}()
 		assert.NoError(t, err)
-		handler.retryOptions = util.GetRetryOptions(config.RetrySettings{
+		handler.handlerOpts.RetryOptions = util.GetRetryOptions(config.RetrySettings{
 			RetryTimes:  3,
 			MaxBackOff:  1,
 			InitBackOff: 1,
@@ -525,7 +522,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		handler.RemovePartitionInfo(2, "p2", 10002)
 
 		assert.False(t, handler.IsEmpty())
-		assert.NotNil(t, handler.msgPackChan)
+		assert.NotNil(t, GetTSManager().GetTargetMsgChan(handler.targetPChannel))
 
 		// test updateTargetPartitionInfo
 		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("mock error 2")).Once()
@@ -570,8 +567,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 		apiEventChan := make(chan *api.ReplicateAPIEvent, 10)
 		handler, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{
 			CollectionID: 1,
-			PChannelName: "test_p",
-			VChannelName: "test_p_v1",
+			PChannel:     "test_p",
+			VChannel:     "test_p_v1",
 			SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")},
 		}, &model.TargetCollectionInfo{
 			CollectionID:   100,
@@ -596,7 +593,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		handler.isDroppedPartition = func(i int64) bool {
 			return false
 		}
-		GetTSManager().InitTSInfo(handler.targetPChannel, 100*time.Millisecond, math.MaxUint64)
+		GetTSManager().InitTSInfo(handler.targetPChannel, 100*time.Millisecond, math.MaxUint64, 10)
 
 		err = handler.AddPartitionInfo(&pb.CollectionInfo{
 			ID: 1,
@@ -614,12 +611,13 @@ func TestReplicateChannelHandler(t *testing.T) {
 		handler.startReadChannel()
 
 		done := make(chan struct{})
+		targetMsgChan := GetTSManager().GetTargetMsgChan(handler.targetPChannel)
 
 		go func() {
 			defer close(done)
 			{
 				// timetick pack
-				replicateMsg := <-handler.msgPackChan
+				replicateMsg := <-targetMsgChan
 				pack := replicateMsg.MsgPack
 				// assert pack
 				assert.NotNil(t, pack)
@@ -633,7 +631,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			}
 			{
 				// insert msg
-				replicateMsg := <-handler.msgPackChan
+				replicateMsg := <-targetMsgChan
 				pack := replicateMsg.MsgPack
 				assert.Len(t, pack.Msgs, 1)
 				insertMsg := pack.Msgs[0].(*msgstream.InsertMsg)
@@ -644,7 +642,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 
 			{
 				// delete msg
-				replicateMsg := <-handler.msgPackChan
+				replicateMsg := <-targetMsgChan
 				pack := replicateMsg.MsgPack
 				assert.Len(t, pack.Msgs, 2)
 				{
@@ -663,7 +661,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 
 			{
 				// drop partition msg
-				replicateMsg := <-handler.msgPackChan
+				replicateMsg := <-targetMsgChan
 				pack := replicateMsg.MsgPack
 				assert.Len(t, pack.Msgs, 1)
 				dropMsg := pack.Msgs[0].(*msgstream.DropPartitionMsg)
@@ -674,7 +672,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 
 			{
 				// drop collection msg
-				replicateMsg := <-handler.msgPackChan
+				replicateMsg := <-targetMsgChan
 				pack := replicateMsg.MsgPack
 				assert.Len(t, pack.Msgs, 2)
 				dropMsg := pack.Msgs[0].(*msgstream.DropCollectionMsg)
@@ -829,6 +827,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						BeginTimestamp: 1,
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
+						MsgPosition:    &msgstream.MsgPosition{ChannelName: "test_p"},
 					},
 					InsertRequest: &msgpb.InsertRequest{
 						Base: &commonpb.MsgBase{
@@ -864,6 +863,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						BeginTimestamp: 1,
 						EndTimestamp:   1,
 						HashValues:     []uint32{0},
+						MsgPosition:    &msgstream.MsgPosition{ChannelName: "test_p"},
 					},
 					DeleteRequest: &msgpb.DeleteRequest{
 						Base: &commonpb.MsgBase{
@@ -878,6 +878,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						BeginTimestamp: 2,
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
+						MsgPosition:    &msgstream.MsgPosition{ChannelName: "test_p"},
 					},
 					DeleteRequest: &msgpb.DeleteRequest{
 						Base: &commonpb.MsgBase{
@@ -913,6 +914,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						BeginTimestamp: 1,
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
+						MsgPosition:    &msgstream.MsgPosition{ChannelName: "test_p"},
 					},
 					DropPartitionRequest: &msgpb.DropPartitionRequest{
 						Base: &commonpb.MsgBase{
@@ -947,6 +949,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 						BeginTimestamp: 1,
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
+						MsgPosition:    &msgstream.MsgPosition{ChannelName: "test_p"},
 					},
 					DropCollectionRequest: &msgpb.DropCollectionRequest{
 						Base: &commonpb.MsgBase{
