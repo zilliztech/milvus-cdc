@@ -878,7 +878,6 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 	r.collectionRecords[collectionID] = targetInfo
 	r.collectionNames[targetInfo.CollectionName] = collectionID
 	r.closeStreamFuncs[collectionID] = closeStreamFunc
-	GetTSManager().AddRef(r.sourcePChannel)
 	go func() {
 		log.Info("start to handle the msg pack", zap.String("channel_name", sourceInfo.VChannel))
 		for {
@@ -968,7 +967,6 @@ func (r *replicateChannelHandler) RemoveCollection(collectionID int64) {
 			_ = closeStreamFunc.Close()
 		}()
 	}
-	GetTSManager().RemoveRef(r.sourcePChannel)
 	log.Info("remove collection from handler", zap.Int64("collection_id", collectionID))
 }
 
