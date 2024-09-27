@@ -24,6 +24,7 @@ func InitMilvusPkgParam() {
 	baseTable := paramtable.NewBaseTable(
 		paramtable.SkipRemote(true),
 		paramtable.Interval(0),
+		paramtable.SkipEnv(true),
 	)
 	paramtable.InitWithBaseTable(baseTable)
 	innerParam := paramtable.Get()

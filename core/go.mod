@@ -161,7 +161,7 @@ replace (
 	github.com/confluentinc/confluent-kafka-go => github.com/confluentinc/confluent-kafka-go/v2 v2.3.0
 	// github.com/milvus-io/milvus-sdk-go/v2 => github.com/SimFG/milvus-sdk-go/v2 v2.0.0-20231025090810-3c862f081ed2
 	github.com/milvus-io/milvus-proto/go-api/v2 => github.com/SimFG/milvus-proto/go-api/v2 v2.0.0-20240923040205-ef42b6b1a81b
-	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240923022508-c30bf2686164
+	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240927070251-8eb3ee9241bd
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => ./../rocksdb
 )
