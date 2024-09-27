@@ -356,6 +356,9 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 				r.stopReadChannel(name, info.ID)
 			}
 		}
+		r.collectionLock.Lock()
+		delete(r.replicateCollections, info.ID)
+		r.collectionLock.Unlock()
 	})
 	r.replicateCollections[info.ID] = barrier.CloseChan
 	r.collectionLock.Unlock()

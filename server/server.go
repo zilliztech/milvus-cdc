@@ -19,13 +19,13 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
 
+	"github.com/goccy/go-json"
 	"github.com/mitchellh/mapstructure"
 	"github.com/samber/lo"
 	"go.uber.org/zap"

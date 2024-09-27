@@ -65,8 +65,8 @@ github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAE
 github.com/Shopify/goreferrer v0.0.0-20181106222321-ec9c9a553398/go.mod h1:a1uqRtAwp2Xwc6WNPJEufxJ7fx3npB4UV/JOLmbu5I0=
 github.com/SimFG/milvus-proto/go-api/v2 v2.0.0-20240923040205-ef42b6b1a81b h1:fWcTqPhsHX3m7PBFoENwrDWnqmdBDLa4Zkd0ZNkZjU4=
 github.com/SimFG/milvus-proto/go-api/v2 v2.0.0-20240923040205-ef42b6b1a81b/go.mod h1:/6UT4zZl6awVeXLeE7UGDWZvXj3IWkRsh3mqsn0DiAs=
-github.com/SimFG/milvus/pkg v0.0.0-20240923022508-c30bf2686164 h1:CpZtM68tqYgmNJEcCHCS85EFRMaPARJwh0KiLMtaReg=
-github.com/SimFG/milvus/pkg v0.0.0-20240923022508-c30bf2686164/go.mod h1:m5OpgnoCA2/LpynjLFJuMAp9JZ+LHYxrWZcqgFZmz5I=
+github.com/SimFG/milvus/pkg v0.0.0-20240927070251-8eb3ee9241bd h1:hCeNqTZsb9q4HNB4sXTXKz9ruP1/XkFkP2H++YWS4xI=
+github.com/SimFG/milvus/pkg v0.0.0-20240927070251-8eb3ee9241bd/go.mod h1:FStG8u3/hsi3Au3I36NBr9G5c6f1CQP9oKNIgvlCxm0=
 github.com/ajg/form v1.5.1/go.mod h1:uL1WgH+h2mgNtvBq0339dVnzXdBETtL2LeUXaIv25UY=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=

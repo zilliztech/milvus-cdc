@@ -37,7 +37,6 @@ func NewBarrier(count int, f func(msgTs uint64, b *Barrier)) *Barrier {
 		for current < barrier.Dest {
 			select {
 			case <-barrier.CloseChan:
-				return
 			case msgTs = <-barrier.BarrierChan:
 				current++
 			}

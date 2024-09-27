@@ -625,14 +625,15 @@ func (e *EtcdOp) GetAllCollection(ctx context.Context, filter api.CollectionFilt
 func (e *EtcdOp) fillCollectionField(info *pb.CollectionInfo) error {
 	prefix := path.Join(e.fieldPrefix(), strconv.FormatInt(info.ID, 10)) + "/"
 	resp, err := util.EtcdGetWithContext(context.Background(), e.etcdClient, prefix, clientv3.WithPrefix())
-	log := log.With(zap.String("prefix", prefix))
 	if err != nil {
-		log.Warn("fail to get the collection field data", zap.Error(err))
+		log.Warn("fail to get the collection field data",
+			zap.String("prefix", prefix),
+			zap.Error(err))
 		return err
 	}
 	if len(resp.Kvs) == 0 {
 		msg := "not found the collection field data"
-		log.Warn(msg)
+		log.Warn(msg, zap.String("prefix", prefix))
 		return errors.New(msg)
 	}
 	var fields []*schemapb.FieldSchema
@@ -640,7 +641,9 @@ func (e *EtcdOp) fillCollectionField(info *pb.CollectionInfo) error {
 		field := &schemapb.FieldSchema{}
 		err = proto.Unmarshal(kv.Value, field)
 		if err != nil {
-			log.Warn("fail to unmarshal filed schema info", zap.String("key", util.ToString(kv.Key)), zap.Error(err))
+			log.Warn("fail to unmarshal filed schema info",
+				zap.String("prefix", prefix),
+				zap.String("key", util.ToString(kv.Key)), zap.Error(err))
 			return err
 		}
 		if field.Name == common.MetaFieldName {
