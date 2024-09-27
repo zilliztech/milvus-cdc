@@ -79,7 +79,7 @@ sourceConfig:
   # default partition name
   defaultPartitionName: _default
   # read buffer length, mainly used for buffering if writing data to milvus-target is slow.
-  readChanLen: 10
+  readChanLen: 4
   # milvus replicate channel name, which is `{msgChannel.chanNamePrefix.cluster}/{msgChannel.chanNamePrefix.replicateMsg}` in the milvus.yaml file
   replicateChan: by-dev-replicate-msg
   # milvus-source mq config, which is pulsar or kafka
