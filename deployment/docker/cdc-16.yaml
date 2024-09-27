@@ -29,7 +29,7 @@ sourceConfig:
     tlsKeyPath: deployment/cert/client.key # path to your key file
     tlsCACertPath: deployment/cert/ca.pem # path to your CACert file
     tlsMinVersion: 1.3
-  readChanLen: 10
+  readChanLen: 4
   defaultPartitionName: _default
   replicateChan: by-dev-replicate-msg
   channelNum: 16

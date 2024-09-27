@@ -33,6 +33,8 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
+const BufferSize = "4"
+
 type FactoryCreator interface {
 	NewPmsFactory(cfg *config.PulsarConfig) msgstream.Factory
 	NewKmsFactory(cfg *config.KafkaConfig) msgstream.Factory
@@ -74,8 +76,8 @@ func (d *DefaultFactoryCreator) NewPmsFactory(cfg *config.PulsarConfig) msgstrea
 				EnableClientMetrics: config.NewParamItem("false"),
 			},
 			MQCfg: paramtable.MQConfig{
-				ReceiveBufSize: config.NewParamItem("16"),
-				MQBufSize:      config.NewParamItem("16"),
+				ReceiveBufSize: config.NewParamItem(BufferSize),
+				MQBufSize:      config.NewParamItem(BufferSize),
 			},
 		},
 	)
@@ -96,8 +98,8 @@ func (d *DefaultFactoryCreator) NewKmsFactory(cfg *config.KafkaConfig) msgstream
 				KafkaUseSSL:         config.NewParamItem("false"),
 			},
 			MQCfg: paramtable.MQConfig{
-				ReceiveBufSize: config.NewParamItem("16"),
-				MQBufSize:      config.NewParamItem("16"),
+				ReceiveBufSize: config.NewParamItem(BufferSize),
+				MQBufSize:      config.NewParamItem(BufferSize),
 			},
 		},
 	)
