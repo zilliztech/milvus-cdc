@@ -422,7 +422,7 @@ jobs:
         - name: Export upstream milvus logs
           if: ${{ always() }}
           timeout-minutes: 5
-          working-directory: tests/deployment/upstream
+          working-directory: tests/deployment/channel_4/
           run: |
             docker compose ps -a
             docker stats --no-stream
@@ -442,7 +442,7 @@ jobs:
             name: func-test-logs-4-16
             path: |
               scripts/k8s_logs
-              tests/deployment/upstream/logs
+              tests/deployment/channel_4/logs
               server/server.log
 
   milvus-cdc-function-test-16-8:
