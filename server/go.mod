@@ -168,7 +168,7 @@ replace (
 	// github.com/milvus-io/milvus-sdk-go/v2 => ../../milvus-sdk-go
 	//github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240727040408-64020f3da23b // master-cdc-bak
 	github.com/milvus-io/milvus-proto/go-api/v2 => github.com/SimFG/milvus-proto/go-api/v2 v2.0.0-20240923040205-ef42b6b1a81b // 2.4-cdc-null
-	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240927070251-8eb3ee9241bd // cdc-v2-pkg
+	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240929115325-612f86d538e8 // cdc-v2-pkg
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => ./../rocksdb
 	github.com/zilliztech/milvus-cdc/core => ../core

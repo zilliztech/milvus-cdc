@@ -127,7 +127,7 @@ class TestCDCSyncRequest(TestBase):
             time.sleep(1)
             if time.time() - t0 > timeout:
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
-        assert set(col_list).isdisjoint(set(list_collections()))
+        assert set(col_list).isdisjoint(set(list_collections())), f"collections in downstream {list_collections()}"
 
     def test_cdc_sync_insert_entities_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
