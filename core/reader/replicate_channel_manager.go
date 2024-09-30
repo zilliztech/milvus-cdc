@@ -178,7 +178,7 @@ func (r *replicateChannelManager) startReadCollectionForKafka(ctx context.Contex
 	}
 
 	// send api event when the collection is not replicated and ctx is not done
-	if err := r.sendCreateCollectionvent(ctx, info, sourceDBInfo); err != nil {
+	if err := r.sendCreateCollectionEvent(ctx, info, sourceDBInfo); err != nil {
 		return nil, err
 	}
 
@@ -246,7 +246,7 @@ func (r *replicateChannelManager) startReadCollectionForMilvus(ctx context.Conte
 				zap.String("collection_name", info.Schema.Name))
 			return nil, nil
 		}
-		err = r.sendCreateCollectionvent(ctx, info, sourceDBInfo)
+		err = r.sendCreateCollectionEvent(ctx, info, sourceDBInfo)
 		if err != nil {
 			return nil, err
 		}
@@ -270,7 +270,7 @@ func (r *replicateChannelManager) startReadCollectionForMilvus(ctx context.Conte
 	return targetInfo, nil
 }
 
-func (r *replicateChannelManager) sendCreateCollectionvent(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) error {
+func (r *replicateChannelManager) sendCreateCollectionEvent(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) error {
 	select {
 	case <-ctx.Done():
 		log.Warn("context is done in the start read collection")
