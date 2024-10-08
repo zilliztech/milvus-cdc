@@ -785,6 +785,31 @@ func (e *MetaCDC) startReplicateAPIEvent(replicateCtx context.Context, info *met
 					taskLog.Warn("not running task", zap.Any("event", replicateAPIEvent))
 					return
 				}
+				if replicateAPIEvent.EventType == api.ReplicateCreateCollection {
+					writeCallback := NewWriteCallback(e.metaStoreFactory, e.rootPath, info.TaskID)
+					collectionID := replicateAPIEvent.CollectionInfo.ID
+					collectionName := replicateAPIEvent.CollectionInfo.Schema.Name
+					msgTime, _ := tsoutil.ParseHybridTs(replicateAPIEvent.CollectionInfo.CreateTime)
+					for _, startPosition := range replicateAPIEvent.CollectionInfo.StartPositions {
+						metaPosition := &meta.PositionInfo{
+							Time: msgTime,
+							DataPair: &commonpb.KeyDataPair{
+								Key:  startPosition.Key,
+								Data: startPosition.Data,
+							},
+						}
+						err := writeCallback.UpdateTaskCollectionPosition(collectionID, collectionName, funcutil.ToPhysicalChannel(startPosition.Key),
+							metaPosition, metaPosition, nil)
+						if err != nil {
+							taskLog.Warn("fail to update the collection start position",
+								zap.String("name", collectionName),
+								zap.Int64("id", collectionID),
+								zap.Error(err))
+							_ = e.pauseTaskWithReason(info.TaskID, "fail to update start task position, err:"+err.Error(), []meta.TaskState{})
+							return
+						}
+					}
+				}
 				err := entity.writerObj.HandleReplicateAPIEvent(replicateCtx, replicateAPIEvent)
 				if err != nil {
 					taskLog.Warn("fail to handle replicate event", zap.Any("event", replicateAPIEvent), zap.Error(err))

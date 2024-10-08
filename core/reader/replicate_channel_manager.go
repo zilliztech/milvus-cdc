@@ -909,6 +909,7 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 			dropCollectionLog.Info("generate msg for dropped collection")
 			generatePosition := r.sourceSeekPosition
 			if generatePosition == nil || generatePosition.Timestamp == 0 {
+				// TODO how to do it???
 				dropCollectionLog.Warn("drop collection, but seek timestamp is 0")
 				return struct{}{}, nil
 			}
