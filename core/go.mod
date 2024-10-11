@@ -6,7 +6,7 @@ require (
 	github.com/cockroachdb/errors v1.9.1
 	github.com/confluentinc/confluent-kafka-go v1.9.1
 	github.com/milvus-io/milvus-proto/go-api/v2 v2.4.10-0.20240822040449-32b0311b3785
-	github.com/milvus-io/milvus-sdk-go/v2 v2.4.2-0.20240821073850-0c84a71df153
+	github.com/milvus-io/milvus-sdk-go/v2 v2.4.2-0.20241009111120-8008f14f2c16
 	github.com/milvus-io/milvus/pkg v0.0.2-0.20240712081735-d8e68cbb973d
 	github.com/prometheus/client_golang v1.17.0
 	github.com/samber/lo v1.27.0
