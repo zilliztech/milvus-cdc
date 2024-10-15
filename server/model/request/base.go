@@ -59,9 +59,12 @@ func GetTask(taskInfo *meta.TaskInfo) Task {
 	taskInfo.MilvusConnectParam.Username = ""
 	taskInfo.MilvusConnectParam.Password = ""
 	taskInfo.MilvusConnectParam.Token = ""
+	taskInfo.KafkaConnectParam.SASL.Username = ""
+	taskInfo.KafkaConnectParam.SASL.Password = ""
 	return Task{
 		TaskID:             taskInfo.TaskID,
 		MilvusConnectParam: taskInfo.MilvusConnectParam,
+		KafkaConnectParam:  taskInfo.KafkaConnectParam,
 		CollectionInfos:    taskInfo.CollectionInfos,
 		State:              taskInfo.State.String(),
 		LastPauseReason:    taskInfo.Reason,
