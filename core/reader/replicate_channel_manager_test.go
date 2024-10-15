@@ -421,7 +421,6 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 	})
 
 	realManager := manager.(*replicateChannelManager)
-
 	stream := msgstream.NewMockMsgStream(t)
 	streamChan := make(chan *msgstream.MsgPack)
 
@@ -479,7 +478,7 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 	})
 
 	t.Run("collection and partition", func(t *testing.T) {
-		// start collection
+		// start read collection
 		{
 			err := realManager.StartReadCollection(context.Background(), &pb.CollectionInfo{
 				ID: 31001,
@@ -495,6 +494,8 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 				VirtualChannelNames:  []string{"collection-partition-p1_v0"},
 			}, nil)
 			assert.NoError(t, err)
+			event := <-realManager.GetEventChan()
+			assert.Equal(t, api.ReplicateCreateCollection, event.EventType)
 		}
 
 		// partition not found
