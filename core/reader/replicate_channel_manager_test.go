@@ -195,7 +195,7 @@ func TestStartReadCollection(t *testing.T) {
 	t.Run("context cancel", func(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		cancelFunc()
-		err = manager.StartReadCollection(ctx, &pb.CollectionInfo{}, nil)
+		err = manager.StartReadCollection(ctx, &model.DatabaseInfo{}, &pb.CollectionInfo{}, nil)
 		assert.Error(t, err)
 	})
 
@@ -215,7 +215,7 @@ func TestStartReadCollection(t *testing.T) {
 		realManager.startReadRetryOptions = []retry.Option{
 			retry.Attempts(1),
 		}
-		err = manager.StartReadCollection(context.Background(), &pb.CollectionInfo{
+		err = manager.StartReadCollection(context.Background(), &model.DatabaseInfo{}, &pb.CollectionInfo{
 			Schema: &schemapb.CollectionSchema{
 				Name: "test",
 			},
@@ -291,7 +291,7 @@ func TestStartReadCollection(t *testing.T) {
 					"_default": 31010,
 				},
 			}, nil).Twice()
-			err := realManager.StartReadCollection(context.Background(), &pb.CollectionInfo{
+			err := realManager.StartReadCollection(context.Background(), &model.DatabaseInfo{}, &pb.CollectionInfo{
 				ID: 31001,
 				Schema: &schemapb.CollectionSchema{
 					Name: "test",
@@ -312,7 +312,7 @@ func TestStartReadCollection(t *testing.T) {
 			realManager.retryOptions = []retry.Option{
 				retry.Attempts(1),
 			}
-			err := realManager.AddPartition(context.Background(), &pb.CollectionInfo{
+			err := realManager.AddPartition(context.Background(), &model.DatabaseInfo{}, &pb.CollectionInfo{
 				ID: 41,
 				Schema: &schemapb.CollectionSchema{
 					Name: "test",
@@ -323,7 +323,7 @@ func TestStartReadCollection(t *testing.T) {
 
 		// add partition
 		{
-			err := realManager.AddPartition(context.Background(), &pb.CollectionInfo{
+			err := realManager.AddPartition(context.Background(), &model.DatabaseInfo{}, &pb.CollectionInfo{
 				ID: 31001,
 				Schema: &schemapb.CollectionSchema{
 					Name: "test",

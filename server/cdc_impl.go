@@ -44,6 +44,7 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
+	coremodel "github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	cdcreader "github.com/zilliztech/milvus-cdc/core/reader"
 	"github.com/zilliztech/milvus-cdc/core/util"
@@ -304,6 +305,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		TaskID:                e.getUUID(),
 		MilvusConnectParam:    req.MilvusConnectParam,
 		KafkaConnectParam:     req.KafkaConnectParam,
+		DatabaseInfo:          req.DatabaseInfo,
 		CollectionInfos:       req.CollectionInfos,
 		RPCRequestChannelInfo: req.RPCChannelInfo,
 		ExcludeCollections:    excludeCollectionNames,
@@ -952,7 +954,9 @@ func replicateMetric(info *meta.TaskInfo, channelName string, msgPack *msgstream
 func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *ReplicateEntity, channelName, channelPosition string) (api.Reader, error) {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
 	collectionName := info.CollectionNames()[0]
+	databaseName := info.DatabaseInfo.Name
 	isAnyCollection := collectionName == cdcreader.AllCollection
+	isAnyDatabase := databaseName == ""
 	// isTmpCollection := collectionName == model.TmpCollectionName
 
 	dataHandleFunc := func(funcCtx context.Context, pack *msgstream.MsgPack) bool {
@@ -967,8 +971,11 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 			Set(float64(msgTime))
 
 		msgCollectionName := util.GetCollectionNameFromMsgPack(pack)
+		msgDatabaseName := util.GetDatabaseNameFromMsgPack(pack)
 		// TODO it should be changed if replicate the user and role info or multi collection
-		if !isAnyCollection && msgCollectionName != collectionName {
+		// TODO how to handle it when there are "*" and "foo" collection names in the task list
+		if (!isAnyCollection && msgCollectionName != collectionName) ||
+			(!isAnyDatabase && msgDatabaseName != databaseName) {
 			// skip the message if the collection name is not equal to the task collection name
 			return true
 		}
@@ -1253,15 +1260,22 @@ func (e *MetaCDC) Maintenance(req *request.MaintenanceRequest) (*request.Mainten
 
 func GetShouldReadFunc(taskInfo *meta.TaskInfo) cdcreader.ShouldReadFunc {
 	isAll := taskInfo.CollectionInfos[0].Name == cdcreader.AllCollection
-	return func(collectionInfo *pb.CollectionInfo) bool {
+	return func(databaseInfo *coremodel.DatabaseInfo, collectionInfo *pb.CollectionInfo) bool {
 		currentCollectionName := collectionInfo.Schema.Name
+		if databaseInfo.Dropped {
+			log.Info("database is dropped", zap.String("database", databaseInfo.Name), zap.String("collection", currentCollectionName))
+			return false
+		}
+
 		notStarContains := !isAll && lo.ContainsBy(taskInfo.CollectionInfos, func(taskCollectionInfo model.CollectionInfo) bool {
 			return taskCollectionInfo.Name == currentCollectionName
 		})
 		starContains := isAll && !lo.ContainsBy(taskInfo.ExcludeCollections, func(s string) bool {
 			return s == currentCollectionName
 		})
+		dbMatch := taskInfo.DatabaseInfo.Name == "" ||
+			taskInfo.DatabaseInfo.Name == databaseInfo.Name
 
-		return notStarContains || starContains
+		return (notStarContains || starContains) && dbMatch
 	}
 }
