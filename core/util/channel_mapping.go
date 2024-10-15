@@ -163,3 +163,7 @@ func (c *ChannelMapping) CheckKeyExist(source, target string) bool {
 	}
 	return mappingValue == checkValue
 }
+
+func (c *ChannelMapping) AverageCnt() int {
+	return c.averageCnt
+}

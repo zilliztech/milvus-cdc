@@ -74,7 +74,7 @@ type replicateChannelManager struct {
 	channelHandlerMap map[string]*replicateChannelHandler
 	// the key is the handler map value channel
 	// when the source is equal or more than the target, the key is target channel, otherwise is source channel
-	channelForwardMap map[string]struct{}
+	channelForwardMap map[string]int
 	// the key is collection id, and the value is the map, which key is pchannel name and the value is the handler map key
 	sourcePChannelKeyMap map[int64]map[string]string
 
@@ -122,7 +122,7 @@ func NewReplicateChannelManagerWithDispatchClient(
 		ttInterval:              readConfig.TTInterval,
 		channelMapping:          util.NewChannelMapping(readConfig.SourceChannelNum, readConfig.TargetChannelNum),
 		channelHandlerMap:       make(map[string]*replicateChannelHandler),
-		channelForwardMap:       make(map[string]struct{}),
+		channelForwardMap:       make(map[string]int),
 		sourcePChannelKeyMap:    make(map[int64]map[string]string),
 		replicateCollections:    make(map[int64]chan struct{}),
 		replicatePartitions:     make(map[int64]map[int64]chan struct{}),
@@ -650,7 +650,7 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 			channelLog.Info("channel already has replicate for target channel")
 			r.waitChannel(sourceInfo, targetInfo, channelHandler)
 		} else {
-			r.channelForwardMap[channelMappingValue] = struct{}{}
+			r.channelForwardMap[channelMappingValue] += 1
 			r.channelMapping.AddKeyValue(sourceInfo.PChannel, targetInfo.PChannel)
 		}
 		r.channelHandlerMap[channelMappingKey] = channelHandler
@@ -728,7 +728,7 @@ func (r *replicateChannelManager) waitChannel(sourceInfo *model.SourceCollection
 				} else {
 					channelHandler.sourcePChannel = targetChannel
 				}
-				r.channelForwardMap[targetChannel] = struct{}{}
+				r.channelForwardMap[targetChannel] += 1
 				r.channelMapping.AddKeyValue(channelHandler.sourcePChannel, channelHandler.targetPChannel)
 				channelHandler.startReadChannel()
 				r.channelLock.Unlock()
@@ -741,12 +741,14 @@ func (r *replicateChannelManager) waitChannel(sourceInfo *model.SourceCollection
 func (r *replicateChannelManager) forwardChannel(channelName string) {
 	go func() {
 		r.channelLock.Lock()
-		_, hasForward := r.channelForwardMap[channelName]
-		if !hasForward {
-			r.channelForwardMap[channelName] = struct{}{}
+		forwardCnt := r.channelForwardMap[channelName]
+		shouldForward := false
+		if forwardCnt < r.channelMapping.AverageCnt() {
+			r.channelForwardMap[channelName] += 1
+			shouldForward = true
 		}
 		r.channelLock.Unlock()
-		if !hasForward {
+		if shouldForward {
 			tick := time.NewTicker(5 * time.Second)
 			defer tick.Stop()
 			for {
@@ -909,6 +911,7 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 			dropCollectionLog.Info("generate msg for dropped collection")
 			generatePosition := r.sourceSeekPosition
 			if generatePosition == nil || generatePosition.Timestamp == 0 {
+				// TODO how to do it???
 				dropCollectionLog.Warn("drop collection, but seek timestamp is 0")
 				return struct{}{}, nil
 			}

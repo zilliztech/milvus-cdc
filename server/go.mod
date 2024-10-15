@@ -8,7 +8,7 @@ require (
 	github.com/goccy/go-json v0.10.2
 	github.com/google/uuid v1.6.0
 	github.com/milvus-io/milvus-proto/go-api/v2 v2.4.10-0.20240822040449-32b0311b3785
-	github.com/milvus-io/milvus-sdk-go/v2 v2.4.2-0.20240821073850-0c84a71df153
+	github.com/milvus-io/milvus-sdk-go/v2 v2.4.2-0.20241009111120-8008f14f2c16
 	github.com/milvus-io/milvus/pkg v0.0.2-0.20240712081735-d8e68cbb973d
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pingcap/log v1.1.1-0.20221015072633-39906604fb81
@@ -168,7 +168,7 @@ replace (
 	// github.com/milvus-io/milvus-sdk-go/v2 => ../../milvus-sdk-go
 	//github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240727040408-64020f3da23b // master-cdc-bak
 	github.com/milvus-io/milvus-proto/go-api/v2 => github.com/SimFG/milvus-proto/go-api/v2 v2.0.0-20240923040205-ef42b6b1a81b // 2.4-cdc-null
-	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240927070251-8eb3ee9241bd // cdc-v2-pkg
+	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240929115325-612f86d538e8 // cdc-v2-pkg
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => ./../rocksdb
 	github.com/zilliztech/milvus-cdc/core => ../core
