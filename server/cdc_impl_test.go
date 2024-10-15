@@ -40,6 +40,7 @@ import (
 
 	"github.com/zilliztech/milvus-cdc/core/config"
 	coremocks "github.com/zilliztech/milvus-cdc/core/mocks"
+	coremodel "github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	cdcreader "github.com/zilliztech/milvus-cdc/core/reader"
 	"github.com/zilliztech/milvus-cdc/core/util"
@@ -760,16 +761,31 @@ func TestShouldReadCollection(t *testing.T) {
 			},
 			ExcludeCollections: []string{"foo"},
 		})
-		assert.True(t, f(&pb.CollectionInfo{
-			Schema: &schemapb.CollectionSchema{
-				Name: "hoo",
+		assert.True(t, f(
+			&coremodel.DatabaseInfo{},
+			&pb.CollectionInfo{
+				Schema: &schemapb.CollectionSchema{
+					Name: "hoo",
+				},
+			}))
+
+		assert.False(t, f(
+			&coremodel.DatabaseInfo{},
+			&pb.CollectionInfo{
+				Schema: &schemapb.CollectionSchema{
+					Name: "foo",
+				},
+			}))
+
+		assert.False(t, f(
+			&coremodel.DatabaseInfo{
+				Dropped: true,
 			},
-		}))
-		assert.False(t, f(&pb.CollectionInfo{
-			Schema: &schemapb.CollectionSchema{
-				Name: "foo",
-			},
-		}))
+			&pb.CollectionInfo{
+				Schema: &schemapb.CollectionSchema{
+					Name: "hoo",
+				},
+			}))
 	})
 
 	t.Run("some collection", func(t *testing.T) {
@@ -784,21 +800,27 @@ func TestShouldReadCollection(t *testing.T) {
 			},
 			ExcludeCollections: []string{"foo"},
 		})
-		assert.True(t, f(&pb.CollectionInfo{
-			Schema: &schemapb.CollectionSchema{
-				Name: "a",
-			},
-		}))
-		assert.False(t, f(&pb.CollectionInfo{
-			Schema: &schemapb.CollectionSchema{
-				Name: "c",
-			},
-		}))
-		assert.False(t, f(&pb.CollectionInfo{
-			Schema: &schemapb.CollectionSchema{
-				Name: "foo",
-			},
-		}))
+		assert.True(t, f(
+			&coremodel.DatabaseInfo{},
+			&pb.CollectionInfo{
+				Schema: &schemapb.CollectionSchema{
+					Name: "a",
+				},
+			}))
+		assert.False(t, f(
+			&coremodel.DatabaseInfo{},
+			&pb.CollectionInfo{
+				Schema: &schemapb.CollectionSchema{
+					Name: "c",
+				},
+			}))
+		assert.False(t, f(
+			&coremodel.DatabaseInfo{},
+			&pb.CollectionInfo{
+				Schema: &schemapb.CollectionSchema{
+					Name: "foo",
+				},
+			}))
 	})
 }
 

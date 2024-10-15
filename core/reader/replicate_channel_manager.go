@@ -169,7 +169,7 @@ func (r *replicateChannelManager) AddDroppedPartition(ids []int64) {
 	log.Info("has removed dropped partitions", zap.Int64s("ids", ids))
 }
 
-func (r *replicateChannelManager) startReadCollectionForKafka(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) (*model.CollectionInfo, error) {
+func (r *replicateChannelManager) startReadCollectionForKafka(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo *model.DatabaseInfo) (*model.CollectionInfo, error) {
 	r.collectionLock.RLock()
 	_, ok := r.replicateCollections[info.ID]
 	r.collectionLock.RUnlock()
@@ -212,7 +212,7 @@ func (r *replicateChannelManager) startReadCollectionForKafka(ctx context.Contex
 	return targetInfo, nil
 }
 
-func (r *replicateChannelManager) startReadCollectionForMilvus(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) (*model.CollectionInfo, error) {
+func (r *replicateChannelManager) startReadCollectionForMilvus(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo *model.DatabaseInfo) (*model.CollectionInfo, error) {
 	var err error
 	retryErr := retry.Do(ctx, func() error {
 		_, err = r.targetClient.GetCollectionInfo(ctx, info.Schema.GetName(), sourceDBInfo.Name)
@@ -270,7 +270,7 @@ func (r *replicateChannelManager) startReadCollectionForMilvus(ctx context.Conte
 	return targetInfo, nil
 }
 
-func (r *replicateChannelManager) sendCreateCollectionvent(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo model.DatabaseInfo) error {
+func (r *replicateChannelManager) sendCreateCollectionvent(ctx context.Context, info *pb.CollectionInfo, sourceDBInfo *model.DatabaseInfo) error {
 	select {
 	case <-ctx.Done():
 		log.Warn("context is done in the start read collection")
@@ -290,7 +290,7 @@ func (r *replicateChannelManager) sendCreateCollectionvent(ctx context.Context, 
 	return nil
 }
 
-func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
+func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *model.DatabaseInfo, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
 	r.addCollectionLock.Lock()
 	*r.addCollectionCnt++
 	r.addCollectionLock.Unlock()
@@ -308,11 +308,10 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, info 
 
 	var targetInfo *model.CollectionInfo
 	var err error
-	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, info.ID)
 	if r.downstream == "milvus" {
-		targetInfo, err = r.startReadCollectionForMilvus(ctx, info, sourceDBInfo)
+		targetInfo, err = r.startReadCollectionForMilvus(ctx, info, db)
 	} else if r.downstream == "kafka" {
-		targetInfo, err = r.startReadCollectionForKafka(ctx, info, sourceDBInfo)
+		targetInfo, err = r.startReadCollectionForKafka(ctx, info, db)
 	}
 
 	if err != nil {
@@ -440,14 +439,12 @@ func ForeachChannel(sourcePChannels, targetPChannels []string, f func(sourcePCha
 	return nil
 }
 
-func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo) error {
+func (r *replicateChannelManager) AddPartition(ctx context.Context, dbInfo *model.DatabaseInfo, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo) error {
 	var handlers []*replicateChannelHandler
 	collectionID := collectionInfo.ID
 	partitionLog := log.With(zap.Int64("partition_id", partitionInfo.PartitionID), zap.Int64("collection_id", collectionID),
 		zap.String("collection_name", collectionInfo.Schema.Name), zap.String("partition_name", partitionInfo.PartitionName))
-	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, collectionID)
-
-	if sourceDBInfo.Dropped {
+	if dbInfo.Dropped {
 		partitionLog.Info("the database has been dropped when add partition")
 		return nil
 	}
@@ -514,7 +511,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 				IsReplicate:  true,
 				MsgTimestamp: partitionInfo.PartitionCreatedTimestamp,
 			},
-			ReplicateParam: api.ReplicateParam{Database: sourceDBInfo.Name},
+			ReplicateParam: api.ReplicateParam{Database: dbInfo.Name},
 		}:
 		case <-ctx.Done():
 			partitionLog.Warn("context is done when adding partition")
@@ -534,7 +531,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, collectionIn
 				IsReplicate:  true,
 				MsgTimestamp: msgTs,
 			},
-			ReplicateParam: api.ReplicateParam{Database: sourceDBInfo.Name},
+			ReplicateParam: api.ReplicateParam{Database: dbInfo.Name},
 		}:
 			r.droppedPartitions.Store(partitionInfo.PartitionID, struct{}{})
 			for _, handler := range handlers {

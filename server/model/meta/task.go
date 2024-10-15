@@ -64,6 +64,7 @@ type TaskInfo struct {
 	KafkaConnectParam     model.KafkaConnectParam
 	WriterCacheConfig     model.BufferConfig
 	CollectionInfos       []model.CollectionInfo
+	DatabaseInfo          model.DatabaseInfo
 	RPCRequestChannelInfo model.ChannelInfo
 	ExcludeCollections    []string // it's used for the `*` collection name
 	State                 TaskState

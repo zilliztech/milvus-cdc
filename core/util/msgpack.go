@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/util/requestutil"
 )
 
 var SuffixSnapshotTombstone = []byte{0xE2, 0x9B, 0xBC} // base64 value: "4pu8"
@@ -53,8 +54,17 @@ func GetCollectionNameFromMsgPack(msgPack *msgstream.MsgPack) string {
 		return ""
 	}
 	firstMsg := msgPack.Msgs[0]
-	collectionName, _ := GetCollectionNameFromRequest(firstMsg)
-	return collectionName
+	collectionName, _ := requestutil.GetCollectionNameFromRequest(firstMsg)
+	return collectionName.(string)
+}
+
+func GetDatabaseNameFromMsgPack(msgPack *msgstream.MsgPack) string {
+	if len(msgPack.Msgs) == 0 {
+		return ""
+	}
+	firstMsg := msgPack.Msgs[0]
+	dbName, _ := requestutil.GetDbNameFromRequest(firstMsg)
+	return dbName.(string)
 }
 
 func GetCollectionIDFromMsgPack(msgPack *msgstream.MsgPack) int64 {
