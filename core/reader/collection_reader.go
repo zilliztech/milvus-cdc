@@ -41,7 +41,9 @@ import (
 )
 
 const (
-	AllCollection = "*"
+	AllCollection   = "*"
+	AllDatabase     = "*"
+	DefaultDatabase = "default"
 )
 
 type CollectionInfo struct {
