@@ -70,6 +70,10 @@ type ChannelInfo struct {
 	Position string `json:"position" mapstructure:"position"`
 }
 
+type ExtraInfo struct {
+	EnableUserRole bool `json:"enable_user_role" mapstructure:"enable_user_role"`
+}
+
 type BufferConfig struct {
 	Period int `json:"period" mapstructure:"period"`
 	Size   int `json:"size" mapstructure:"size"`
