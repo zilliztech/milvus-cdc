@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"sync"
 
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/requestutil"
 )
@@ -74,4 +75,18 @@ func GetCollectionIDFromMsgPack(msgPack *msgstream.MsgPack) int64 {
 	firstMsg := msgPack.Msgs[0]
 	collectionID, _ := GetCollectionIDFromRequest(firstMsg)
 	return collectionID
+}
+
+func IsUserRoleMessage(msgPack *msgstream.MsgPack) bool {
+	if len(msgPack.Msgs) == 0 {
+		return false
+	}
+	msgType := msgPack.Msgs[0].Type()
+	return msgType == commonpb.MsgType_CreateCredential ||
+		msgType == commonpb.MsgType_DeleteCredential ||
+		msgType == commonpb.MsgType_UpdateCredential ||
+		msgType == commonpb.MsgType_CreateRole ||
+		msgType == commonpb.MsgType_DropRole ||
+		msgType == commonpb.MsgType_OperateUserRole ||
+		msgType == commonpb.MsgType_OperatePrivilege
 }

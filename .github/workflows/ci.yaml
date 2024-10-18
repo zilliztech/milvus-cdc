@@ -93,6 +93,12 @@ jobs:
                       "enable_tls": false,
                       "connect_timeout": 120
                   },
+                  "extra_info": {
+                      "enable_user_role": true
+                  },
+                  "database_info": {
+                      "name": "*"
+                  },
                   "collection_infos": [
                       {
                           "name": "*"
@@ -253,6 +259,12 @@ jobs:
                       "token": "root:Milvus",
                       "connect_timeout": 120
                   },
+                  "extra_info": {
+                      "enable_user_role": true
+                  },
+                  "database_info": {
+                      "name": "*"
+                  },
                   "collection_infos": [
                       {
                           "name": "*"
@@ -389,6 +401,12 @@ jobs:
                         "token": "root:Milvus",
                         "connect_timeout": 120,
                         "channel_num": 16
+                    },
+                    "extra_info": {
+                        "enable_user_role": true
+                    },
+                    "database_info": {
+                        "name": "*"
                     },
                     "collection_infos": [
                         {
@@ -527,6 +545,12 @@ jobs:
                       "connect_timeout": 120,
                       "channel_num": 8
                   },
+                  "extra_info": {
+                      "enable_user_role": true
+                  },
+                  "database_info": {
+                      "name": "*"
+                  },
                   "collection_infos": [
                       {
                           "name": "*"
@@ -661,6 +685,9 @@ jobs:
                       "uri": "http://127.0.0.1:19500",
                       "token": "root:Milvus",
                       "connect_timeout": 120
+                  },
+                  "extra_info": {
+                      "enable_user_role": true
                   },
                   "collection_infos": [
                       {
