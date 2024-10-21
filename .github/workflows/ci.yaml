@@ -93,6 +93,12 @@ jobs:
                       "enable_tls": false,
                       "connect_timeout": 120
                   },
+                  "extra_info": {
+                      "enable_user_role": true
+                  },
+                  "database_info": {
+                      "name": "*"
+                  },
                   "collection_infos": [
                       {
                           "name": "*"
@@ -253,6 +259,12 @@ jobs:
                       "token": "root:Milvus",
                       "connect_timeout": 120
                   },
+                  "extra_info": {
+                      "enable_user_role": true
+                  },
+                  "database_info": {
+                      "name": "*"
+                  },
                   "collection_infos": [
                       {
                           "name": "*"
@@ -389,6 +401,12 @@ jobs:
                         "token": "root:Milvus",
                         "connect_timeout": 120,
                         "channel_num": 16
+                    },
+                    "extra_info": {
+                        "enable_user_role": true
+                    },
+                    "database_info": {
+                        "name": "*"
                     },
                     "collection_infos": [
                         {
@@ -527,6 +545,12 @@ jobs:
                       "connect_timeout": 120,
                       "channel_num": 8
                   },
+                  "extra_info": {
+                      "enable_user_role": true
+                  },
+                  "database_info": {
+                      "name": "*"
+                  },
                   "collection_infos": [
                       {
                           "name": "*"
@@ -577,6 +601,147 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: func-test-logs-16-8
+          path: |
+            scripts/k8s_logs
+            tests/deployment/upstream/logs
+            server/server.log
+  milvus-cdc-function-test-with-db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          cache-dependency-path: server/go.sum
+          cache: true
+
+      - name: set up python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+          cache: 'pip'
+
+      - name: Build CDC
+        timeout-minutes: 15
+        working-directory: server
+        shell: bash
+        run: |
+          make build
+          ls -l 
+
+      - name: Creating kind cluster
+        uses: helm/kind-action@v1.2.0
+
+      - name: Print cluster information
+        run: |
+          kubectl config view
+          kubectl cluster-info
+          kubectl get nodes
+          kubectl get pods -o wide -n kube-system
+          helm version
+          kubectl version
+
+      - name: Deploy Source Milvus
+        timeout-minutes: 15
+        shell: bash
+        working-directory: tests/deployment/upstream/
+        run: |
+          docker compose up -d
+          bash ../../../scripts/check_healthy.sh
+          docker compose ps -a
+
+      - name: Deploy Downstream Milvus
+        timeout-minutes: 15
+        shell: bash
+        working-directory: tests/deployment/downstream
+        run: |
+          helm repo add milvus https://zilliztech.github.io/milvus-helm
+          helm repo update
+          helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values-auth.yaml
+          kubectl get pods
+          kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
+          sleep 20s
+          nc -vz 127.0.0.1 19500
+
+      - name: Deploy Milvus CDC
+        timeout-minutes: 15
+        working-directory: server
+        shell: bash
+        run: |
+          cp ../deployment/docker/cdc.yaml configs/cdc.yaml
+          ../bin/cdc > server.log 2>&1 &
+          sleep 20s
+
+      - name: Create CDC task
+        timeout-minutes: 15
+        run: |
+          curl --location '127.0.0.1:8444/cdc' \
+          --header 'Content-Type: application/json' \
+          --data '{
+              "request_type": "create",
+              "request_data": {
+                  "milvus_connect_param": {
+                      "uri": "http://127.0.0.1:19500",
+                      "token": "root:Milvus",
+                      "connect_timeout": 120
+                  },
+                  "extra_info": {
+                      "enable_user_role": true
+                  },
+                  "collection_infos": [
+                      {
+                          "name": "*"
+                      }
+                  ],
+                  "database_info": {
+                      "name": "foo"
+                  }
+              }
+          }'
+
+      - name: Run test
+        timeout-minutes: 15
+        shell: bash
+        working-directory: tests
+        run: |
+          pip install -r requirements.txt --trusted-host https://test.pypi.org
+          pytest testcases/test_cdc_database.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
+
+      - name: List CDC task
+        if: ${{ always() }}
+        timeout-minutes: 15
+        working-directory: server
+        shell: bash
+        run: |
+          cat server.log | tail -n 100
+          curl --location '127.0.0.1:8444/cdc' \
+          --header 'Content-Type: application/json' \
+          --data '{
+              "request_type": "list"
+          }'
+
+      - name: Export upstream milvus logs
+        if: ${{ always() }}
+        timeout-minutes: 5
+        working-directory: tests/deployment/upstream
+        run: |
+          docker compose ps -a
+          docker stats --no-stream
+          bash ../../../scripts/export_log_docker.sh
+      - name: Export downstream milvus logs
+        if: ${{ always() }}
+        timeout-minutes: 5
+        working-directory: scripts
+        run: |
+          kubectl get pods || true
+          bash export_log_k8s.sh default cdc-downstream k8s_logs        
+
+      - name: Upload logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: func-test-logs-with-db
           path: |
             scripts/k8s_logs
             tests/deployment/upstream/logs

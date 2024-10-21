@@ -44,6 +44,7 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
+	coremodel "github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	cdcreader "github.com/zilliztech/milvus-cdc/core/reader"
 	"github.com/zilliztech/milvus-cdc/core/util"
@@ -83,6 +84,7 @@ type MetaCDC struct {
 		sync.RWMutex
 		data        map[string][]string
 		excludeData map[string][]string
+		extraInfos  map[string]model.ExtraInfo
 	}
 	cdcTasks struct {
 		sync.RWMutex
@@ -141,6 +143,7 @@ func NewMetaCDC(serverConfig *CDCServerConfig) *MetaCDC {
 
 	cdc.collectionNames.data = make(map[string][]string)
 	cdc.collectionNames.excludeData = make(map[string][]string)
+	cdc.collectionNames.extraInfos = make(map[string]model.ExtraInfo)
 	cdc.cdcTasks.data = make(map[string]*meta.TaskInfo)
 	cdc.replicateEntityMap.data = make(map[string]*ReplicateEntity)
 	return cdc
@@ -175,6 +178,7 @@ func (e *MetaCDC) ReloadTask() {
 		})
 		e.collectionNames.data[uKey] = append(e.collectionNames.data[uKey], newCollectionNames...)
 		e.collectionNames.excludeData[uKey] = append(e.collectionNames.excludeData[uKey], taskInfo.ExcludeCollections...)
+		e.collectionNames.excludeData[uKey] = lo.Uniq(e.collectionNames.excludeData[uKey])
 		e.cdcTasks.Lock()
 		e.cdcTasks.data[taskInfo.TaskID] = taskInfo
 		e.cdcTasks.Unlock()
@@ -230,6 +234,99 @@ func getTaskUniqueIDFromReq(req *request.CreateRequest) string {
 	panic("fail to get the task unique id")
 }
 
+func getDatabaseName(i any) string {
+	switch r := i.(type) {
+	case *meta.TaskInfo:
+		if r.DatabaseInfo.Name != "" {
+			return r.DatabaseInfo.Name
+		}
+		return cdcreader.DefaultDatabase
+	case *request.CreateRequest:
+		if r.DatabaseInfo.Name != "" {
+			return r.DatabaseInfo.Name
+		}
+		return cdcreader.DefaultDatabase
+	default:
+		panic("invalid type")
+	}
+}
+
+func getFullCollectionName(collectionName string, databaseName string) string {
+	return fmt.Sprintf("%s.%s", databaseName, collectionName)
+}
+
+func getCollectionNameFromFull(fullName string) (string, string) {
+	names := strings.Split(fullName, ".")
+	if len(names) != 2 {
+		panic("invalid full collection name")
+	}
+	return names[0], names[1]
+}
+
+func matchCollectionName(sampleCollection, targetCollection string) (bool, bool) {
+	db1, collection1 := getCollectionNameFromFull(sampleCollection)
+	db2, collection2 := getCollectionNameFromFull(targetCollection)
+	return (db1 == db2 || db1 == cdcreader.AllDatabase) &&
+			(collection1 == collection2 || collection1 == cdcreader.AllCollection),
+		db1 == cdcreader.AllDatabase || collection1 == cdcreader.AllCollection
+}
+
+func (e *MetaCDC) checkDuplicateCollection(uKey string, newCollectionNames []string, extraInfo model.ExtraInfo) ([]string, error) {
+	e.collectionNames.Lock()
+	defer e.collectionNames.Unlock()
+	existExtraInfo := e.collectionNames.extraInfos[uKey]
+	if existExtraInfo.EnableUserRole && extraInfo.EnableUserRole {
+		return nil, servererror.NewClientError("the enable user role param is duplicate")
+	}
+	if names, ok := e.collectionNames.data[uKey]; ok {
+		var duplicateCollections []string
+		containsAny := false
+		for _, name := range names {
+			d, c := getCollectionNameFromFull(name)
+			if d == cdcreader.AllDatabase || c == cdcreader.AllCollection {
+				containsAny = true
+			}
+		}
+		for _, newCollectionName := range newCollectionNames {
+			if lo.Contains(names, newCollectionName) {
+				duplicateCollections = append(duplicateCollections, newCollectionName)
+				continue
+			}
+			nd, nc := getCollectionNameFromFull(newCollectionName)
+			if nd == cdcreader.AllDatabase && nc == cdcreader.AllCollection {
+				continue
+			}
+			if containsAny && !lo.Contains(e.collectionNames.excludeData[uKey], newCollectionName) {
+				duplicateCollections = append(duplicateCollections, newCollectionName)
+				continue
+			}
+		}
+		if len(duplicateCollections) > 0 {
+			log.Info("duplicate collections",
+				zap.Strings("request_collections", newCollectionNames),
+				zap.Strings("exist_collections", names),
+				zap.Strings("exclude_collections", e.collectionNames.excludeData[uKey]),
+				zap.Strings("duplicate_collections", duplicateCollections))
+			return nil, servererror.NewClientError(fmt.Sprintf("the collection name is duplicate with existing task, %v", duplicateCollections))
+		}
+	}
+	// release lock early to accept other requests
+	var excludeCollectionNames []string
+	for _, newCollectionName := range newCollectionNames {
+		for _, existCollectionName := range e.collectionNames.data[uKey] {
+			if match, _ := matchCollectionName(newCollectionName, existCollectionName); match {
+				excludeCollectionNames = append(excludeCollectionNames, existCollectionName)
+			}
+		}
+	}
+	e.collectionNames.excludeData[uKey] = append(e.collectionNames.excludeData[uKey], excludeCollectionNames...)
+	e.collectionNames.data[uKey] = append(e.collectionNames.data[uKey], newCollectionNames...)
+	e.collectionNames.extraInfos[uKey] = model.ExtraInfo{
+		EnableUserRole: existExtraInfo.EnableUserRole || extraInfo.EnableUserRole,
+	}
+	return excludeCollectionNames, nil
+}
+
 func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateResponse, err error) {
 	defer func() {
 		log.Info("create request done")
@@ -241,53 +338,19 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		return nil, err
 	}
 	uKey := getTaskUniqueIDFromReq(req)
+	databaseName := getDatabaseName(req)
 	newCollectionNames := lo.Map(req.CollectionInfos, func(t model.CollectionInfo, _ int) string {
-		return t.Name
+		return getFullCollectionName(t.Name, databaseName)
 	})
-	e.collectionNames.Lock()
-	if names, ok := e.collectionNames.data[uKey]; ok {
-		existAll := lo.Contains(names, cdcreader.AllCollection)
-		duplicateCollections := lo.Filter(req.CollectionInfos, func(info model.CollectionInfo, _ int) bool {
-			return (!existAll && lo.Contains(names, info.Name)) || (existAll && info.Name == cdcreader.AllCollection)
-		})
-		if len(duplicateCollections) > 0 {
-			e.collectionNames.Unlock()
-			return nil, servererror.NewClientError(fmt.Sprintf("some collections are duplicate with existing tasks, %v", lo.Map(duplicateCollections, func(t model.CollectionInfo, i int) string {
-				return t.Name
-			})))
-		}
-		if existAll {
-			excludeCollectionNames := lo.Filter(e.collectionNames.excludeData[uKey], func(s string, _ int) bool {
-				return !lo.Contains(names, s)
-			})
-			duplicateCollections = lo.Filter(req.CollectionInfos, func(info model.CollectionInfo, _ int) bool {
-				return !lo.Contains(excludeCollectionNames, info.Name)
-			})
-			if len(duplicateCollections) > 0 {
-				e.collectionNames.Unlock()
-				return nil, servererror.NewClientError(fmt.Sprintf("some collections are duplicate with existing tasks, check the `*` collection task and other tasks, %v", lo.Map(duplicateCollections, func(t model.CollectionInfo, i int) string {
-					return t.Name
-				})))
-			}
-		}
+	excludeCollectionNames, err := e.checkDuplicateCollection(uKey, newCollectionNames, req.ExtraInfo)
+	if err != nil {
+		return nil, err
 	}
-	// release lock early to accept other requests
-	var excludeCollectionNames []string
-	if newCollectionNames[0] == cdcreader.AllCollection {
-		existCollectionNames := e.collectionNames.data[uKey]
-		excludeCollectionNames = make([]string, len(existCollectionNames))
-		copy(excludeCollectionNames, existCollectionNames)
-		e.collectionNames.excludeData[uKey] = excludeCollectionNames
-	}
-	e.collectionNames.data[uKey] = append(e.collectionNames.data[uKey], newCollectionNames...)
-	e.collectionNames.Unlock()
 
 	revertCollectionNames := func() {
 		e.collectionNames.Lock()
 		defer e.collectionNames.Unlock()
-		if newCollectionNames[0] == cdcreader.AllCollection {
-			e.collectionNames.excludeData[uKey] = []string{}
-		}
+		e.collectionNames.excludeData[uKey] = lo.Without(e.collectionNames.excludeData[uKey], excludeCollectionNames...)
 		e.collectionNames.data[uKey] = lo.Without(e.collectionNames.data[uKey], newCollectionNames...)
 	}
 
@@ -304,8 +367,10 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		TaskID:                e.getUUID(),
 		MilvusConnectParam:    req.MilvusConnectParam,
 		KafkaConnectParam:     req.KafkaConnectParam,
+		DatabaseInfo:          req.DatabaseInfo,
 		CollectionInfos:       req.CollectionInfos,
 		RPCRequestChannelInfo: req.RPCChannelInfo,
+		ExtraInfo:             req.ExtraInfo,
 		ExcludeCollections:    excludeCollectionNames,
 		WriterCacheConfig:     req.BufferConfig,
 		State:                 meta.TaskStateInitial,
@@ -952,7 +1017,9 @@ func replicateMetric(info *meta.TaskInfo, channelName string, msgPack *msgstream
 func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *ReplicateEntity, channelName, channelPosition string) (api.Reader, error) {
 	taskLog := log.With(zap.String("task_id", info.TaskID))
 	collectionName := info.CollectionNames()[0]
+	databaseName := getDatabaseName(info)
 	isAnyCollection := collectionName == cdcreader.AllCollection
+	isAnyDatabase := databaseName == cdcreader.AllDatabase
 	// isTmpCollection := collectionName == model.TmpCollectionName
 
 	dataHandleFunc := func(funcCtx context.Context, pack *msgstream.MsgPack) bool {
@@ -967,8 +1034,19 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 			Set(float64(msgTime))
 
 		msgCollectionName := util.GetCollectionNameFromMsgPack(pack)
+		msgDatabaseName := util.GetDatabaseNameFromMsgPack(pack)
 		// TODO it should be changed if replicate the user and role info or multi collection
-		if !isAnyCollection && msgCollectionName != collectionName {
+		// TODO how to handle it when there are "*" and "foo" collection names in the task list
+		if msgCollectionName == "" && msgDatabaseName == "" {
+			extraSkip := true
+			if info.ExtraInfo.EnableUserRole && util.IsUserRoleMessage(pack) {
+				extraSkip = false
+			}
+			if extraSkip {
+				return true
+			}
+		} else if (!isAnyCollection && msgCollectionName != collectionName) ||
+			(!isAnyDatabase && msgDatabaseName != databaseName) {
 			// skip the message if the collection name is not equal to the task collection name
 			return true
 		}
@@ -1094,9 +1172,7 @@ func (e *MetaCDC) delete(taskID string) error {
 	uKey = milvusURI + kafkaAddress
 	collectionNames := info.CollectionNames()
 	e.collectionNames.Lock()
-	if collectionNames[0] == cdcreader.AllCollection {
-		e.collectionNames.excludeData[uKey] = []string{}
-	}
+	e.collectionNames.excludeData[uKey] = lo.Without(e.collectionNames.excludeData[uKey], info.ExcludeCollections...)
 	e.collectionNames.data[uKey] = lo.Without(e.collectionNames.data[uKey], collectionNames...)
 	e.collectionNames.Unlock()
 
@@ -1252,16 +1328,25 @@ func (e *MetaCDC) Maintenance(req *request.MaintenanceRequest) (*request.Mainten
 }
 
 func GetShouldReadFunc(taskInfo *meta.TaskInfo) cdcreader.ShouldReadFunc {
-	isAll := taskInfo.CollectionInfos[0].Name == cdcreader.AllCollection
-	return func(collectionInfo *pb.CollectionInfo) bool {
+	isAllCollection := taskInfo.CollectionInfos[0].Name == cdcreader.AllCollection
+	databaseName := getDatabaseName(taskInfo)
+	isAllDataBase := databaseName == cdcreader.AllDatabase
+	return func(databaseInfo *coremodel.DatabaseInfo, collectionInfo *pb.CollectionInfo) bool {
 		currentCollectionName := collectionInfo.Schema.Name
-		notStarContains := !isAll && lo.ContainsBy(taskInfo.CollectionInfos, func(taskCollectionInfo model.CollectionInfo) bool {
+		if databaseInfo.Dropped {
+			log.Info("database is dropped", zap.String("database", databaseInfo.Name), zap.String("collection", currentCollectionName))
+			return false
+		}
+
+		notStarContains := !isAllCollection && lo.ContainsBy(taskInfo.CollectionInfos, func(taskCollectionInfo model.CollectionInfo) bool {
 			return taskCollectionInfo.Name == currentCollectionName
 		})
-		starContains := isAll && !lo.ContainsBy(taskInfo.ExcludeCollections, func(s string) bool {
+		starContains := isAllCollection && !lo.ContainsBy(taskInfo.ExcludeCollections, func(s string) bool {
 			return s == currentCollectionName
 		})
+		dbMatch := isAllDataBase ||
+			taskInfo.DatabaseInfo.Name == databaseInfo.Name
 
-		return notStarContains || starContains
+		return (notStarContains || starContains) && dbMatch
 	}
 }

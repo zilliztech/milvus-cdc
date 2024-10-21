@@ -49,7 +49,7 @@ func TestDefaultChannelManager_AddPartition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := &DefaultChannelManager{}
-			if err := d.AddPartition(tt.args.ctx, tt.args.collectionInfo, tt.args.partitionInfo); (err != nil) != tt.wantErr {
+			if err := d.AddPartition(tt.args.ctx, nil, tt.args.collectionInfo, tt.args.partitionInfo); (err != nil) != tt.wantErr {
 				t.Errorf("AddPartition() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -141,7 +141,7 @@ func TestDefaultChannelManager_StartReadCollection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := &DefaultChannelManager{}
-			if err := d.StartReadCollection(tt.args.ctx, tt.args.info, tt.args.seekPositions); (err != nil) != tt.wantErr {
+			if err := d.StartReadCollection(tt.args.ctx, nil, tt.args.info, tt.args.seekPositions); (err != nil) != tt.wantErr {
 				t.Errorf("StartReadCollection() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

@@ -232,7 +232,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 	t.Run("context cancel", func(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		cancelFunc()
-		err = manager.StartReadCollection(ctx, &pb.CollectionInfo{}, nil)
+		err = manager.StartReadCollection(ctx, &model.DatabaseInfo{}, &pb.CollectionInfo{}, nil)
 		assert.Error(t, err)
 	})
 
@@ -252,7 +252,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 		realManager.startReadRetryOptions = []retry.Option{
 			retry.Attempts(1),
 		}
-		err = manager.StartReadCollection(context.Background(), &pb.CollectionInfo{
+		err = manager.StartReadCollection(context.Background(), &model.DatabaseInfo{}, &pb.CollectionInfo{
 			Schema: &schemapb.CollectionSchema{
 				Name: "test",
 			},
@@ -328,7 +328,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 					"_default": 31010,
 				},
 			}, nil).Twice()
-			err := realManager.StartReadCollection(context.Background(), &pb.CollectionInfo{
+			err := realManager.StartReadCollection(context.Background(), &model.DatabaseInfo{}, &pb.CollectionInfo{
 				ID: 31001,
 				Schema: &schemapb.CollectionSchema{
 					Name: "test",
@@ -342,6 +342,8 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 				VirtualChannelNames:  []string{"collection-partition-p1_v0"},
 			}, nil)
 			assert.NoError(t, err)
+			channel := <-realManager.GetChannelChan()
+			assert.Equal(t, "collection-partition-p2", channel)
 		}
 
 		// partition not found
@@ -349,7 +351,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 			realManager.retryOptions = []retry.Option{
 				retry.Attempts(1),
 			}
-			err := realManager.AddPartition(context.Background(), &pb.CollectionInfo{
+			err := realManager.AddPartition(context.Background(), &model.DatabaseInfo{}, &pb.CollectionInfo{
 				ID: 41,
 				Schema: &schemapb.CollectionSchema{
 					Name: "test",
@@ -360,7 +362,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 
 		// add partition
 		{
-			err := realManager.AddPartition(context.Background(), &pb.CollectionInfo{
+			err := realManager.AddPartition(context.Background(), &model.DatabaseInfo{}, &pb.CollectionInfo{
 				ID: 31001,
 				Schema: &schemapb.CollectionSchema{
 					Name: "test",
@@ -416,7 +418,7 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 	t.Run("context cancel", func(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		cancelFunc()
-		err = manager.StartReadCollection(ctx, &pb.CollectionInfo{}, nil)
+		err = manager.StartReadCollection(ctx, &model.DatabaseInfo{}, &pb.CollectionInfo{}, nil)
 		assert.Error(t, err)
 	})
 
@@ -433,8 +435,8 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 		{
 			// start read
 			handler, err := realManager.startReadChannel(&model.SourceCollectionInfo{
-				PChannel:     "test_read_channel",
-				VChannel:     "test_read_channel_v0",
+				PChannel:     "kafka_test_read_channel",
+				VChannel:     "kafka_test_read_channel_v0",
 				CollectionID: 11001,
 				ShardNum:     1,
 			}, &model.TargetCollectionInfo{
@@ -443,8 +445,8 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 				PartitionInfo: map[string]int64{
 					"_default": 1101,
 				},
-				PChannel:    "ttest_read_channel",
-				VChannel:    "ttest_read_channel_v0",
+				PChannel:    "kafka_ttest_read_channel",
+				VChannel:    "kafka_ttest_read_channel_v0",
 				BarrierChan: util.NewOnceWriteChan(make(chan<- uint64)),
 				PartitionBarrierChan: map[int64]*util.OnceWriteChan[uint64]{
 					1101: util.NewOnceWriteChan(make(chan<- uint64)),
@@ -452,35 +454,35 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 			})
 			assert.NoError(t, err)
 			handler.startReadChannel()
-			assert.Equal(t, "ttest_read_channel", <-realManager.GetChannelChan())
+			assert.Equal(t, "kafka_ttest_read_channel", <-realManager.GetChannelChan())
 
 			_, err = realManager.startReadChannel(&model.SourceCollectionInfo{
-				PChannel:     "test_read_channel_2",
-				VChannel:     "test_read_channel_2_v0",
+				PChannel:     "kafka_test_read_channel_2",
+				VChannel:     "kafka_test_read_channel_2_v0",
 				CollectionID: 11002,
 			}, &model.TargetCollectionInfo{
-				CollectionName: "read_channel_2",
-				PChannel:       "ttest_read_channel_2",
-				VChannel:       "ttest_read_channel_2_v0",
+				CollectionName: "kafka_read_channel_2",
+				PChannel:       "kafka_ttest_read_channel_2",
+				VChannel:       "kafka_ttest_read_channel_2_v0",
 			})
 			assert.NoError(t, err)
 		}
 		{
-			assert.NotNil(t, realManager.GetMsgChan("ttest_read_channel"))
+			assert.NotNil(t, realManager.GetMsgChan("kafka_ttest_read_channel"))
 			assert.Nil(t, realManager.GetMsgChan("no_exist_channel"))
 		}
 		{
 			// stop read
 			realManager.stopReadChannel("no_exist_channel", 11001)
-			realManager.stopReadChannel("test_read_channel", 11001)
-			realManager.stopReadChannel("test_read_channel", 11002)
+			realManager.stopReadChannel("kafka_test_read_channel", 11001)
+			realManager.stopReadChannel("kafka_test_read_channel", 11002)
 		}
 	})
 
 	t.Run("collection and partition", func(t *testing.T) {
 		// start read collection
 		{
-			err := realManager.StartReadCollection(context.Background(), &pb.CollectionInfo{
+			err := realManager.StartReadCollection(context.Background(), &model.DatabaseInfo{}, &pb.CollectionInfo{
 				ID: 31001,
 				Schema: &schemapb.CollectionSchema{
 					Name: "test",
@@ -503,7 +505,7 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 			realManager.retryOptions = []retry.Option{
 				retry.Attempts(1),
 			}
-			err := realManager.AddPartition(context.Background(), &pb.CollectionInfo{
+			err := realManager.AddPartition(context.Background(), &model.DatabaseInfo{}, &pb.CollectionInfo{
 				ID: 41,
 				Schema: &schemapb.CollectionSchema{
 					Name: "test",
@@ -514,7 +516,7 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 
 		// add partition
 		{
-			err := realManager.AddPartition(context.Background(), &pb.CollectionInfo{
+			err := realManager.AddPartition(context.Background(), &model.DatabaseInfo{}, &pb.CollectionInfo{
 				ID: 31001,
 				Schema: &schemapb.CollectionSchema{
 					Name: "test",

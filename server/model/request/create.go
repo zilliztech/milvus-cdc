@@ -25,7 +25,9 @@ type CreateRequest struct {
 	KafkaConnectParam  model.KafkaConnectParam  `json:"kafka_connect_param,omitempty" mapstructure:"kafka_connect_param,omitempty"`
 	MilvusConnectParam model.MilvusConnectParam `json:"milvus_connect_param" mapstructure:"milvus_connect_param"`
 	CollectionInfos    []model.CollectionInfo   `json:"collection_infos" mapstructure:"collection_infos"`
+	DatabaseInfo       model.DatabaseInfo       `json:"database_info" mapstructure:"database_info"`
 	RPCChannelInfo     model.ChannelInfo        `json:"rpc_channel_info" mapstructure:"rpc_channel_info"`
+	ExtraInfo          model.ExtraInfo          `json:"extra_info" mapstructure:"extra_info"`
 	BufferConfig       model.BufferConfig       `json:"buffer_config" mapstructure:"buffer_config"`
 	// Deprecated
 	Positions map[string]string `json:"positions" mapstructure:"positions"`

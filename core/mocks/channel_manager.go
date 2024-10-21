@@ -9,6 +9,8 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
+	model "github.com/zilliztech/milvus-cdc/core/model"
+
 	msgpb "github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 
 	pb "github.com/zilliztech/milvus-cdc/core/pb"
@@ -93,13 +95,13 @@ func (_c *ChannelManager_AddDroppedPartition_Call) RunAndReturn(run func([]int64
 	return _c
 }
 
-// AddPartition provides a mock function with given fields: ctx, collectionInfo, partitionInfo
-func (_m *ChannelManager) AddPartition(ctx context.Context, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo) error {
-	ret := _m.Called(ctx, collectionInfo, partitionInfo)
+// AddPartition provides a mock function with given fields: ctx, dbInfo, collectionInfo, partitionInfo
+func (_m *ChannelManager) AddPartition(ctx context.Context, dbInfo *model.DatabaseInfo, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo) error {
+	ret := _m.Called(ctx, dbInfo, collectionInfo, partitionInfo)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.CollectionInfo, *pb.PartitionInfo) error); ok {
-		r0 = rf(ctx, collectionInfo, partitionInfo)
+	if rf, ok := ret.Get(0).(func(context.Context, *model.DatabaseInfo, *pb.CollectionInfo, *pb.PartitionInfo) error); ok {
+		r0 = rf(ctx, dbInfo, collectionInfo, partitionInfo)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -114,15 +116,16 @@ type ChannelManager_AddPartition_Call struct {
 
 // AddPartition is a helper method to define mock.On call
 //  - ctx context.Context
+//  - dbInfo *model.DatabaseInfo
 //  - collectionInfo *pb.CollectionInfo
 //  - partitionInfo *pb.PartitionInfo
-func (_e *ChannelManager_Expecter) AddPartition(ctx interface{}, collectionInfo interface{}, partitionInfo interface{}) *ChannelManager_AddPartition_Call {
-	return &ChannelManager_AddPartition_Call{Call: _e.mock.On("AddPartition", ctx, collectionInfo, partitionInfo)}
+func (_e *ChannelManager_Expecter) AddPartition(ctx interface{}, dbInfo interface{}, collectionInfo interface{}, partitionInfo interface{}) *ChannelManager_AddPartition_Call {
+	return &ChannelManager_AddPartition_Call{Call: _e.mock.On("AddPartition", ctx, dbInfo, collectionInfo, partitionInfo)}
 }
 
-func (_c *ChannelManager_AddPartition_Call) Run(run func(ctx context.Context, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo)) *ChannelManager_AddPartition_Call {
+func (_c *ChannelManager_AddPartition_Call) Run(run func(ctx context.Context, dbInfo *model.DatabaseInfo, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo)) *ChannelManager_AddPartition_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*pb.CollectionInfo), args[2].(*pb.PartitionInfo))
+		run(args[0].(context.Context), args[1].(*model.DatabaseInfo), args[2].(*pb.CollectionInfo), args[3].(*pb.PartitionInfo))
 	})
 	return _c
 }
@@ -132,7 +135,7 @@ func (_c *ChannelManager_AddPartition_Call) Return(_a0 error) *ChannelManager_Ad
 	return _c
 }
 
-func (_c *ChannelManager_AddPartition_Call) RunAndReturn(run func(context.Context, *pb.CollectionInfo, *pb.PartitionInfo) error) *ChannelManager_AddPartition_Call {
+func (_c *ChannelManager_AddPartition_Call) RunAndReturn(run func(context.Context, *model.DatabaseInfo, *pb.CollectionInfo, *pb.PartitionInfo) error) *ChannelManager_AddPartition_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -355,13 +358,13 @@ func (_c *ChannelManager_SetCtx_Call) RunAndReturn(run func(context.Context)) *C
 	return _c
 }
 
-// StartReadCollection provides a mock function with given fields: ctx, info, seekPositions
-func (_m *ChannelManager) StartReadCollection(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
-	ret := _m.Called(ctx, info, seekPositions)
+// StartReadCollection provides a mock function with given fields: ctx, db, info, seekPositions
+func (_m *ChannelManager) StartReadCollection(ctx context.Context, db *model.DatabaseInfo, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
+	ret := _m.Called(ctx, db, info, seekPositions)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.CollectionInfo, []*msgpb.MsgPosition) error); ok {
-		r0 = rf(ctx, info, seekPositions)
+	if rf, ok := ret.Get(0).(func(context.Context, *model.DatabaseInfo, *pb.CollectionInfo, []*msgpb.MsgPosition) error); ok {
+		r0 = rf(ctx, db, info, seekPositions)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -376,15 +379,16 @@ type ChannelManager_StartReadCollection_Call struct {
 
 // StartReadCollection is a helper method to define mock.On call
 //  - ctx context.Context
+//  - db *model.DatabaseInfo
 //  - info *pb.CollectionInfo
 //  - seekPositions []*msgpb.MsgPosition
-func (_e *ChannelManager_Expecter) StartReadCollection(ctx interface{}, info interface{}, seekPositions interface{}) *ChannelManager_StartReadCollection_Call {
-	return &ChannelManager_StartReadCollection_Call{Call: _e.mock.On("StartReadCollection", ctx, info, seekPositions)}
+func (_e *ChannelManager_Expecter) StartReadCollection(ctx interface{}, db interface{}, info interface{}, seekPositions interface{}) *ChannelManager_StartReadCollection_Call {
+	return &ChannelManager_StartReadCollection_Call{Call: _e.mock.On("StartReadCollection", ctx, db, info, seekPositions)}
 }
 
-func (_c *ChannelManager_StartReadCollection_Call) Run(run func(ctx context.Context, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition)) *ChannelManager_StartReadCollection_Call {
+func (_c *ChannelManager_StartReadCollection_Call) Run(run func(ctx context.Context, db *model.DatabaseInfo, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition)) *ChannelManager_StartReadCollection_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*pb.CollectionInfo), args[2].([]*msgpb.MsgPosition))
+		run(args[0].(context.Context), args[1].(*model.DatabaseInfo), args[2].(*pb.CollectionInfo), args[3].([]*msgpb.MsgPosition))
 	})
 	return _c
 }
@@ -394,7 +398,7 @@ func (_c *ChannelManager_StartReadCollection_Call) Return(_a0 error) *ChannelMan
 	return _c
 }
 
-func (_c *ChannelManager_StartReadCollection_Call) RunAndReturn(run func(context.Context, *pb.CollectionInfo, []*msgpb.MsgPosition) error) *ChannelManager_StartReadCollection_Call {
+func (_c *ChannelManager_StartReadCollection_Call) RunAndReturn(run func(context.Context, *model.DatabaseInfo, *pb.CollectionInfo, []*msgpb.MsgPosition) error) *ChannelManager_StartReadCollection_Call {
 	_c.Call.Return(run)
 	return _c
 }

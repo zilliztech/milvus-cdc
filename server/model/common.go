@@ -56,6 +56,10 @@ type MilvusConnectParam struct {
 	ConnectTimeout int `json:"connect_timeout" mapstructure:"connect_timeout"`
 }
 
+type DatabaseInfo struct {
+	Name string `json:"name" mapstructure:"name"`
+}
+
 type CollectionInfo struct {
 	Name      string            `json:"name" mapstructure:"name"`
 	Positions map[string]string `json:"positions" mapstructure:"positions"` // the key is the vchannel
@@ -64,6 +68,10 @@ type CollectionInfo struct {
 type ChannelInfo struct {
 	Name     string `json:"name" mapstructure:"name"`
 	Position string `json:"position" mapstructure:"position"`
+}
+
+type ExtraInfo struct {
+	EnableUserRole bool `json:"enable_user_role" mapstructure:"enable_user_role"`
 }
 
 type BufferConfig struct {

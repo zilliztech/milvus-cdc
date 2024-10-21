@@ -37,6 +37,7 @@ import (
 	api2 "github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/mocks"
+	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 )
 
@@ -118,11 +119,11 @@ func TestCollectionReader(t *testing.T) {
 
 	channelManager := mocks.NewChannelManager(t)
 	// existed collection and partition
-	channelManager.EXPECT().StartReadCollection(mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock err")).Once()
-	channelManager.EXPECT().AddPartition(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	channelManager.EXPECT().StartReadCollection(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock err")).Once()
+	channelManager.EXPECT().AddPartition(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	channelManager.EXPECT().AddDroppedCollection(mock.Anything).Return().Once()
 
-	reader, err := NewCollectionReader("reader-1", channelManager, etcdOp, nil, func(ci *pb.CollectionInfo) bool {
+	reader, err := NewCollectionReader("reader-1", channelManager, etcdOp, nil, func(_ *model.DatabaseInfo, ci *pb.CollectionInfo) bool {
 		return !strings.Contains(ci.Schema.Name, "test")
 	}, config.ReaderConfig{
 		Retry: config.RetrySettings{
@@ -142,8 +143,8 @@ func TestCollectionReader(t *testing.T) {
 	}()
 	reader.StartRead(context.Background())
 	// put collection and partition
-	channelManager.EXPECT().StartReadCollection(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-	channelManager.EXPECT().AddPartition(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	channelManager.EXPECT().StartReadCollection(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	channelManager.EXPECT().AddPartition(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 
 	{
 		// filter collection
