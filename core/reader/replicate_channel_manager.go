@@ -57,6 +57,7 @@ var replicatePool = conc.NewPool[struct{}](10, conc.WithExpiryDuration(time.Minu
 
 type replicateChannelManager struct {
 	replicateCtx         context.Context
+	replicateID          string
 	streamDispatchClient msgdispatcher.Client
 	streamCreator        StreamCreator
 	targetClient         api.TargetAPI
@@ -108,6 +109,7 @@ func NewReplicateChannelManagerWithDispatchClient(
 	downstream string,
 ) (api.ChannelManager, error) {
 	return &replicateChannelManager{
+		replicateID:          readConfig.ReplicateID,
 		streamDispatchClient: dispatchClient,
 		streamCreator:        NewDisptachClientStreamCreator(factory, dispatchClient),
 		targetClient:         client,
@@ -395,7 +397,8 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *m
 			channelHandlers = append(channelHandlers, channelHandler)
 		}
 		successChannels = append(successChannels, sourcePChannel)
-		log.Info("start read channel",
+		log.Info("start read channel in the manager",
+			zap.Bool("nil_handler", channelHandler == nil),
 			zap.String("channel", sourcePChannel),
 			zap.String("target_channel", targetPChannel),
 			zap.Int64("collection_id", info.ID))
@@ -468,7 +471,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, dbInfo *mode
 		}
 		r.channelLock.RUnlock()
 		if len(handlers) == 0 {
-			partitionLog.Info("waiting handler", zap.Int64("collection_id", collectionID))
+			partitionLog.Info("waiting handler")
 			return errors.New("no handler found")
 		}
 		return nil
@@ -478,7 +481,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, dbInfo *mode
 	}
 
 	if len(handlers) == 0 {
-		partitionLog.Warn("no handler found", zap.Int64("collection_id", collectionID))
+		partitionLog.Warn("no handler found")
 		return errors.New("no handler found")
 	}
 
@@ -591,11 +594,17 @@ func (r *replicateChannelManager) StopReadCollection(ctx context.Context, info *
 }
 
 func (r *replicateChannelManager) GetChannelChan() <-chan string {
-	return GetTSManager().GetTargetChannelChan()
+	for {
+		c := GetTSManager().GetTargetChannelChan(r.replicateID)
+		if c != nil {
+			return c
+		}
+		time.Sleep(time.Second)
+	}
 }
 
 func (r *replicateChannelManager) GetMsgChan(pChannel string) <-chan *api.ReplicateMsg {
-	return GetTSManager().GetTargetMsgChan(pChannel)
+	return GetTSManager().GetTargetMsgChan(r.replicateID, pChannel)
 }
 
 func (r *replicateChannelManager) GetEventChan() <-chan *api.ReplicateAPIEvent {
@@ -641,6 +650,7 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 		channelHandler.forwardMsgFunc = r.forwardMsg
 		channelHandler.isDroppedCollection = r.isDroppedCollection
 		channelHandler.isDroppedPartition = r.isDroppedPartition
+		channelHandler.replicateID = r.replicateID
 		diffValueForKey := r.channelMapping.CheckKeyNotExist(sourceInfo.PChannel, targetInfo.PChannel)
 
 		if !diffValueForKey {
@@ -657,9 +667,6 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 			return channelHandler, nil
 		}
 		return nil, nil
-	}
-	if sourceInfo.SeekPosition != nil {
-		GetTSManager().CollectTS(channelHandler.targetPChannel, sourceInfo.SeekPosition.GetTimestamp())
 	}
 	if !r.channelMapping.CheckKeyExist(sourceInfo.PChannel, targetInfo.PChannel) {
 		log.Info("diff target pchannel",
@@ -831,6 +838,7 @@ func (r *replicateChannelManager) stopReadChannel(pChannelName string, collectio
 
 type replicateChannelHandler struct {
 	replicateCtx   context.Context
+	replicateID    string
 	sourcePChannel string
 	targetPChannel string
 	targetClient   api.TargetAPI
@@ -867,6 +875,7 @@ type replicateChannelHandler struct {
 
 func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollectionInfo, targetInfo *model.TargetCollectionInfo) {
 	<-r.startReadChan
+	r.collectionSourceSeekPosition(sourceInfo.SeekPosition)
 	collectionID := sourceInfo.CollectionID
 	streamChan, closeStreamFunc, err := r.streamCreator.GetStreamChan(r.replicateCtx, sourceInfo.VChannel, sourceInfo.SeekPosition)
 	if err != nil {
@@ -1145,6 +1154,10 @@ func (r *replicateChannelHandler) Close() {
 	// r.stream.Close()
 }
 
+func (r *replicateChannelHandler) getTSManagerChannelKey(channelName string) string {
+	return FormatChanKey(r.replicateID, channelName)
+}
+
 func (r *replicateChannelHandler) innerHandleReplicateMsg(forward bool, msg *api.ReplicateMsg) {
 	msgPack := msg.MsgPack
 	p := r.handlePack(forward, msgPack)
@@ -1154,17 +1167,33 @@ func (r *replicateChannelHandler) innerHandleReplicateMsg(forward bool, msg *api
 	p.CollectionID = msg.CollectionID
 	p.CollectionName = msg.CollectionName
 	p.PChannelName = msg.PChannelName
-	GetTSManager().SendTargetMsg(r.targetPChannel, p)
+	GetTSManager().SendTargetMsg(r.getTSManagerChannelKey(r.targetPChannel), p)
+}
+
+func (r *replicateChannelHandler) collectionSourceSeekPosition(sourceSeekPosition *msgstream.MsgPosition) {
+	if sourceSeekPosition == nil {
+		return
+	}
+	GetTSManager().CollectTS(r.getTSManagerChannelKey(r.targetPChannel), sourceSeekPosition.GetTimestamp())
 }
 
 func (r *replicateChannelHandler) startReadChannel() {
-	close(r.startReadChan)
 	var cts uint64 = math.MaxUint64
 	if r.sourceSeekPosition != nil {
 		cts = r.sourceSeekPosition.GetTimestamp()
 	}
-	GetTSManager().InitTSInfo(r.targetPChannel, time.Duration(r.handlerOpts.TTInterval)*time.Millisecond, cts, r.handlerOpts.MessageBufferSize)
-	log.Info("start read channel",
+	log.Info("start read channel in the handler before",
+		zap.String("channel_name", r.sourcePChannel),
+		zap.String("target_channel", r.targetPChannel),
+	)
+	GetTSManager().InitTSInfo(r.replicateID, r.targetPChannel, time.Duration(r.handlerOpts.TTInterval)*time.Millisecond, cts, r.handlerOpts.MessageBufferSize)
+	log.Info("start read channel in the handler",
+		zap.String("channel_name", r.sourcePChannel),
+		zap.String("target_channel", r.targetPChannel),
+	)
+	close(r.startReadChan)
+	r.collectionSourceSeekPosition(r.sourceSeekPosition)
+	log.Info("start read channel in the handler end",
 		zap.String("channel_name", r.sourcePChannel),
 		zap.String("target_channel", r.targetPChannel),
 	)
@@ -1289,6 +1318,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		return pack.Msgs[i].BeginTs() < pack.Msgs[j].BeginTs() ||
 			(pack.Msgs[i].BeginTs() == pack.Msgs[j].BeginTs() && pack.Msgs[i].Type() == commonpb.MsgType_Delete)
 	})
+	tsManagerChannelKey := r.getTSManagerChannelKey(r.targetPChannel)
 
 	r.addCollectionLock.RLock()
 	if *r.addCollectionCnt != 0 {
@@ -1326,7 +1356,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			log.Warn("begin timestamp is 0", zap.Uint64("end_ts", pack.EndTs), zap.Any("hasValidMsg", hasValidMsg))
 		}
 	}
-	GetTSManager().CollectTS(r.targetPChannel, beginTS)
+	GetTSManager().CollectTS(tsManagerChannelKey, beginTS)
 	r.addCollectionLock.RUnlock()
 
 	if r.msgPackCallback != nil {
@@ -1562,26 +1592,26 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		position.ChannelName = pChannel
 	}
 
-	maxTS, _ := GetTSManager().GetMaxTS(r.targetPChannel)
+	maxTS, _ := GetTSManager().GetMaxTS(tsManagerChannelKey)
 	resetTS := resetMsgPackTimestamp(newPack, maxTS)
 	if resetTS {
-		GetTSManager().CollectTS(r.targetPChannel, newPack.EndTs)
+		GetTSManager().CollectTS(tsManagerChannelKey, newPack.EndTs)
 	}
 
-	GetTSManager().LockTargetChannel(r.targetPChannel)
-	defer GetTSManager().UnLockTargetChannel(r.targetPChannel)
+	GetTSManager().LockTargetChannel(tsManagerChannelKey)
+	defer GetTSManager().UnLockTargetChannel(tsManagerChannelKey)
 
-	if !needTsMsg && len(newPack.Msgs) == 0 && !GetTSManager().UnsafeShouldSendTSMsg(r.targetPChannel) {
+	if !needTsMsg && len(newPack.Msgs) == 0 && !GetTSManager().UnsafeShouldSendTSMsg(tsManagerChannelKey) {
 		return api.EmptyMsgPack
 	}
 
-	generateTS, ok := GetTSManager().UnsafeGetMaxTS(r.targetPChannel)
+	generateTS, ok := GetTSManager().UnsafeGetMaxTS(tsManagerChannelKey)
 	if !ok {
 		log.Warn("not found the max ts", zap.String("channel", r.targetPChannel))
 		r.sendErrEvent(fmt.Errorf("not found the max ts"))
 		return nil
 	}
-	GetTSManager().UnsafeUpdatePackTS(r.targetPChannel, newPack.BeginTs, func(newTS uint64) (uint64, bool) {
+	GetTSManager().UnsafeUpdatePackTS(tsManagerChannelKey, newPack.BeginTs, func(newTS uint64) (uint64, bool) {
 		generateTS = newTS
 		reset := resetMsgPackTimestamp(newPack, newTS)
 		return newPack.EndTs, reset
@@ -1611,7 +1641,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	}
 	newPack.Msgs = append(newPack.Msgs, timeTickMsg)
 
-	GetTSManager().UnsafeUpdateTSInfo(r.targetPChannel, generateTS, resetLastTs)
+	GetTSManager().UnsafeUpdateTSInfo(tsManagerChannelKey, generateTS, resetLastTs)
 	msgTime, _ := tsoutil.ParseHybridTs(generateTS)
 	TSMetricVec.WithLabelValues(r.targetPChannel).Set(float64(msgTime))
 	r.ttRateLog.Debug("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", generateTS))
