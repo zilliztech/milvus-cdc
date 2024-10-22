@@ -33,6 +33,12 @@ type SourceCollectionInfo struct {
 	ShardNum     int
 }
 
+// source collection info in the handler
+type HandlerCollectionInfo struct {
+	CollectionID int64
+	PChannel     string
+}
+
 type TargetCollectionInfo struct {
 	DatabaseName         string
 	CollectionID         int64

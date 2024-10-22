@@ -87,16 +87,6 @@ func NewCollectionReader(id string,
 		errChan:              make(chan error),
 		retryOptions:         util.GetRetryOptions(readerConfig.Retry),
 	}
-	// for _, collectionPositions := range seekPosition {
-	// 	for channel, msgPosition := range collectionPositions {
-	// 		pchannel := channel
-	// 		if IsVirtualChannel(pchannel) {
-	// 			pchannel = funcutil.ToPhysicalChannel(pchannel)
-	// 		}
-	// 		// TODO how to use the target channel
-	// 		GetTSManager().CollectTS(pchannel, msgPosition.GetTimestamp())
-	// 	}
-	// }
 	return reader, nil
 }
 

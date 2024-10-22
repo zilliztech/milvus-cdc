@@ -958,23 +958,24 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, info *meta.
 					_ = e.pauseTaskWithReason(info.TaskID, "fail to handle replicate message, invalid collection name or id", []meta.TaskState{})
 					return
 				}
-				pChannel := msgPack.EndPositions[0].GetChannelName()
-				if cdcreader.IsVirtualChannel(pChannel) {
-					pChannel = funcutil.ToPhysicalChannel(pChannel)
+				streamChannelName := replicateMsg.PChannelName
+				targetPChannel := msgPack.EndPositions[0].GetChannelName()
+				if cdcreader.IsVirtualChannel(targetPChannel) {
+					targetPChannel = funcutil.ToPhysicalChannel(targetPChannel)
 				}
-				position, targetPosition, err := entity.writerObj.HandleReplicateMessage(replicateCtx, pChannel, msgPack)
+				position, targetPosition, err := entity.writerObj.HandleReplicateMessage(replicateCtx, targetPChannel, msgPack)
 				if err != nil {
 					taskLog.Warn("fail to handle the replicate message", zap.Any("pack", msgPack), zap.Error(err))
 					_ = e.pauseTaskWithReason(info.TaskID, "fail to handle replicate message, err:"+err.Error(), []meta.TaskState{})
 					return
 				}
 				msgTime, _ := tsoutil.ParseHybridTs(msgPack.EndTs)
-				replicateMetric(info, channelName, msgPack, metrics.OPTypeWrite)
+				replicateMetric(info, streamChannelName, msgPack, metrics.OPTypeWrite)
 
 				metaPosition := &meta.PositionInfo{
 					Time: msgTime,
 					DataPair: &commonpb.KeyDataPair{
-						Key:  channelName,
+						Key:  streamChannelName,
 						Data: position,
 					},
 				}
@@ -986,14 +987,14 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, info *meta.
 				metaTargetPosition := &meta.PositionInfo{
 					Time: msgTime,
 					DataPair: &commonpb.KeyDataPair{
-						Key:  pChannel,
+						Key:  targetPChannel,
 						Data: targetPosition,
 					},
 				}
 				if position != nil {
 					msgCollectionName := replicateMsg.CollectionName
 					msgCollectionID := replicateMsg.CollectionID
-					err = writeCallback.UpdateTaskCollectionPosition(msgCollectionID, msgCollectionName, channelName,
+					err = writeCallback.UpdateTaskCollectionPosition(msgCollectionID, msgCollectionName, streamChannelName,
 						metaPosition, metaOpPosition, metaTargetPosition)
 					if err != nil {
 						log.Warn("fail to update the collection position", zap.Any("pack", msgPack), zap.Error(err))

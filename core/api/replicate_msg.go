@@ -23,16 +23,18 @@ import "github.com/milvus-io/milvus/pkg/mq/msgstream"
 var EmptyMsgPack = &ReplicateMsg{}
 
 type ReplicateMsg struct {
-	// source collection info
+	// source collection and channel info
 	CollectionName string
 	CollectionID   int64
+	PChannelName   string
 	MsgPack        *msgstream.MsgPack
 }
 
-func GetReplicateMsg(collectionName string, collectionID int64, msgPack *msgstream.MsgPack) *ReplicateMsg {
+func GetReplicateMsg(pchannelName string, collectionName string, collectionID int64, msgPack *msgstream.MsgPack) *ReplicateMsg {
 	return &ReplicateMsg{
 		CollectionName: collectionName,
 		CollectionID:   collectionID,
+		PChannelName:   pchannelName,
 		MsgPack:        msgPack,
 	}
 }

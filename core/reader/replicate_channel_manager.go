@@ -839,8 +839,8 @@ type replicateChannelHandler struct {
 
 	// key: source milvus collectionID value: *model.TargetCollectionInfo
 	recordLock        deadlock.RWMutex
-	collectionRecords map[int64]*model.TargetCollectionInfo // key is suorce collection id
-	collectionNames   map[string]int64
+	collectionRecords map[int64]*model.TargetCollectionInfo   // key is suorce collection id
+	collectionNames   map[string]*model.HandlerCollectionInfo // key is collection name, value is the source brief collection info
 	closeStreamFuncs  map[int64]io.Closer
 
 	forwardPackChan  chan *api.ReplicateMsg
@@ -878,7 +878,10 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 	}
 	r.recordLock.Lock()
 	r.collectionRecords[collectionID] = targetInfo
-	r.collectionNames[targetInfo.CollectionName] = collectionID
+	r.collectionNames[targetInfo.CollectionName] = &model.HandlerCollectionInfo{
+		CollectionID: collectionID,
+		PChannel:     sourceInfo.PChannel,
+	}
 	r.closeStreamFuncs[collectionID] = closeStreamFunc
 	go func() {
 		log.Info("start to handle the msg pack", zap.String("channel_name", sourceInfo.VChannel))
@@ -893,7 +896,7 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 					return
 				}
 
-				r.innerHandleReplicateMsg(false, api.GetReplicateMsg(targetInfo.CollectionName, collectionID, msgPack))
+				r.innerHandleReplicateMsg(false, api.GetReplicateMsg(sourceInfo.PChannel, targetInfo.CollectionName, collectionID, msgPack))
 			}
 		}
 	}()
@@ -941,7 +944,7 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 					},
 				},
 			}
-			r.generatePackChan <- api.GetReplicateMsg(targetInfo.CollectionName, collectionID, generateMsgPack)
+			r.generatePackChan <- api.GetReplicateMsg(sourceInfo.PChannel, targetInfo.CollectionName, collectionID, generateMsgPack)
 			dropCollectionLog.Info("has generate msg for dropped collection")
 			return struct{}{}, nil
 		})
@@ -1002,6 +1005,7 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 		return nil
 	}
 	targetInfo.PartitionBarrierChan[partitionID] = util.NewOnceWriteChan(barrierChan)
+	sourcePChannel := r.collectionNames[collectionName].PChannel
 	partitionLog.Info("add partition info done")
 	r.recordLock.Unlock()
 
@@ -1047,7 +1051,7 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 					},
 				},
 			}
-			r.generatePackChan <- api.GetReplicateMsg(targetInfo.CollectionName, collectionID, generateMsgPack)
+			r.generatePackChan <- api.GetReplicateMsg(sourcePChannel, collectionName, collectionID, generateMsgPack)
 			partitionLog.Info("has generate msg for dropped partition")
 			return struct{}{}, nil
 		})
@@ -1149,6 +1153,7 @@ func (r *replicateChannelHandler) innerHandleReplicateMsg(forward bool, msg *api
 	}
 	p.CollectionID = msg.CollectionID
 	p.CollectionName = msg.CollectionName
+	p.PChannelName = msg.PChannelName
 	GetTSManager().SendTargetMsg(r.targetPChannel, p)
 }
 
@@ -1232,7 +1237,7 @@ func (r *replicateChannelHandler) getCollectionTargetInfo(collectionID int64) (*
 func (r *replicateChannelHandler) containCollection(collectionName string) bool {
 	r.recordLock.RLock()
 	defer r.recordLock.RUnlock()
-	return r.collectionNames[collectionName] != 0
+	return r.collectionNames[collectionName] != nil
 }
 
 func (r *replicateChannelHandler) getPartitionID(sourceCollectionID, sourcePartitionID int64, info *model.TargetCollectionInfo, name string) (int64, error) {
@@ -1340,6 +1345,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	sourceCollectionID := int64(-1)
 	sourceCollectionName := ""
 	forwardChannel := ""
+	streamPChannel := ""
 
 	for _, msg := range pack.Msgs {
 		if forward {
@@ -1507,6 +1513,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		}
 		originPosition := msg.Position()
 		originPositionPChannel := funcutil.ToPhysicalChannel(originPosition.GetChannelName())
+		streamPChannel = originPositionPChannel
 		positionChannel := info.PChannel
 		if IsVirtualChannel(originPosition.GetChannelName()) {
 			positionChannel = info.VChannel
@@ -1544,7 +1551,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	}
 
 	if forwardChannel != "" {
-		r.forwardMsgFunc(forwardChannel, api.GetReplicateMsg(sourceCollectionName, sourceCollectionID, newPack))
+		r.forwardMsgFunc(forwardChannel, api.GetReplicateMsg(streamPChannel, sourceCollectionName, sourceCollectionID, newPack))
 		return api.EmptyMsgPack
 	}
 
@@ -1583,7 +1590,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	resetLastTs := needTsMsg
 	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
 	if !needTsMsg {
-		return api.GetReplicateMsg(sourceCollectionName, sourceCollectionID, newPack)
+		return api.GetReplicateMsg("", sourceCollectionName, sourceCollectionID, newPack)
 	}
 	timeTickResult := &msgpb.TimeTickMsg{
 		Base: commonpbutil.NewMsgBase(
@@ -1608,7 +1615,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	msgTime, _ := tsoutil.ParseHybridTs(generateTS)
 	TSMetricVec.WithLabelValues(r.targetPChannel).Set(float64(msgTime))
 	r.ttRateLog.Debug("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", generateTS))
-	return api.GetReplicateMsg(sourceCollectionName, sourceCollectionID, newPack)
+	return api.GetReplicateMsg("", sourceCollectionName, sourceCollectionID, newPack)
 }
 
 func resetMsgPackTimestamp(pack *msgstream.MsgPack, newTimestamp uint64) bool {
@@ -1757,7 +1764,7 @@ func initReplicateChannelHandler(ctx context.Context,
 		metaOp:             metaOp,
 		streamCreator:      streamCreator,
 		collectionRecords:  make(map[int64]*model.TargetCollectionInfo),
-		collectionNames:    make(map[string]int64),
+		collectionNames:    make(map[string]*model.HandlerCollectionInfo),
 		closeStreamFuncs:   make(map[int64]io.Closer),
 		apiEventChan:       apiEventChan,
 		forwardPackChan:    make(chan *api.ReplicateMsg, opts.MessageBufferSize),
