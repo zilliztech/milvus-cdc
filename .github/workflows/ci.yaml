@@ -96,14 +96,13 @@ jobs:
                   "extra_info": {
                       "enable_user_role": true
                   },
-                  "database_info": {
-                      "name": "*"
-                  },
-                  "collection_infos": [
-                      {
-                          "name": "*"
-                      }
-                  ]
+                  "db_collections": {
+                      "*": [
+                          {
+                            "name": "*" 
+                          }
+                      ]
+                  }
               }
           }'
 
@@ -262,14 +261,13 @@ jobs:
                   "extra_info": {
                       "enable_user_role": true
                   },
-                  "database_info": {
-                      "name": "*"
-                  },
-                  "collection_infos": [
-                      {
-                          "name": "*"
-                      }
-                  ]
+                  "db_collections": {
+                      "*": [
+                          {
+                            "name": "*" 
+                          }
+                      ]
+                  }
               }
           }'
         
@@ -405,14 +403,13 @@ jobs:
                     "extra_info": {
                         "enable_user_role": true
                     },
-                    "database_info": {
-                        "name": "*"
-                    },
-                    "collection_infos": [
-                        {
-                            "name": "*"
-                        }
-                    ]
+                    "db_collections": {
+                        "*": [
+                            {
+                              "name": "*" 
+                            }
+                        ]
+                    }
                 }
             }'
 
@@ -548,14 +545,13 @@ jobs:
                   "extra_info": {
                       "enable_user_role": true
                   },
-                  "database_info": {
-                      "name": "*"
-                  },
-                  "collection_infos": [
-                      {
-                          "name": "*"
-                      }
-                  ]
+                  "db_collections": {
+                      "*": [
+                          {
+                            "name": "*" 
+                          }
+                      ]
+                  }
               }
           }'
 
@@ -689,13 +685,12 @@ jobs:
                   "extra_info": {
                       "enable_user_role": true
                   },
-                  "collection_infos": [
-                      {
-                          "name": "*"
-                      }
-                  ],
-                  "database_info": {
-                      "name": "foo"
+                  "db_collections": {
+                      "foo": [
+                          {
+                            "name": "*" 
+                          }
+                      ]
                   }
               }
           }'
