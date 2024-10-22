@@ -761,10 +761,12 @@ func TestShouldReadCollection(t *testing.T) {
 					Name: "*",
 				},
 			},
-			ExcludeCollections: []string{"foo"},
+			ExcludeCollections: []string{"default.foo"},
 		})
 		assert.True(t, f(
-			&coremodel.DatabaseInfo{},
+			&coremodel.DatabaseInfo{
+				Name: cdcreader.DefaultDatabase,
+			},
 			&pb.CollectionInfo{
 				Schema: &schemapb.CollectionSchema{
 					Name: "hoo",
@@ -772,7 +774,9 @@ func TestShouldReadCollection(t *testing.T) {
 			}))
 
 		assert.False(t, f(
-			&coremodel.DatabaseInfo{},
+			&coremodel.DatabaseInfo{
+				Name: cdcreader.DefaultDatabase,
+			},
 			&pb.CollectionInfo{
 				Schema: &schemapb.CollectionSchema{
 					Name: "foo",
@@ -781,6 +785,7 @@ func TestShouldReadCollection(t *testing.T) {
 
 		assert.False(t, f(
 			&coremodel.DatabaseInfo{
+				Name:    cdcreader.DefaultDatabase,
 				Dropped: true,
 			},
 			&pb.CollectionInfo{
@@ -800,24 +805,30 @@ func TestShouldReadCollection(t *testing.T) {
 					Name: "b",
 				},
 			},
-			ExcludeCollections: []string{"foo"},
+			ExcludeCollections: []string{"default.foo"},
 		})
 		assert.True(t, f(
-			&coremodel.DatabaseInfo{},
+			&coremodel.DatabaseInfo{
+				Name: cdcreader.DefaultDatabase,
+			},
 			&pb.CollectionInfo{
 				Schema: &schemapb.CollectionSchema{
 					Name: "a",
 				},
 			}))
 		assert.False(t, f(
-			&coremodel.DatabaseInfo{},
+			&coremodel.DatabaseInfo{
+				Name: cdcreader.DefaultDatabase,
+			},
 			&pb.CollectionInfo{
 				Schema: &schemapb.CollectionSchema{
 					Name: "c",
 				},
 			}))
 		assert.False(t, f(
-			&coremodel.DatabaseInfo{},
+			&coremodel.DatabaseInfo{
+				Name: cdcreader.DefaultDatabase,
+			},
 			&pb.CollectionInfo{
 				Schema: &schemapb.CollectionSchema{
 					Name: "foo",

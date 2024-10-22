@@ -64,7 +64,7 @@ type TaskInfo struct {
 	KafkaConnectParam     model.KafkaConnectParam
 	WriterCacheConfig     model.BufferConfig
 	CollectionInfos       []model.CollectionInfo
-	DatabaseInfo          model.DatabaseInfo
+	DBCollections         map[string][]model.CollectionInfo
 	RPCRequestChannelInfo model.ChannelInfo
 	ExtraInfo             model.ExtraInfo
 	ExcludeCollections    []string // it's used for the `*` collection name
