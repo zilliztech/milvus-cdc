@@ -20,7 +20,9 @@ package reader
 
 import (
 	"context"
+	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,21 +75,21 @@ type tsManager struct {
 	// deprecated
 	lastMsgTS util.Map[string, uint64]
 
-	channelTS2        *typeutil.ConcurrentMap[string, *tsInfo]
-	channelTSLocks    *lock.KeyLock[string]
-	rateLog           *log.RateLog
-	targetChannelChan chan string
+	channelTS2         *typeutil.ConcurrentMap[string, *tsInfo]
+	channelTSLocks     *lock.KeyLock[string]
+	rateLog            *log.RateLog
+	targetChannelChans *typeutil.ConcurrentMap[string, chan string]
 }
 
 func GetTSManager() *tsManager {
 	tsOnce.Do(func() {
 		tsInstance = &tsManager{
-			retryOptions:      util.GetRetryOptions(config.GetCommonConfig().Retry),
-			lastTS:            util.NewValue[uint64](0),
-			rateLog:           log.NewRateLog(1, log.L()),
-			channelTS2:        typeutil.NewConcurrentMap[string, *tsInfo](),
-			channelTSLocks:    lock.NewKeyLock[string](),
-			targetChannelChan: make(chan string, 10),
+			retryOptions:       util.GetRetryOptions(config.GetCommonConfig().Retry),
+			lastTS:             util.NewValue[uint64](0),
+			rateLog:            log.NewRateLog(1, log.L()),
+			channelTS2:         typeutil.NewConcurrentMap[string, *tsInfo](),
+			channelTSLocks:     lock.NewKeyLock[string](),
+			targetChannelChans: typeutil.NewConcurrentMap[string, chan string](),
 		}
 	})
 	return tsInstance
@@ -134,6 +136,7 @@ func (m *tsManager) CollectTS(channelName string, currentTS uint64) {
 	}
 	ts2, ok := m.channelTS2.Get(channelName)
 	if !ok {
+		log.Warn("collect ts failed, channel not exist", zap.String("channelName", channelName))
 		m.channelTS2.Insert(channelName, &tsInfo{
 			cts: currentTS,
 		})
@@ -240,15 +243,19 @@ func (m *tsManager) UnLockTargetChannel(channelName string) {
 	m.channelTSLocks.Unlock(channelName)
 }
 
-func (m *tsManager) GetTargetChannelChan() <-chan string {
-	return m.targetChannelChan
+func (m *tsManager) GetTargetChannelChan(replicateID string) <-chan string {
+	m.channelTSLocks.RLock(replicateID)
+	defer m.channelTSLocks.RUnlock(replicateID)
+	c, _ := m.targetChannelChans.Get(replicateID)
+	return c
 }
 
-func (m *tsManager) GetTargetMsgChan(channelName string) <-chan *api.ReplicateMsg {
-	m.channelTSLocks.RLock(channelName)
-	defer m.channelTSLocks.RUnlock(channelName)
+func (m *tsManager) GetTargetMsgChan(replicateID string, channelName string) <-chan *api.ReplicateMsg {
+	channelKey := FormatChanKey(replicateID, channelName)
+	m.channelTSLocks.RLock(channelKey)
+	defer m.channelTSLocks.RUnlock(channelKey)
 
-	ts, ok := m.channelTS2.Get(channelName)
+	ts, ok := m.channelTS2.Get(channelKey)
 	if !ok {
 		return nil
 	}
@@ -267,17 +274,25 @@ func (m *tsManager) SendTargetMsg(channelName string, msg *api.ReplicateMsg) {
 	ts.targetMsgChan <- msg
 }
 
-func (m *tsManager) InitTSInfo(channelName string, p time.Duration, c uint64, channeBufferSize int) {
-	m.channelTSLocks.Lock(channelName)
-	defer m.channelTSLocks.Unlock(channelName)
+func (m *tsManager) InitTSInfo(replicateID string, channelName string, p time.Duration, c uint64, channeBufferSize int) {
+	channelKey := FormatChanKey(replicateID, channelName)
+	m.channelTSLocks.Lock(channelKey)
+	defer m.channelTSLocks.Unlock(channelKey)
 	if c == math.MaxUint64 {
 		c = 0
 	}
 	t := time.Now().Add(-p)
-	ts, ok := m.channelTS2.Get(channelName)
+	ts, ok := m.channelTS2.Get(channelKey)
 	if !ok {
-		m.targetChannelChan <- channelName
-		m.channelTS2.Insert(channelName, &tsInfo{
+		m.channelTSLocks.Lock(replicateID)
+		targetChannelChan, ok := m.targetChannelChans.Get(replicateID)
+		if !ok {
+			targetChannelChan = make(chan string, 10)
+			m.targetChannelChans.Insert(replicateID, targetChannelChan)
+		}
+		m.channelTSLocks.Unlock(replicateID)
+		targetChannelChan <- channelName
+		m.channelTS2.Insert(channelKey, &tsInfo{
 			cts:           c,
 			sts:           t,
 			period:        p,
@@ -342,4 +357,16 @@ func (m *tsManager) UnsafeGetMaxTS(channelName string) (uint64, bool) {
 		return 0, false
 	}
 	return ts.cts, true
+}
+
+func FormatChanKey(replicateID, channelName string) string {
+	return fmt.Sprintf("%s.%s", replicateID, channelName)
+}
+
+func ParseChanKey(key string) (string, string) {
+	lastSplit := strings.LastIndex(key, ".")
+	if lastSplit == -1 {
+		panic("invalid key")
+	}
+	return key[:lastSplit], key[lastSplit+1:]
 }

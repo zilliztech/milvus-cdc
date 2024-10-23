@@ -24,4 +24,5 @@ type ReaderConfig struct {
 	Retry             RetrySettings
 	SourceChannelNum  int
 	TargetChannelNum  int
+	ReplicateID       string
 }

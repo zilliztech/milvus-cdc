@@ -224,6 +224,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 			InitBackOff: 1,
 			MaxBackOff:  1,
 		},
+		ReplicateID: "127.0.0.1:19530",
 	}, &api.DefaultMetaOp{}, func(s string, pack *msgstream.MsgPack) {
 	}, "milvus")
 	assert.NoError(t, err)
@@ -410,6 +411,7 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 			InitBackOff: 1,
 			MaxBackOff:  1,
 		},
+		ReplicateID: "127.0.0.1:19530",
 	}, &api.DefaultMetaOp{}, func(s string, pack *msgstream.MsgPack) {
 	}, "kafka")
 	assert.NoError(t, err)
@@ -665,6 +667,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		factory := msgstream.NewMockFactory(t)
 		stream := msgstream.NewMockMsgStream(t)
 		targetClient := mocks.NewTargetAPI(t)
+		replicateID := "127.0.0.1:19530"
 
 		factory.EXPECT().NewMsgStream(mock.Anything).Return(stream, nil)
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(4)
@@ -689,6 +692,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		handler.isDroppedPartition = func(i int64) bool {
 			return false
 		}
+		handler.replicateID = replicateID
 		time.Sleep(100 * time.Millisecond)
 		handler.startReadChannel()
 
@@ -718,7 +722,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		handler.RemovePartitionInfo(2, "p2", 10002)
 
 		assert.False(t, handler.IsEmpty())
-		assert.NotNil(t, GetTSManager().GetTargetMsgChan(handler.targetPChannel))
+		assert.NotNil(t, GetTSManager().GetTargetMsgChan(replicateID, handler.targetPChannel))
 
 		// test updateTargetPartitionInfo
 		targetClient.EXPECT().GetPartitionInfo(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("mock error 2")).Once()
@@ -751,6 +755,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream := msgstream.NewMockMsgStream(t)
 		targetClient := mocks.NewTargetAPI(t)
 		streamChan := make(chan *msgstream.MsgPack)
+		replicateID := "127.0.0.1:19530"
 
 		factory.EXPECT().NewMsgStream(mock.Anything).Return(stream, nil)
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Twice()
@@ -782,6 +787,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			TTInterval: 10000,
 		})
 		assert.NoError(t, err)
+		handler.replicateID = replicateID
 		handler.startReadChannel()
 
 		handler.isDroppedCollection = func(i int64) bool {
@@ -790,7 +796,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		handler.isDroppedPartition = func(i int64) bool {
 			return false
 		}
-		GetTSManager().InitTSInfo(handler.targetPChannel, 100*time.Millisecond, math.MaxUint64, 10)
+		GetTSManager().InitTSInfo(replicateID, handler.targetPChannel, 100*time.Millisecond, math.MaxUint64, 10)
 
 		err = handler.AddPartitionInfo(&pb.CollectionInfo{
 			ID: 1,
@@ -807,7 +813,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		noRetry(handler)
 
 		done := make(chan struct{})
-		targetMsgChan := GetTSManager().GetTargetMsgChan(handler.targetPChannel)
+		targetMsgChan := GetTSManager().GetTargetMsgChan(replicateID, handler.targetPChannel)
 
 		go func() {
 			defer close(done)
