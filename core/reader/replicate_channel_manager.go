@@ -1182,10 +1182,6 @@ func (r *replicateChannelHandler) startReadChannel() {
 	if r.sourceSeekPosition != nil {
 		cts = r.sourceSeekPosition.GetTimestamp()
 	}
-	log.Info("start read channel in the handler before",
-		zap.String("channel_name", r.sourcePChannel),
-		zap.String("target_channel", r.targetPChannel),
-	)
 	GetTSManager().InitTSInfo(r.replicateID, r.targetPChannel, time.Duration(r.handlerOpts.TTInterval)*time.Millisecond, cts, r.handlerOpts.MessageBufferSize)
 	log.Info("start read channel in the handler",
 		zap.String("channel_name", r.sourcePChannel),
@@ -1193,10 +1189,6 @@ func (r *replicateChannelHandler) startReadChannel() {
 	)
 	close(r.startReadChan)
 	r.collectionSourceSeekPosition(r.sourceSeekPosition)
-	log.Info("start read channel in the handler end",
-		zap.String("channel_name", r.sourcePChannel),
-		zap.String("target_channel", r.targetPChannel),
-	)
 	go func() {
 		for {
 			select {
