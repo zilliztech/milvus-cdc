@@ -16,22 +16,37 @@
  * limitations under the License.
  */
 
-package config
+package tool
 
-type EtcdServerConfig struct {
-	Address     []string `yaml:"address"`
-	RootPath    string   `yaml:"rootPath"`
-	MetaSubPath string   `yaml:"metaSubPath"`
+import (
+	"io/ioutil"
+	"os"
 
-	// Auth config
-	EnableAuth bool   `yaml:"enableAuth"`
-	Username   string `yaml:"username"`
-	Password   string `yaml:"password"`
+	"github.com/pingcap/log"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gopkg.in/yaml.v2"
 
-	// TLS config
-	EnableTLS     bool   `yaml:"enableTLS"`
-	TLSCertPath   string `yaml:"tlsCertPath"`
-	TLSKeyPath    string `yaml:"tlsKeyPath"`
-	TLSCACertPath string `yaml:"tlsCACertPath"`
-	TLSMinVersion string `yaml:"tlsMinVersion"`
+	"github.com/milvus-io/milvus/pkg/util/paramtable"
+)
+
+func GetConfig[T any](fileName string) T {
+	paramtable.Init()
+	paramtable.Get().Save(paramtable.Get().ServiceParam.MQCfg.EnablePursuitMode.Key, "false")
+	log.ReplaceGlobals(zap.NewNop(), &log.ZapProperties{
+		Core:   zapcore.NewNopCore(),
+		Syncer: zapcore.AddSync(ioutil.Discard),
+		Level:  zap.NewAtomicLevel(),
+	})
+
+	fileContent, err := os.ReadFile("./configs/" + fileName)
+	if err != nil {
+		panic(err)
+	}
+	var positionConfig T
+	err = yaml.Unmarshal(fileContent, &positionConfig)
+	if err != nil {
+		panic(err)
+	}
+	return positionConfig
 }

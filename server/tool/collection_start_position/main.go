@@ -19,20 +19,15 @@
 package main
 
 import (
-	"context"
-	"encoding/base64"
 	"fmt"
 	"os"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"google.golang.org/protobuf/proto"
+	"go.uber.org/zap"
 	"sigs.k8s.io/yaml"
 
-	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-
 	"github.com/zilliztech/milvus-cdc/core/config"
-	"github.com/zilliztech/milvus-cdc/core/pb"
-	"github.com/zilliztech/milvus-cdc/core/util"
+	"github.com/zilliztech/milvus-cdc/core/log"
+	"github.com/zilliztech/milvus-cdc/server/tool"
 )
 
 var GlobalConfig StartCollectionConfig
@@ -49,52 +44,29 @@ type StartCollectionConfig struct {
 func main() {
 	fileContent, err := os.ReadFile("./configs/collection_start_position.yaml")
 	if err != nil {
-		panic(err)
+		log.Panic("Read config file failed", zap.Error(err))
 	}
 
 	var positionConfig StartCollectionConfig
 	err = yaml.Unmarshal(fileContent, &positionConfig)
 	if err != nil {
-		panic(err)
+		log.Panic("Unmarshal config failed", zap.Error(err))
 	}
 	GlobalConfig = positionConfig
 
-	var etcdConfig clientv3.Config
+	etcdConfig := GlobalConfig.EtcdServerConfig
 	if len(GlobalConfig.EtcdAddress) > 0 {
-		etcdConfig = clientv3.Config{
-			Endpoints: []string{GlobalConfig.EtcdAddress},
-		}
-	} else {
-		etcdConfig, err = util.GetEtcdConfig(GlobalConfig.EtcdServerConfig)
-		if err != nil {
-			panic(err)
+		etcdConfig = config.EtcdServerConfig{
+			Address:  []string{GlobalConfig.EtcdAddress},
+			RootPath: GlobalConfig.RootPath,
 		}
 	}
-	etcdClient, _ := clientv3.New(etcdConfig)
-	getResp, err := etcdClient.Get(context.Background(),
-		fmt.Sprintf("%s/meta/root-coord/database/collection-info/%s/%s", GlobalConfig.RootPath, GlobalConfig.DBID, GlobalConfig.CollectionID))
+	positions, err := tool.GetCollectionStartPosition(etcdConfig, tool.CollectionIDInfo{
+		DBID:         GlobalConfig.DBID,
+		CollectionID: GlobalConfig.CollectionID,
+	})
 	if err != nil {
-		panic(err)
+		log.Panic("Get collection start position failed", zap.Error(err))
 	}
-	bytesData := getResp.Kvs[0].Value
-
-	collectionInfo := &pb.CollectionInfo{}
-	err = proto.Unmarshal(bytesData, collectionInfo)
-	if err != nil {
-		panic(err)
-	}
-	for _, position := range collectionInfo.StartPositions {
-		msgPosition := &msgpb.MsgPosition{
-			ChannelName: position.Key,
-			MsgID:       position.Data,
-		}
-		positionData, err := proto.Marshal(msgPosition)
-		if err != nil {
-			panic(err)
-		}
-		base64Position := base64.StdEncoding.EncodeToString(positionData)
-		requestPosition := base64.StdEncoding.EncodeToString(position.Data)
-		fmt.Println("channelName: ", position.Key, " position: ", base64Position)
-		fmt.Println("channelName: ", position.Key, " request position: ", requestPosition)
-	}
+	fmt.Println(positions)
 }
