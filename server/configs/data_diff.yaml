@@ -1,0 +1,28 @@
+a:
+  milvusEtcdConfig:
+    address:
+      - localhost:2379
+    rootPath: by-dev
+  pulsar:
+    address: pulsar://localhost:6650
+    webAddress: localhost:80
+    maxMessageSize: 5242880
+    tenant: public
+    namespace: default
+  #kafka:
+  #  address: localhost:9092
+b:
+  milvusEtcdConfig:
+    address:
+      - localhost:2379
+    rootPath: by-dev
+  pulsar:
+    address: pulsar://localhost:6650
+    webAddress: localhost:80
+    maxMessageSize: 5242880
+    tenant: public
+    namespace: default
+  #kafka:
+  #  address: localhost:9092
+database: default
+collection: hello_milvus
