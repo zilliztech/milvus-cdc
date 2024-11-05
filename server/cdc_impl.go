@@ -1061,7 +1061,7 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 			}
 		} else {
 			// skip the msg when db or collection name is not matched
-			collectionInfos := GetCollectionInfos(info, msgDatabaseName)
+			collectionInfos := GetCollectionInfos(info, msgDatabaseName, msgCollectionName)
 			if collectionInfos == nil {
 				return true
 			}
@@ -1353,7 +1353,7 @@ func GetShouldReadFunc(taskInfo *meta.TaskInfo) cdcreader.ShouldReadFunc {
 			log.Info("database is dropped", zap.String("database", databaseInfo.Name), zap.String("collection", currentCollectionName))
 			return false
 		}
-		taskCollectionInfos := GetCollectionInfos(taskInfo, databaseInfo.Name)
+		taskCollectionInfos := GetCollectionInfos(taskInfo, databaseInfo.Name, currentCollectionName)
 		if taskCollectionInfos == nil {
 			return false
 		}
@@ -1361,7 +1361,7 @@ func GetShouldReadFunc(taskInfo *meta.TaskInfo) cdcreader.ShouldReadFunc {
 	}
 }
 
-func GetCollectionInfos(taskInfo *meta.TaskInfo, dbName string) []model.CollectionInfo {
+func GetCollectionInfos(taskInfo *meta.TaskInfo, dbName string, collectionName string) []model.CollectionInfo {
 	var taskCollectionInfos []model.CollectionInfo
 	if len(taskInfo.CollectionInfos) > 0 {
 		if dbName != cdcreader.DefaultDatabase {
@@ -1373,8 +1373,8 @@ func GetCollectionInfos(taskInfo *meta.TaskInfo, dbName string) []model.Collecti
 		taskCollectionInfos = taskInfo.DBCollections[dbName]
 		if taskCollectionInfos == nil {
 			isExclude := lo.ContainsBy(taskInfo.ExcludeCollections, func(s string) bool {
-				db, _ := getCollectionNameFromFull(s)
-				return db == dbName
+				db, collection := getCollectionNameFromFull(s)
+				return db == dbName && collection == collectionName
 			})
 			if isExclude {
 				return nil
