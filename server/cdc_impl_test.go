@@ -835,6 +835,46 @@ func TestShouldReadCollection(t *testing.T) {
 				},
 			}))
 	})
+
+	t.Run("db collections", func(t *testing.T) {
+		f := GetShouldReadFunc(&meta.TaskInfo{
+			DBCollections: map[string][]model.CollectionInfo{
+				"*": {
+					{
+						Name: "*",
+					},
+				},
+			},
+			ExcludeCollections: []string{"default.foo"},
+		})
+		assert.False(t, f(
+			&coremodel.DatabaseInfo{
+				Name: cdcreader.DefaultDatabase,
+			},
+			&pb.CollectionInfo{
+				Schema: &schemapb.CollectionSchema{
+					Name: "foo",
+				},
+			}))
+		assert.True(t, f(
+			&coremodel.DatabaseInfo{
+				Name: cdcreader.DefaultDatabase,
+			},
+			&pb.CollectionInfo{
+				Schema: &schemapb.CollectionSchema{
+					Name: "hoo",
+				},
+			}))
+		assert.True(t, f(
+			&coremodel.DatabaseInfo{
+				Name: "kind",
+			},
+			&pb.CollectionInfo{
+				Schema: &schemapb.CollectionSchema{
+					Name: "foo",
+				},
+			}))
+	})
 }
 
 func TestList(t *testing.T) {

@@ -126,6 +126,7 @@ func (c *CDCServer) handleRequest(cdcRequest *modelrequest.CDCRequest, writer ht
 		c.handleError(writer, fmt.Sprintf("fail to decode the %s request, error: %s", requestType, err.Error()), http.StatusInternalServerError)
 		return nil
 	}
+	log.Info("request receive", zap.String("type", requestType), zap.String("data", GetRequestInfo(requestModel)))
 	response, err := handler.handle(c.api, requestModel)
 	if err != nil {
 		code := http.StatusInternalServerError
@@ -137,4 +138,19 @@ func (c *CDCServer) handleRequest(cdcRequest *modelrequest.CDCRequest, writer ht
 	}
 
 	return response
+}
+
+func GetRequestInfo(request any) string {
+	r := request
+	if _, ok := request.(*modelrequest.CreateRequest); ok {
+		// deep copy
+		create := &modelrequest.CreateRequest{}
+		buffer, _ := json.Marshal(request)
+		_ = json.Unmarshal(buffer, create)
+		create.MilvusConnectParam.Password = ""
+		create.MilvusConnectParam.Token = ""
+		r = create
+	}
+	requestBytes, _ := json.Marshal(r)
+	return string(requestBytes)
 }
