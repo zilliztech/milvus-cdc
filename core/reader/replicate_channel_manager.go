@@ -564,7 +564,8 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, dbInfo *mode
 
 func (r *replicateChannelManager) StopReadCollection(ctx context.Context, info *pb.CollectionInfo) error {
 	for _, channel := range info.GetPhysicalChannelNames() {
-		r.stopReadChannel(channel, info.ID)
+		handler := r.stopReadChannel(channel, info.ID)
+		handler.Close()
 	}
 	r.collectionLock.Lock()
 	closeChan, ok := r.replicateCollections[info.ID]
@@ -816,17 +817,17 @@ func (r *replicateChannelManager) isDroppedPartition(partition int64) bool {
 	return ok
 }
 
-func (r *replicateChannelManager) stopReadChannel(pChannelName string, collectionID int64) {
+func (r *replicateChannelManager) stopReadChannel(pChannelName string, collectionID int64) *replicateChannelHandler {
 	r.channelLock.RLock()
 	mapKey := r.getChannelMapKey(collectionID, pChannelName)
 	if mapKey == "" {
 		r.channelLock.RUnlock()
-		return
+		return nil
 	}
 	channelHandler, ok := r.channelHandlerMap[mapKey]
 	if !ok {
 		r.channelLock.RUnlock()
-		return
+		return nil
 	}
 	r.channelLock.RUnlock()
 	channelHandler.RemoveCollection(collectionID)
@@ -834,6 +835,11 @@ func (r *replicateChannelManager) stopReadChannel(pChannelName string, collectio
 	// if channelHandler.IsEmpty() {
 	//	channelHandler.Close()
 	// }
+	return channelHandler
+}
+
+func (r *replicateChannelManager) Close(handler *replicateChannelHandler) {
+	handler.Close()
 }
 
 type replicateChannelHandler struct {
@@ -874,7 +880,12 @@ type replicateChannelHandler struct {
 }
 
 func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollectionInfo, targetInfo *model.TargetCollectionInfo) {
-	<-r.startReadChan
+	select {
+	case <-r.replicateCtx.Done():
+		log.Warn("replicate channel handler closed")
+		return
+	case <-r.startReadChan:
+	}
 	r.collectionSourceSeekPosition(sourceInfo.SeekPosition)
 	collectionID := sourceInfo.CollectionID
 	streamChan, closeStreamFunc, err := r.streamCreator.GetStreamChan(r.replicateCtx, sourceInfo.VChannel, sourceInfo.SeekPosition)
@@ -1152,6 +1163,13 @@ func (r *replicateChannelHandler) IsEmpty() bool {
 
 func (r *replicateChannelHandler) Close() {
 	// r.stream.Close()
+	r.recordLock.Lock()
+	defer r.recordLock.Unlock()
+	for _, closeStreamFunc := range r.closeStreamFuncs {
+		if closeStreamFunc != nil {
+			_ = closeStreamFunc.Close()
+		}
+	}
 }
 
 func (r *replicateChannelHandler) getTSManagerChannelKey(channelName string) string {

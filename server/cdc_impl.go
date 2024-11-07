@@ -173,12 +173,11 @@ func (e *MetaCDC) ReloadTask() {
 
 	for _, taskInfo := range taskInfos {
 		uKey := getTaskUniqueIDFromInfo(taskInfo)
-		newCollectionNames := lo.Map(taskInfo.CollectionInfos, func(t model.CollectionInfo, _ int) string {
-			return t.Name
-		})
+		newCollectionNames := GetCollectionNamesFromTaskInfo(taskInfo)
 		e.collectionNames.data[uKey] = append(e.collectionNames.data[uKey], newCollectionNames...)
 		e.collectionNames.excludeData[uKey] = append(e.collectionNames.excludeData[uKey], taskInfo.ExcludeCollections...)
 		e.collectionNames.excludeData[uKey] = lo.Uniq(e.collectionNames.excludeData[uKey])
+		e.collectionNames.extraInfos[uKey] = taskInfo.ExtraInfo
 		e.cdcTasks.Lock()
 		e.cdcTasks.data[taskInfo.TaskID] = taskInfo
 		e.cdcTasks.Unlock()
@@ -244,6 +243,40 @@ func getCollectionNameFromFull(fullName string) (string, string) {
 		panic("invalid full collection name")
 	}
 	return names[0], names[1]
+}
+
+func GetCollectionNamesFromTaskInfo(info *meta.TaskInfo) []string {
+	var newCollectionNames []string
+	if len(info.CollectionInfos) > 0 {
+		newCollectionNames = lo.Map(info.CollectionInfos, func(t model.CollectionInfo, _ int) string {
+			return getFullCollectionName(t.Name, cdcreader.DefaultDatabase)
+		})
+	}
+	if len(info.DBCollections) > 0 {
+		for db, infos := range info.DBCollections {
+			for _, t := range infos {
+				newCollectionNames = append(newCollectionNames, getFullCollectionName(t.Name, db))
+			}
+		}
+	}
+	return newCollectionNames
+}
+
+func GetCollectionNamesFromReq(req *request.CreateRequest) []string {
+	var newCollectionNames []string
+	if len(req.CollectionInfos) > 0 {
+		newCollectionNames = lo.Map(req.CollectionInfos, func(t model.CollectionInfo, _ int) string {
+			return getFullCollectionName(t.Name, cdcreader.DefaultDatabase)
+		})
+	}
+	if len(req.DBCollections) > 0 {
+		for db, infos := range req.DBCollections {
+			for _, t := range infos {
+				newCollectionNames = append(newCollectionNames, getFullCollectionName(t.Name, db))
+			}
+		}
+	}
+	return newCollectionNames
 }
 
 func matchCollectionName(sampleCollection, targetCollection string) (bool, bool) {
@@ -321,19 +354,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		return nil, err
 	}
 	uKey := getTaskUniqueIDFromReq(req)
-	var newCollectionNames []string
-	if len(req.CollectionInfos) > 0 {
-		newCollectionNames = lo.Map(req.CollectionInfos, func(t model.CollectionInfo, _ int) string {
-			return getFullCollectionName(t.Name, cdcreader.DefaultDatabase)
-		})
-	}
-	if len(req.DBCollections) > 0 {
-		for db, infos := range req.DBCollections {
-			for _, t := range infos {
-				newCollectionNames = append(newCollectionNames, getFullCollectionName(t.Name, db))
-			}
-		}
-	}
+	newCollectionNames := GetCollectionNamesFromReq(req)
 
 	excludeCollectionNames, err := e.checkDuplicateCollection(uKey, newCollectionNames, req.ExtraInfo)
 	if err != nil {
@@ -1185,11 +1206,8 @@ func (e *MetaCDC) delete(taskID string) error {
 	if err != nil {
 		return errors.WithMessage(err, "fail to delete the task meta, task_id: "+taskID)
 	}
-	var uKey string
-	milvusURI := GetMilvusURI(info.MilvusConnectParam)
-	kafkaAddress := GetKafkaAddress(info.KafkaConnectParam)
-	uKey = milvusURI + kafkaAddress
-	collectionNames := info.CollectionNames()
+	uKey := getTaskUniqueIDFromInfo(info)
+	collectionNames := GetCollectionNamesFromTaskInfo(info)
 	e.collectionNames.Lock()
 	e.collectionNames.excludeData[uKey] = lo.Without(e.collectionNames.excludeData[uKey], info.ExcludeCollections...)
 	e.collectionNames.data[uKey] = lo.Without(e.collectionNames.data[uKey], collectionNames...)
