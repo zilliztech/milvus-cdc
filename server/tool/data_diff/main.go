@@ -196,7 +196,8 @@ func GetStreamData(
 	readConfig DataReadConfig,
 	p *commonpb.KeyDataPair,
 	pkField *schemapb.FieldSchema,
-	timeout int) map[string]*PKData {
+	timeout int,
+) map[string]*PKData {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 	pchannel := funcutil.ToPhysicalChannel(p.GetKey())

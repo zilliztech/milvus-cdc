@@ -56,6 +56,7 @@ type ChannelWriter struct {
 	dbInfos         util.Map[string, uint64]
 	collectionInfos util.Map[string, uint64]
 	partitionInfos  util.Map[string, uint64]
+	nameMappings    util.Map[string, string]
 
 	retryOptions []retry.Option
 	downstream   string
@@ -168,6 +169,11 @@ func (c *ChannelWriter) HandleReplicateMessage(ctx context.Context, channelName 
 					zap.String("partition", insertMsg.GetPartitionName()),
 					zap.Uint64("insert_data_len", insertMsg.GetNumRows()),
 				)
+				dbName := insertMsg.GetDbName()
+				colName := insertMsg.GetCollectionName()
+				dbName, colName = c.mapDBAndCollectionName(dbName, colName)
+				insertMsg.DbName = dbName
+				insertMsg.CollectionName = colName
 			}
 			if msg.Type() == commonpb.MsgType_Delete {
 				deleteMsg := msg.(*msgstream.DeleteMsg)
@@ -176,6 +182,27 @@ func (c *ChannelWriter) HandleReplicateMessage(ctx context.Context, channelName 
 					zap.String("partition", deleteMsg.GetPartitionName()),
 					zap.Int64("delete_data_len", deleteMsg.GetNumRows()),
 				)
+				dbName := deleteMsg.GetDbName()
+				colName := deleteMsg.GetCollectionName()
+				dbName, colName = c.mapDBAndCollectionName(dbName, colName)
+				deleteMsg.DbName = dbName
+				deleteMsg.CollectionName = colName
+			}
+			if msg.Type() == commonpb.MsgType_DropPartition {
+				dropPartitionMsg := msg.(*msgstream.DropPartitionMsg)
+				dbName := dropPartitionMsg.GetDbName()
+				colName := dropPartitionMsg.GetCollectionName()
+				dbName, colName = c.mapDBAndCollectionName(dbName, colName)
+				dropPartitionMsg.DbName = dbName
+				dropPartitionMsg.CollectionName = colName
+			}
+			if msg.Type() == commonpb.MsgType_DropCollection {
+				dropCollectionMsg := msg.(*msgstream.DropCollectionMsg)
+				dbName := dropCollectionMsg.GetDbName()
+				colName := dropCollectionMsg.GetCollectionName()
+				dbName, colName = c.mapDBAndCollectionName(dbName, colName)
+				dropCollectionMsg.DbName = dbName
+				dropCollectionMsg.CollectionName = colName
 			}
 
 			log.Debug("replicate msg", logFields...)
@@ -270,8 +297,8 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 }
 
 // WaitDatabaseReady wait for database ready, return value: skip the op or not, wait timeout or not
-func (c *ChannelWriter) WaitDatabaseReady(ctx context.Context, databaseName string, msgTs uint64) InfoState {
-	if databaseName == "" {
+func (c *ChannelWriter) WaitDatabaseReady(ctx context.Context, databaseName string, msgTs uint64, collectionName string) InfoState {
+	if databaseName == "" || databaseName == util.DefaultDbName {
 		return InfoStateCreated
 	}
 	createKey, dropKey := util.GetDBInfoKeys(databaseName)
@@ -283,9 +310,10 @@ func (c *ChannelWriter) WaitDatabaseReady(ctx context.Context, databaseName stri
 		return s
 	}
 
+	dbName, _ := c.mapDBAndCollectionName(databaseName, collectionName)
 	err := retry.Do(ctx, func() error {
 		return c.dataHandler.DescribeDatabase(ctx, &api.DescribeDatabaseParam{
-			Name: databaseName,
+			Name: dbName,
 		})
 	}, c.retryOptions...)
 	if err == nil {
@@ -306,12 +334,13 @@ func (c *ChannelWriter) WaitCollectionReady(ctx context.Context, collectionName,
 		return s
 	}
 
+	dbName, colName := c.mapDBAndCollectionName(databaseName, collectionName)
 	err := retry.Do(ctx, func() error {
 		return c.dataHandler.DescribeCollection(ctx, &api.DescribeCollectionParam{
 			ReplicateParam: api.ReplicateParam{
-				Database: databaseName,
+				Database: dbName,
 			},
-			Name: collectionName,
+			Name: colName,
 		})
 	}, c.retryOptions...)
 	if err == nil {
@@ -331,12 +360,13 @@ func (c *ChannelWriter) WaitPartitionReady(ctx context.Context, collectionName, 
 		return s
 	}
 
+	dbName, colName := c.mapDBAndCollectionName(databaseName, collectionName)
 	err := retry.Do(ctx, func() error {
 		return c.dataHandler.DescribePartition(ctx, &api.DescribePartitionParam{
 			ReplicateParam: api.ReplicateParam{
-				Database: databaseName,
+				Database: dbName,
 			},
-			CollectionName: collectionName,
+			CollectionName: colName,
 			PartitionName:  partitionName,
 		})
 	}, c.retryOptions...)
@@ -371,7 +401,7 @@ func (c *ChannelWriter) WaitObjReady(ctx context.Context, db, collection, partit
 		return false, nil
 	}
 	if db != "" {
-		state := c.WaitDatabaseReady(ctx, db, ts)
+		state := c.WaitDatabaseReady(ctx, db, ts, collection)
 		if state == InfoStateUnknown {
 			return false, errors.Newf("database[%s] is not ready", db)
 		} else if state == InfoStateDropped {
@@ -409,6 +439,9 @@ func (c *ChannelWriter) createCollection(ctx context.Context, apiEvent *api.Repl
 	collectionInfo := apiEvent.CollectionInfo
 	entitySchema := &entity.Schema{}
 	entitySchema = entitySchema.ReadProto(collectionInfo.Schema)
+	dbName, colName := c.mapDBAndCollectionName(apiEvent.ReplicateParam.Database, entitySchema.CollectionName)
+	apiEvent.ReplicateParam.Database = dbName
+	entitySchema.CollectionName = colName
 	createParam := &api.CreateCollectionParam{
 		MsgBaseParam:     api.MsgBaseParam{Base: &commonpb.MsgBase{ReplicateInfo: apiEvent.ReplicateInfo}},
 		ReplicateParam:   apiEvent.ReplicateParam,
@@ -436,10 +469,12 @@ func (c *ChannelWriter) dropCollection(ctx context.Context, apiEvent *api.Replic
 	}
 	collectionName := apiEvent.CollectionInfo.Schema.GetName()
 	databaseName := apiEvent.ReplicateParam.Database
+	dbName, colName := c.mapDBAndCollectionName(databaseName, collectionName)
+	apiEvent.ReplicateParam.Database = dbName
 	dropParam := &api.DropCollectionParam{
 		MsgBaseParam:   api.MsgBaseParam{Base: &commonpb.MsgBase{ReplicateInfo: apiEvent.ReplicateInfo}},
 		ReplicateParam: apiEvent.ReplicateParam,
-		CollectionName: collectionName,
+		CollectionName: colName,
 	}
 	err := c.dataHandler.DropCollection(ctx, dropParam)
 	if err != nil {
@@ -459,10 +494,12 @@ func (c *ChannelWriter) createPartition(ctx context.Context, apiEvent *api.Repli
 			zap.String("collection", apiEvent.CollectionInfo.Schema.GetName()), zap.String("partition", util.Base64ProtoObj(apiEvent.PartitionInfo)))
 		return nil
 	}
+	dbName, colName := c.mapDBAndCollectionName(apiEvent.ReplicateParam.Database, apiEvent.CollectionInfo.Schema.GetName())
+	apiEvent.ReplicateParam.Database = dbName
 	createParam := &api.CreatePartitionParam{
 		MsgBaseParam:   api.MsgBaseParam{Base: &commonpb.MsgBase{ReplicateInfo: apiEvent.ReplicateInfo}},
 		ReplicateParam: apiEvent.ReplicateParam,
-		CollectionName: apiEvent.CollectionInfo.Schema.GetName(),
+		CollectionName: colName,
 		PartitionName:  apiEvent.PartitionInfo.PartitionName,
 	}
 	err := c.dataHandler.CreatePartition(ctx, createParam)
@@ -489,10 +526,12 @@ func (c *ChannelWriter) dropPartition(ctx context.Context, apiEvent *api.Replica
 	partitionName := apiEvent.PartitionInfo.PartitionName
 	collectionName := apiEvent.CollectionInfo.Schema.GetName()
 	databaseName := apiEvent.ReplicateParam.Database
+	dbName, colName := c.mapDBAndCollectionName(databaseName, collectionName)
+	apiEvent.ReplicateParam.Database = dbName
 	dropParam := &api.DropPartitionParam{
 		MsgBaseParam:   api.MsgBaseParam{Base: &commonpb.MsgBase{ReplicateInfo: apiEvent.ReplicateInfo}},
 		ReplicateParam: apiEvent.ReplicateParam,
-		CollectionName: collectionName,
+		CollectionName: colName,
 		PartitionName:  partitionName,
 	}
 	err := c.dataHandler.DropPartition(ctx, dropParam)
@@ -512,10 +551,11 @@ func (c *ChannelWriter) dropPartition(ctx context.Context, apiEvent *api.Replica
 
 func (c *ChannelWriter) createDatabase(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	createDatabaseMsg := msg.(*msgstream.CreateDatabaseMsg)
+	dbName, _ := c.mapDBAndCollectionName(createDatabaseMsg.GetDbName(), "")
 	err := c.dataHandler.CreateDatabase(ctx, &api.CreateDatabaseParam{
 		CreateDatabaseRequest: &milvuspb.CreateDatabaseRequest{
 			Base:   msgBase,
-			DbName: createDatabaseMsg.GetDbName(),
+			DbName: dbName,
 		},
 	})
 	if err != nil {
@@ -528,10 +568,11 @@ func (c *ChannelWriter) createDatabase(ctx context.Context, msgBase *commonpb.Ms
 func (c *ChannelWriter) dropDatabase(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	dropDatabaseMsg := msg.(*msgstream.DropDatabaseMsg)
 	databaseName := dropDatabaseMsg.GetDbName()
+	dbName, _ := c.mapDBAndCollectionName(databaseName, "")
 	err := c.dataHandler.DropDatabase(ctx, &api.DropDatabaseParam{
 		DropDatabaseRequest: &milvuspb.DropDatabaseRequest{
 			Base:   msgBase,
-			DbName: databaseName,
+			DbName: dbName,
 		},
 	})
 	if err != nil {
@@ -546,6 +587,8 @@ func (c *ChannelWriter) dropDatabase(ctx context.Context, msgBase *commonpb.MsgB
 func (c *ChannelWriter) alterDatabase(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	alterDatabaseMsg := msg.(*msgstream.AlterDatabaseMsg)
 	UpdateMsgBase(alterDatabaseMsg.Base, msgBase)
+	dbName, _ := c.mapDBAndCollectionName(alterDatabaseMsg.GetDbName(), "")
+	alterDatabaseMsg.AlterDatabaseRequest.DbName = dbName
 	err := c.dataHandler.AlterDatabase(ctx, &api.AlterDatabaseParam{
 		AlterDatabaseRequest: alterDatabaseMsg.AlterDatabaseRequest,
 	})
@@ -559,6 +602,8 @@ func (c *ChannelWriter) alterDatabase(ctx context.Context, msgBase *commonpb.Msg
 func (c *ChannelWriter) flush(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
 	flushMsg := msg.(*msgstream.FlushMsg)
 	var collectionNames []string
+	var mapCollectionNames []string
+	var mapDBName string
 	for _, s := range flushMsg.GetCollectionNames() {
 		if skip, err := c.WaitObjReady(ctx, flushMsg.GetDbName(), s, "", flushMsg.EndTs()); err != nil {
 			return err
@@ -568,17 +613,25 @@ func (c *ChannelWriter) flush(ctx context.Context, msgBase *commonpb.MsgBase, ms
 			continue
 		}
 		collectionNames = append(collectionNames, s)
+		dbName, colName := c.mapDBAndCollectionName(flushMsg.GetDbName(), s)
+		if mapDBName == "" {
+			mapDBName = dbName
+		} else if mapDBName != dbName {
+			log.Warn("flush msg has multiple databases", zap.String("db1", mapDBName), zap.String("db2", dbName))
+			return errors.New("flush msg has multiple databases")
+		}
+		mapCollectionNames = append(mapCollectionNames, colName)
 	}
 	if len(collectionNames) == 0 {
 		return nil
 	}
 	err := c.dataHandler.Flush(ctx, &api.FlushParam{
 		ReplicateParam: api.ReplicateParam{
-			Database: flushMsg.GetDbName(),
+			Database: mapDBName,
 		},
 		FlushRequest: &milvuspb.FlushRequest{
 			Base:            msgBase,
-			CollectionNames: collectionNames,
+			CollectionNames: mapCollectionNames,
 		},
 	})
 	if err != nil {
@@ -605,19 +658,24 @@ func (c *ChannelWriter) createIndex(ctx context.Context, msgBase *commonpb.MsgBa
 		return nil
 	}
 	UpdateMsgBase(createIndexMsg.Base, msgBase)
+	databaseName := createIndexMsg.GetDbName()
+	collectionName := createIndexMsg.GetCollectionName()
+	dbName, colName := c.mapDBAndCollectionName(databaseName, collectionName)
+	createIndexMsg.DbName = dbName
+	createIndexMsg.CollectionName = colName
 	err := c.dataHandler.CreateIndex(ctx, &api.CreateIndexParam{
 		ReplicateParam: api.ReplicateParam{
-			Database: createIndexMsg.GetDbName(),
+			Database: dbName,
 		},
 		CreateIndexRequest: createIndexMsg.CreateIndexRequest,
 	})
 	if err != nil {
 		log.Warn("fail to create index", zap.Any("msg", createIndexMsg), zap.Error(err))
-		skip, _ := c.WaitObjReady(ctx, createIndexMsg.GetDbName(), createIndexMsg.GetCollectionName(), "", createIndexMsg.EndTs())
+		skip, _ := c.WaitObjReady(ctx, databaseName, collectionName, "", createIndexMsg.EndTs())
 		if !skip {
 			return err
 		}
-		log.Info("collection has been dropped", zap.String("database", createIndexMsg.GetDbName()),
+		log.Info("collection has been dropped", zap.String("database", databaseName),
 			zap.String("collection", createIndexMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
@@ -632,25 +690,28 @@ func (c *ChannelWriter) dropIndex(ctx context.Context, msgBase *commonpb.MsgBase
 			zap.String("collection", dropIndexMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
 		return nil
 	}
+	databaseName := dropIndexMsg.GetDbName()
+	collectionName := dropIndexMsg.GetCollectionName()
+	dbName, colName := c.mapDBAndCollectionName(databaseName, collectionName)
 	err := c.dataHandler.DropIndex(ctx, &api.DropIndexParam{
 		ReplicateParam: api.ReplicateParam{
-			Database: dropIndexMsg.GetDbName(),
+			Database: dbName,
 		},
 		DropIndexRequest: &milvuspb.DropIndexRequest{
 			Base:           msgBase,
-			CollectionName: dropIndexMsg.GetCollectionName(),
+			CollectionName: colName,
 			FieldName:      dropIndexMsg.GetFieldName(),
 			IndexName:      dropIndexMsg.GetIndexName(),
 		},
 	})
 	if err != nil {
 		log.Warn("fail to drop index", zap.Any("msg", dropIndexMsg), zap.Error(err))
-		skip, _ := c.WaitObjReady(ctx, dropIndexMsg.GetDbName(), dropIndexMsg.GetCollectionName(), "", dropIndexMsg.EndTs())
+		skip, _ := c.WaitObjReady(ctx, databaseName, collectionName, "", dropIndexMsg.EndTs())
 		if !skip {
 			return err
 		}
-		log.Info("collection has been dropped", zap.String("database", dropIndexMsg.GetDbName()),
-			zap.String("collection", dropIndexMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
+		log.Info("collection has been dropped", zap.String("database", databaseName),
+			zap.String("collection", collectionName), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
 }
@@ -665,6 +726,8 @@ func (c *ChannelWriter) alterIndex(ctx context.Context, msgBase *commonpb.MsgBas
 		return nil
 	}
 	UpdateMsgBase(alterIndexMsg.Base, msgBase)
+	alterIndexMsg.DbName, alterIndexMsg.CollectionName = c.mapDBAndCollectionName(
+		alterIndexMsg.GetDbName(), alterIndexMsg.GetCollectionName())
 	err := c.dataHandler.AlterIndex(ctx, &api.AlterIndexParam{
 		AlterIndexRequest: alterIndexMsg.AlterIndexRequest,
 	})
@@ -685,20 +748,25 @@ func (c *ChannelWriter) loadCollection(ctx context.Context, msgBase *commonpb.Ms
 		return nil
 	}
 	UpdateMsgBase(loadCollectionMsg.Base, msgBase)
+	databaseName := loadCollectionMsg.GetDbName()
+	collectionName := loadCollectionMsg.GetCollectionName()
+	dbName, colName := c.mapDBAndCollectionName(databaseName, collectionName)
+	loadCollectionMsg.DbName = dbName
+	loadCollectionMsg.CollectionName = colName
 	err := c.dataHandler.LoadCollection(ctx, &api.LoadCollectionParam{
 		ReplicateParam: api.ReplicateParam{
-			Database: loadCollectionMsg.GetDbName(),
+			Database: dbName,
 		},
 		LoadCollectionRequest: loadCollectionMsg.LoadCollectionRequest,
 	})
 	if err != nil {
 		log.Warn("fail to load collection", zap.Any("msg", loadCollectionMsg), zap.Error(err))
-		skip, _ := c.WaitObjReady(ctx, loadCollectionMsg.GetDbName(), loadCollectionMsg.GetCollectionName(), "", loadCollectionMsg.EndTs())
+		skip, _ := c.WaitObjReady(ctx, databaseName, collectionName, "", loadCollectionMsg.EndTs())
 		if !skip {
 			return err
 		}
-		log.Info("collection has been dropped", zap.String("database", loadCollectionMsg.GetDbName()),
-			zap.String("collection", loadCollectionMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
+		log.Info("collection has been dropped", zap.String("database", databaseName),
+			zap.String("collection", collectionName), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
 }
@@ -712,23 +780,26 @@ func (c *ChannelWriter) releaseCollection(ctx context.Context, msgBase *commonpb
 			zap.String("collection", releaseCollectionMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
 		return nil
 	}
+	databaseName := releaseCollectionMsg.GetDbName()
+	collectionName := releaseCollectionMsg.GetCollectionName()
+	dbName, colName := c.mapDBAndCollectionName(databaseName, collectionName)
 	err := c.dataHandler.ReleaseCollection(ctx, &api.ReleaseCollectionParam{
 		ReplicateParam: api.ReplicateParam{
-			Database: releaseCollectionMsg.GetDbName(),
+			Database: dbName,
 		},
 		ReleaseCollectionRequest: &milvuspb.ReleaseCollectionRequest{
 			Base:           msgBase,
-			CollectionName: releaseCollectionMsg.GetCollectionName(),
+			CollectionName: colName,
 		},
 	})
 	if err != nil {
 		log.Warn("fail to release collection", zap.Any("msg", releaseCollectionMsg), zap.Error(err))
-		skip, _ := c.WaitObjReady(ctx, releaseCollectionMsg.GetDbName(), releaseCollectionMsg.GetCollectionName(), "", releaseCollectionMsg.EndTs())
+		skip, _ := c.WaitObjReady(ctx, databaseName, collectionName, "", releaseCollectionMsg.EndTs())
 		if !skip {
 			return err
 		}
-		log.Info("collection has been dropped", zap.String("database", releaseCollectionMsg.GetDbName()),
-			zap.String("collection", releaseCollectionMsg.GetCollectionName()), zap.String("msg", util.Base64Msg(msg)))
+		log.Info("collection has been dropped", zap.String("database", databaseName),
+			zap.String("collection", collectionName), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
 }
@@ -749,13 +820,16 @@ func (c *ChannelWriter) loadPartitions(ctx context.Context, msgBase *commonpb.Ms
 	if len(partitions) == 0 {
 		return nil
 	}
+	databaseName := loadPartitionsMsg.GetDbName()
+	collectionName := loadPartitionsMsg.GetCollectionName()
+	dbName, colName := c.mapDBAndCollectionName(databaseName, collectionName)
 	err := c.dataHandler.LoadPartitions(ctx, &api.LoadPartitionsParam{
 		ReplicateParam: api.ReplicateParam{
-			Database: loadPartitionsMsg.GetDbName(),
+			Database: dbName,
 		},
 		LoadPartitionsRequest: &milvuspb.LoadPartitionsRequest{
 			Base:           msgBase,
-			CollectionName: loadPartitionsMsg.GetCollectionName(),
+			CollectionName: colName,
 			PartitionNames: partitions,
 			ReplicaNumber:  loadPartitionsMsg.GetReplicaNumber(),
 		},
@@ -763,13 +837,13 @@ func (c *ChannelWriter) loadPartitions(ctx context.Context, msgBase *commonpb.Ms
 	if err != nil {
 		log.Warn("fail to load partitions", zap.Any("msg", loadPartitionsMsg), zap.Error(err))
 		for _, p := range partitions {
-			skip, _ := c.WaitObjReady(ctx, loadPartitionsMsg.GetDbName(), loadPartitionsMsg.GetCollectionName(), p, loadPartitionsMsg.EndTs())
+			skip, _ := c.WaitObjReady(ctx, databaseName, collectionName, p, loadPartitionsMsg.EndTs())
 			if !skip {
 				return err
 			}
 		}
-		log.Info("partition has been dropped", zap.String("database", loadPartitionsMsg.GetDbName()),
-			zap.String("collection", loadPartitionsMsg.GetCollectionName()), zap.Strings("partitions", partitions), zap.String("msg", util.Base64Msg(msg)))
+		log.Info("partition has been dropped", zap.String("database", databaseName),
+			zap.String("collection", collectionName), zap.Strings("partitions", partitions), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
 }
@@ -790,26 +864,29 @@ func (c *ChannelWriter) releasePartitions(ctx context.Context, msgBase *commonpb
 	if len(partitions) == 0 {
 		return nil
 	}
+	databaseName := releasePartitionsMsg.GetDbName()
+	collectionName := releasePartitionsMsg.GetCollectionName()
+	dbName, colName := c.mapDBAndCollectionName(databaseName, collectionName)
 	err := c.dataHandler.ReleasePartitions(ctx, &api.ReleasePartitionsParam{
 		ReplicateParam: api.ReplicateParam{
-			Database: releasePartitionsMsg.GetDbName(),
+			Database: databaseName,
 		},
 		ReleasePartitionsRequest: &milvuspb.ReleasePartitionsRequest{
 			Base:           msgBase,
-			CollectionName: releasePartitionsMsg.GetCollectionName(),
+			CollectionName: colName,
 			PartitionNames: partitions,
 		},
 	})
 	if err != nil {
 		log.Warn("fail to release partitions", zap.Any("msg", releasePartitionsMsg), zap.Error(err))
 		for _, p := range partitions {
-			skip, _ := c.WaitObjReady(ctx, releasePartitionsMsg.GetDbName(), releasePartitionsMsg.GetCollectionName(), p, releasePartitionsMsg.EndTs())
+			skip, _ := c.WaitObjReady(ctx, dbName, collectionName, p, releasePartitionsMsg.EndTs())
 			if !skip {
 				return err
 			}
 		}
-		log.Info("partition has been dropped", zap.String("database", releasePartitionsMsg.GetDbName()),
-			zap.String("collection", releasePartitionsMsg.GetCollectionName()), zap.Strings("partitions", partitions), zap.String("msg", util.Base64Msg(msg)))
+		log.Info("partition has been dropped", zap.String("database", dbName),
+			zap.String("collection", collectionName), zap.Strings("partitions", partitions), zap.String("msg", util.Base64Msg(msg)))
 	}
 	return nil
 }
@@ -903,6 +980,32 @@ func (c *ChannelWriter) operatePrivilege(ctx context.Context, msgBase *commonpb.
 		return err
 	}
 	return nil
+}
+
+func (c *ChannelWriter) mapDBAndCollectionName(db, collection string) (string, string) {
+	if db == "" {
+		db = util.DefaultDbName
+	}
+	returnDB, returnCollection := db, collection
+	c.nameMappings.Range(func(source, target string) bool {
+		sourceDB, sourceCollection := util.GetCollectionNameFromFull(source)
+		if sourceDB == db && sourceCollection == collection {
+			returnDB, returnCollection = util.GetCollectionNameFromFull(target)
+			return false
+		}
+		if sourceDB == db && (sourceCollection == "*" || collection == "") {
+			returnDB, _ = util.GetCollectionNameFromFull(target)
+			return false
+		}
+		return true
+	})
+	return returnDB, returnCollection
+}
+
+func (c *ChannelWriter) UpdateNameMappings(nameMappings map[string]string) {
+	for k, v := range nameMappings {
+		c.nameMappings.Store(k, v)
+	}
 }
 
 func UpdateMsgBase(msgBase *commonpb.MsgBase, withReplicateInfo *commonpb.MsgBase) {

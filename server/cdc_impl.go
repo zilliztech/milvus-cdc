@@ -71,6 +71,19 @@ type ReplicateEntity struct {
 	refCnt         atomic.Int32
 }
 
+func (r *ReplicateEntity) UpdateMapping(mapping map[string]string) {
+	w, ok := r.writerObj.(*cdcwriter.ChannelWriter)
+	if !ok {
+		return
+	}
+	w.UpdateNameMappings(mapping)
+	targetClient, ok := r.targetClient.(*cdcreader.TargetClient)
+	if !ok {
+		return
+	}
+	targetClient.UpdateNameMappings(mapping)
+}
+
 type MetaCDC struct {
 	BaseCDC
 	metaStoreFactory serverapi.MetaStoreFactory
@@ -85,6 +98,7 @@ type MetaCDC struct {
 		data        map[string][]string
 		excludeData map[string][]string
 		extraInfos  map[string]model.ExtraInfo
+		nameMapping map[string]map[string]string
 	}
 	cdcTasks struct {
 		sync.RWMutex
@@ -144,6 +158,7 @@ func NewMetaCDC(serverConfig *CDCServerConfig) *MetaCDC {
 	cdc.collectionNames.data = make(map[string][]string)
 	cdc.collectionNames.excludeData = make(map[string][]string)
 	cdc.collectionNames.extraInfos = make(map[string]model.ExtraInfo)
+	cdc.collectionNames.nameMapping = make(map[string]map[string]string)
 	cdc.cdcTasks.data = make(map[string]*meta.TaskInfo)
 	cdc.replicateEntityMap.data = make(map[string]*ReplicateEntity)
 	return cdc
@@ -233,29 +248,17 @@ func getTaskUniqueIDFromReq(req *request.CreateRequest) string {
 	panic("fail to get the task unique id")
 }
 
-func getFullCollectionName(collectionName string, databaseName string) string {
-	return fmt.Sprintf("%s.%s", databaseName, collectionName)
-}
-
-func getCollectionNameFromFull(fullName string) (string, string) {
-	names := strings.Split(fullName, ".")
-	if len(names) != 2 {
-		panic("invalid full collection name")
-	}
-	return names[0], names[1]
-}
-
 func GetCollectionNamesFromTaskInfo(info *meta.TaskInfo) []string {
 	var newCollectionNames []string
 	if len(info.CollectionInfos) > 0 {
 		newCollectionNames = lo.Map(info.CollectionInfos, func(t model.CollectionInfo, _ int) string {
-			return getFullCollectionName(t.Name, cdcreader.DefaultDatabase)
+			return util.GetFullCollectionName(t.Name, cdcreader.DefaultDatabase)
 		})
 	}
 	if len(info.DBCollections) > 0 {
 		for db, infos := range info.DBCollections {
 			for _, t := range infos {
-				newCollectionNames = append(newCollectionNames, getFullCollectionName(t.Name, db))
+				newCollectionNames = append(newCollectionNames, util.GetFullCollectionName(t.Name, db))
 			}
 		}
 	}
@@ -266,28 +269,58 @@ func GetCollectionNamesFromReq(req *request.CreateRequest) []string {
 	var newCollectionNames []string
 	if len(req.CollectionInfos) > 0 {
 		newCollectionNames = lo.Map(req.CollectionInfos, func(t model.CollectionInfo, _ int) string {
-			return getFullCollectionName(t.Name, cdcreader.DefaultDatabase)
+			return util.GetFullCollectionName(t.Name, cdcreader.DefaultDatabase)
 		})
 	}
 	if len(req.DBCollections) > 0 {
 		for db, infos := range req.DBCollections {
 			for _, t := range infos {
-				newCollectionNames = append(newCollectionNames, getFullCollectionName(t.Name, db))
+				newCollectionNames = append(newCollectionNames, util.GetFullCollectionName(t.Name, db))
 			}
 		}
 	}
 	return newCollectionNames
 }
 
+func GetCollectionMappingFromReq(req *request.CreateRequest) map[string]string {
+	mapCollectionNames := make(map[string]string)
+	for _, mapping := range req.NameMapping {
+		for s, t := range mapping.CollectionMapping {
+			mapCollectionNames[util.GetFullCollectionName(s, mapping.SourceDB)] = util.GetFullCollectionName(t, mapping.TargetDB)
+		}
+		if len(mapping.CollectionMapping) == 0 {
+			mapCollectionNames[util.GetFullCollectionName(cdcreader.AllCollection, mapping.SourceDB)] = util.GetFullCollectionName(cdcreader.AllCollection, mapping.TargetDB)
+		}
+	}
+	return mapCollectionNames
+}
+
+func GetCollectionMappingFromTaskInfo(info *meta.TaskInfo) map[string]string {
+	mapCollectionNames := make(map[string]string)
+	for _, mapping := range info.NameMapping {
+		for s, t := range mapping.CollectionMapping {
+			mapCollectionNames[util.GetFullCollectionName(s, mapping.SourceDB)] = util.GetFullCollectionName(t, mapping.TargetDB)
+		}
+		if len(mapping.CollectionMapping) == 0 {
+			mapCollectionNames[util.GetFullCollectionName(cdcreader.AllCollection, mapping.SourceDB)] = util.GetFullCollectionName(cdcreader.AllCollection, mapping.TargetDB)
+		}
+	}
+	return mapCollectionNames
+}
+
 func matchCollectionName(sampleCollection, targetCollection string) (bool, bool) {
-	db1, collection1 := getCollectionNameFromFull(sampleCollection)
-	db2, collection2 := getCollectionNameFromFull(targetCollection)
+	db1, collection1 := util.GetCollectionNameFromFull(sampleCollection)
+	db2, collection2 := util.GetCollectionNameFromFull(targetCollection)
 	return (db1 == db2 || db1 == cdcreader.AllDatabase) &&
 			(collection1 == collection2 || collection1 == cdcreader.AllCollection),
 		db1 == cdcreader.AllDatabase || collection1 == cdcreader.AllCollection
 }
 
-func (e *MetaCDC) checkDuplicateCollection(uKey string, newCollectionNames []string, extraInfo model.ExtraInfo) ([]string, error) {
+func (e *MetaCDC) checkDuplicateCollection(uKey string,
+	newCollectionNames []string,
+	extraInfo model.ExtraInfo,
+	mapCollectionNames map[string]string,
+) ([]string, error) {
 	e.collectionNames.Lock()
 	defer e.collectionNames.Unlock()
 	existExtraInfo := e.collectionNames.extraInfos[uKey]
@@ -298,7 +331,7 @@ func (e *MetaCDC) checkDuplicateCollection(uKey string, newCollectionNames []str
 		var duplicateCollections []string
 		containsAny := false
 		for _, name := range names {
-			d, c := getCollectionNameFromFull(name)
+			d, c := util.GetCollectionNameFromFull(name)
 			if d == cdcreader.AllDatabase || c == cdcreader.AllCollection {
 				containsAny = true
 			}
@@ -308,7 +341,7 @@ func (e *MetaCDC) checkDuplicateCollection(uKey string, newCollectionNames []str
 				duplicateCollections = append(duplicateCollections, newCollectionName)
 				continue
 			}
-			nd, nc := getCollectionNameFromFull(newCollectionName)
+			nd, nc := util.GetCollectionNameFromFull(newCollectionName)
 			if nd == cdcreader.AllDatabase && nc == cdcreader.AllCollection {
 				continue
 			}
@@ -326,7 +359,23 @@ func (e *MetaCDC) checkDuplicateCollection(uKey string, newCollectionNames []str
 			return nil, servererror.NewClientError(fmt.Sprintf("the collection name is duplicate with existing task, %v", duplicateCollections))
 		}
 	}
-	// release lock early to accept other requests
+	if len(mapCollectionNames) > 0 {
+		for name := range mapCollectionNames {
+			var match bool
+			for _, newName := range newCollectionNames {
+				match, _ = matchCollectionName(newName, name)
+				if match {
+					break
+				}
+			}
+			if !match {
+				log.Warn("the collection name in the name mapping is not in the collection info",
+					zap.Strings("collection_names", newCollectionNames),
+					zap.String("mapping_name", name))
+				return nil, servererror.NewClientError("the collection name in the name mapping is not in the collection info, checkout it")
+			}
+		}
+	}
 	var excludeCollectionNames []string
 	for _, newCollectionName := range newCollectionNames {
 		for _, existCollectionName := range e.collectionNames.data[uKey] {
@@ -339,6 +388,14 @@ func (e *MetaCDC) checkDuplicateCollection(uKey string, newCollectionNames []str
 	e.collectionNames.data[uKey] = append(e.collectionNames.data[uKey], newCollectionNames...)
 	e.collectionNames.extraInfos[uKey] = model.ExtraInfo{
 		EnableUserRole: existExtraInfo.EnableUserRole || extraInfo.EnableUserRole,
+	}
+	nameMappings := e.collectionNames.nameMapping[uKey]
+	if nameMappings == nil {
+		nameMappings = make(map[string]string)
+		e.collectionNames.nameMapping[uKey] = nameMappings
+	}
+	for s, t := range mapCollectionNames {
+		nameMappings[s] = t
 	}
 	return excludeCollectionNames, nil
 }
@@ -355,8 +412,9 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	}
 	uKey := getTaskUniqueIDFromReq(req)
 	newCollectionNames := GetCollectionNamesFromReq(req)
+	mapCollectionNames := GetCollectionMappingFromReq(req)
 
-	excludeCollectionNames, err := e.checkDuplicateCollection(uKey, newCollectionNames, req.ExtraInfo)
+	excludeCollectionNames, err := e.checkDuplicateCollection(uKey, newCollectionNames, req.ExtraInfo, mapCollectionNames)
 	if err != nil {
 		return nil, err
 	}
@@ -383,6 +441,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		KafkaConnectParam:     req.KafkaConnectParam,
 		CollectionInfos:       req.CollectionInfos,
 		DBCollections:         req.DBCollections,
+		NameMapping:           req.NameMapping,
 		RPCRequestChannelInfo: req.RPCChannelInfo,
 		ExtraInfo:             req.ExtraInfo,
 		ExcludeCollections:    excludeCollectionNames,
@@ -722,6 +781,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 		cancelReadFunc()
 	})
 	replicateEntity.refCnt.Inc()
+	replicateEntity.UpdateMapping(GetCollectionMappingFromTaskInfo(info))
 
 	if !ignoreUpdateState {
 		err = store.UpdateTaskState(e.metaStoreFactory.GetTaskInfoMetaStore(ctx), info.TaskID, meta.TaskStateRunning, []meta.TaskState{meta.TaskStateInitial, meta.TaskStatePaused}, "")
@@ -841,6 +901,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	}, metaOp.GetAllDroppedObj(), downstream)
 	e.replicateEntityMap.Lock()
 	defer e.replicateEntityMap.Unlock()
+	// TODO fubang should be fix
 	entity, ok := e.replicateEntityMap.data[uKey]
 	if !ok {
 		replicateCtx, cancelReplicateFunc := context.WithCancel(ctx)
@@ -1391,7 +1452,7 @@ func GetCollectionInfos(taskInfo *meta.TaskInfo, dbName string, collectionName s
 		taskCollectionInfos = taskInfo.DBCollections[dbName]
 		if taskCollectionInfos == nil {
 			isExclude := lo.ContainsBy(taskInfo.ExcludeCollections, func(s string) bool {
-				db, collection := getCollectionNameFromFull(s)
+				db, collection := util.GetCollectionNameFromFull(s)
 				return db == dbName && collection == collectionName
 			})
 			if isExclude {
@@ -1410,7 +1471,7 @@ func MatchCollection(taskInfo *meta.TaskInfo, taskCollectionInfos []model.Collec
 		return taskCollectionInfo.Name == currentCollectionName
 	})
 	starContains := isAllCollection && !lo.ContainsBy(taskInfo.ExcludeCollections, func(s string) bool {
-		match, _ := matchCollectionName(s, getFullCollectionName(currentCollectionName, currentDatabaseName))
+		match, _ := matchCollectionName(s, util.GetFullCollectionName(currentCollectionName, currentDatabaseName))
 		return match
 	})
 	return notStarContains || starContains

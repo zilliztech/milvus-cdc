@@ -40,8 +40,9 @@ import (
 var _ api.TargetAPI = (*TargetClient)(nil)
 
 type TargetClient struct {
-	client client.Client
-	config TargetConfig
+	client       client.Client
+	config       TargetConfig
+	nameMappings util.Map[string, string]
 }
 
 type TargetConfig struct {
@@ -81,8 +82,9 @@ func (t *TargetClient) GetCollectionInfo(ctx context.Context, collectionName, da
 	}
 
 	collectionInfo := &model.CollectionInfo{}
-	err = t.milvusOp(ctx, databaseName, func(milvus client.Client) error {
-		collection, err := milvus.DescribeCollection(ctx, collectionName)
+	dbName, colName := t.mapDBAndCollectionName(databaseName, collectionName)
+	err = t.milvusOp(ctx, dbName, func(milvus client.Client) error {
+		collection, err := milvus.DescribeCollection(ctx, colName)
 		if err != nil {
 			return err
 		}
@@ -116,8 +118,9 @@ func (t *TargetClient) GetPartitionInfo(ctx context.Context, collectionName, dat
 	}
 	collectionInfo := &model.CollectionInfo{}
 	var partition []*entity.Partition
-	err = t.milvusOp(ctx, databaseName, func(milvus client.Client) error {
-		partition, err = milvus.ShowPartitions(ctx, collectionName)
+	dbName, colName := t.mapDBAndCollectionName(databaseName, collectionName)
+	err = t.milvusOp(ctx, dbName, func(milvus client.Client) error {
+		partition, err = milvus.ShowPartitions(ctx, colName)
 		if err != nil {
 			return err
 		}
@@ -177,4 +180,30 @@ func (t *TargetClient) GetDatabaseName(ctx context.Context, collectionName, data
 	}
 	dbLog.Warn("not found the database", zap.Any("databases", databaseNames))
 	return "", util.NotFoundDatabase
+}
+
+func (t *TargetClient) UpdateNameMappings(nameMappings map[string]string) {
+	for k, v := range nameMappings {
+		t.nameMappings.Store(k, v)
+	}
+}
+
+func (t *TargetClient) mapDBAndCollectionName(db, collection string) (string, string) {
+	if db == "" {
+		db = util.DefaultDbName
+	}
+	returnDB, returnCollection := db, collection
+	t.nameMappings.Range(func(source, target string) bool {
+		sourceDB, sourceCollection := util.GetCollectionNameFromFull(source)
+		if sourceDB == db && sourceCollection == collection {
+			returnDB, returnCollection = util.GetCollectionNameFromFull(target)
+			return false
+		}
+		if sourceDB == db && (sourceCollection == "*" || collection == "") {
+			returnDB, _ = util.GetCollectionNameFromFull(target)
+			return false
+		}
+		return true
+	})
+	return returnDB, returnCollection
 }

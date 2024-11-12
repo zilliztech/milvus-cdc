@@ -188,3 +188,15 @@ func ParseVChannel(virtualName string) (ChannelInfo, error) {
 		ShardIndex:   int(shardIdx),
 	}, nil
 }
+
+func GetFullCollectionName(collectionName string, databaseName string) string {
+	return fmt.Sprintf("%s.%s", databaseName, collectionName)
+}
+
+func GetCollectionNameFromFull(fullName string) (string, string) {
+	names := strings.Split(fullName, ".")
+	if len(names) != 2 {
+		panic("invalid full collection name")
+	}
+	return names[0], names[1]
+}

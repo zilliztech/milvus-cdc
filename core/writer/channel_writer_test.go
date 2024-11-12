@@ -70,7 +70,7 @@ func TestChannelWriter(t *testing.T) {
 		dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(errors.New("mock")).Once()
 		dataHandler.EXPECT().DescribeDatabase(mock.Anything, mock.Anything).Return(nil).Once()
 		realWriter := w.(*ChannelWriter)
-		assert.True(t, realWriter.WaitDatabaseReady(context.Background(), "test", 0) == InfoStateCreated)
+		assert.True(t, realWriter.WaitDatabaseReady(context.Background(), "test", 0, "") == InfoStateCreated)
 	})
 
 	t.Run("handler api event", func(t *testing.T) {
