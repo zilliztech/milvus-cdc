@@ -79,6 +79,12 @@ type BufferConfig struct {
 	Size   int `json:"size" mapstructure:"size"`
 }
 
+type NameMapping struct {
+	SourceDB          string            `json:"source_db" mapstructure:"source_db"`
+	TargetDB          string            `json:"target_db" mapstructure:"target_db"`
+	CollectionMapping map[string]string `json:"collection_mapping" mapstructure:"collection_mapping"`
+}
+
 const (
 	// TmpCollectionID which means it's the user custom collection position
 	TmpCollectionID int64 = -1

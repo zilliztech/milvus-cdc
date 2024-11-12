@@ -65,6 +65,7 @@ type TaskInfo struct {
 	WriterCacheConfig     model.BufferConfig
 	CollectionInfos       []model.CollectionInfo
 	DBCollections         map[string][]model.CollectionInfo
+	NameMapping           []model.NameMapping
 	RPCRequestChannelInfo model.ChannelInfo
 	ExtraInfo             model.ExtraInfo
 	ExcludeCollections    []string // it's used for the `*` collection name
@@ -78,6 +79,20 @@ func (t *TaskInfo) CollectionNames() []string {
 		names[i] = info.Name
 	}
 	return names
+}
+
+func (t *TaskInfo) MapNames(db, collection string) (string, string) {
+	for _, mapping := range t.NameMapping {
+		if mapping.SourceDB == db {
+			if len(mapping.CollectionMapping) == 0 {
+				return mapping.TargetDB, collection
+			}
+			if newCollection, ok := mapping.CollectionMapping[collection]; ok {
+				return mapping.TargetDB, newCollection
+			}
+		}
+	}
+	return db, collection
 }
 
 type PositionInfo struct {

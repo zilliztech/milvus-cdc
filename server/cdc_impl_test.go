@@ -701,6 +701,7 @@ func initMetaCDCMap(cdc *MetaCDC) {
 	cdc.collectionNames.data = map[string][]string{}
 	cdc.collectionNames.excludeData = map[string][]string{}
 	cdc.collectionNames.extraInfos = map[string]model.ExtraInfo{}
+	cdc.collectionNames.nameMapping = map[string]map[string]string{}
 	cdc.collectionNames.Unlock()
 
 	cdc.cdcTasks.Lock()
@@ -1446,17 +1447,17 @@ func TestCheckDuplicateCollection(t *testing.T) {
 		initMetaCDCMap(metaCDC)
 		_, err := metaCDC.checkDuplicateCollection("foo", []string{}, model.ExtraInfo{
 			EnableUserRole: true,
-		})
+		}, nil)
 		assert.NoError(t, err)
 
 		_, err = metaCDC.checkDuplicateCollection("foo", []string{}, model.ExtraInfo{
 			EnableUserRole: true,
-		})
+		}, nil)
 		assert.Error(t, err)
 
 		_, err = metaCDC.checkDuplicateCollection("hoo", []string{}, model.ExtraInfo{
 			EnableUserRole: true,
-		})
+		}, nil)
 		assert.NoError(t, err)
 	})
 
@@ -1465,37 +1466,37 @@ func TestCheckDuplicateCollection(t *testing.T) {
 		initMetaCDCMap(metaCDC)
 
 		excludeCollections, err := metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("foo", "default"),
-			getFullCollectionName("hoo", "default"),
+			util.GetFullCollectionName("foo", "default"),
+			util.GetFullCollectionName("hoo", "default"),
 		}, model.ExtraInfo{
 			EnableUserRole: true,
-		})
+		}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, excludeCollections, 0)
 
 		excludeCollections, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("*", "default"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("*", "default"),
+		}, model.ExtraInfo{}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, excludeCollections, 2)
 
 		_, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("doo", "default"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("doo", "default"),
+		}, model.ExtraInfo{}, nil)
 		assert.Error(t, err)
 
 		metaCDC.collectionNames.Lock()
-		metaCDC.collectionNames.data["foo"] = lo.Without(metaCDC.collectionNames.data["foo"], getFullCollectionName("foo", "default"))
+		metaCDC.collectionNames.data["foo"] = lo.Without(metaCDC.collectionNames.data["foo"], util.GetFullCollectionName("foo", "default"))
 		metaCDC.collectionNames.Unlock()
 
 		_, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("hoo", "default"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("hoo", "default"),
+		}, model.ExtraInfo{}, nil)
 		assert.Error(t, err)
 
 		excludeCollections, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("foo", "default"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("foo", "default"),
+		}, model.ExtraInfo{}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, excludeCollections, 0)
 	})
@@ -1505,37 +1506,37 @@ func TestCheckDuplicateCollection(t *testing.T) {
 		initMetaCDCMap(metaCDC)
 
 		excludeCollections, err := metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("foo", "db1"),
-			getFullCollectionName("foo", "db2"),
+			util.GetFullCollectionName("foo", "db1"),
+			util.GetFullCollectionName("foo", "db2"),
 		}, model.ExtraInfo{
 			EnableUserRole: true,
-		})
+		}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, excludeCollections, 0)
 
 		excludeCollections, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("foo", "*"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("foo", "*"),
+		}, model.ExtraInfo{}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, excludeCollections, 2)
 
 		_, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("foo", "db3"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("foo", "db3"),
+		}, model.ExtraInfo{}, nil)
 		assert.Error(t, err)
 
 		metaCDC.collectionNames.Lock()
-		metaCDC.collectionNames.data["foo"] = lo.Without(metaCDC.collectionNames.data["foo"], getFullCollectionName("foo", "db1"))
+		metaCDC.collectionNames.data["foo"] = lo.Without(metaCDC.collectionNames.data["foo"], util.GetFullCollectionName("foo", "db1"))
 		metaCDC.collectionNames.Unlock()
 
 		_, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("foo", "db2"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("foo", "db2"),
+		}, model.ExtraInfo{}, nil)
 		assert.Error(t, err)
 
 		excludeCollections, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("foo", "db1"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("foo", "db1"),
+		}, model.ExtraInfo{}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, excludeCollections, 0)
 	})
@@ -1545,48 +1546,77 @@ func TestCheckDuplicateCollection(t *testing.T) {
 		initMetaCDCMap(metaCDC)
 
 		excludeCollections, err := metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("foo", "*"),
-			getFullCollectionName("hoo", "db2"),
+			util.GetFullCollectionName("foo", "*"),
+			util.GetFullCollectionName("hoo", "db2"),
 		}, model.ExtraInfo{
 			EnableUserRole: true,
-		})
+		}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, excludeCollections, 0)
 
 		excludeCollections, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("*", "*"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("*", "*"),
+		}, model.ExtraInfo{}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, excludeCollections, 2)
 
 		_, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("foo", "db3"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("foo", "db3"),
+		}, model.ExtraInfo{}, nil)
 		assert.Error(t, err)
 
 		metaCDC.collectionNames.Lock()
-		metaCDC.collectionNames.data["foo"] = lo.Without(metaCDC.collectionNames.data["foo"], getFullCollectionName("foo", "*"))
+		metaCDC.collectionNames.data["foo"] = lo.Without(metaCDC.collectionNames.data["foo"], util.GetFullCollectionName("foo", "*"))
 		metaCDC.collectionNames.Unlock()
 
 		_, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("foo", "db2"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("foo", "db2"),
+		}, model.ExtraInfo{}, nil)
 		assert.Error(t, err)
 
 		_, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("hoo", "*"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("hoo", "*"),
+		}, model.ExtraInfo{}, nil)
 		assert.Error(t, err)
 
 		_, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("hoo", "db2"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("hoo", "db2"),
+		}, model.ExtraInfo{}, nil)
 		assert.Error(t, err)
 
 		excludeCollections, err = metaCDC.checkDuplicateCollection("foo", []string{
-			getFullCollectionName("foo", "*"),
-		}, model.ExtraInfo{})
+			util.GetFullCollectionName("foo", "*"),
+		}, model.ExtraInfo{}, nil)
 		assert.NoError(t, err)
 		assert.Len(t, excludeCollections, 0)
+	})
+
+	t.Run("map collection name", func(t *testing.T) {
+		metaCDC := &MetaCDC{}
+		initMetaCDCMap(metaCDC)
+
+		{
+			_, err := metaCDC.checkDuplicateCollection("foo", []string{
+				util.GetFullCollectionName("foo", "*"),
+				util.GetFullCollectionName("hoo", "db2"),
+			}, model.ExtraInfo{
+				EnableUserRole: true,
+			}, map[string]string{
+				"db.hoo": "dbb.hoo",
+			})
+			assert.Error(t, err)
+		}
+
+		{
+			_, err := metaCDC.checkDuplicateCollection("foo", []string{
+				util.GetFullCollectionName("foo", "*"),
+				util.GetFullCollectionName("hoo", "db2"),
+			}, model.ExtraInfo{
+				EnableUserRole: true,
+			}, map[string]string{
+				"db.foo": "dbb.hoo",
+			})
+			assert.NoError(t, err)
+		}
 	})
 }
