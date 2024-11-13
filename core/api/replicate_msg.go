@@ -27,14 +27,16 @@ type ReplicateMsg struct {
 	CollectionName string
 	CollectionID   int64
 	PChannelName   string
+	TaskID         string
 	MsgPack        *msgstream.MsgPack
 }
 
-func GetReplicateMsg(pchannelName string, collectionName string, collectionID int64, msgPack *msgstream.MsgPack) *ReplicateMsg {
+func GetReplicateMsg(pchannelName string, collectionName string, collectionID int64, msgPack *msgstream.MsgPack, taskID string) *ReplicateMsg {
 	return &ReplicateMsg{
 		CollectionName: collectionName,
 		CollectionID:   collectionID,
 		PChannelName:   pchannelName,
+		TaskID:         taskID,
 		MsgPack:        msgPack,
 	}
 }

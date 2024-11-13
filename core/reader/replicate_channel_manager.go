@@ -99,7 +99,7 @@ type replicateChannelManager struct {
 	downstream string
 }
 
-func NewReplicateChannelManagerWithDispatchClient(
+func NewReplicateChannelManager(
 	dispatchClient msgdispatcher.Client,
 	factory msgstream.Factory,
 	client api.TargetAPI,
@@ -281,6 +281,7 @@ func (r *replicateChannelManager) sendCreateCollectionEvent(ctx context.Context,
 		// TODO fubang should give a error when the collection shard num is more than the target dml channel num
 		r.apiEventChan <- &api.ReplicateAPIEvent{
 			EventType:      api.ReplicateCreateCollection,
+			TaskID:         util.GetTaskIDFromCtx(ctx),
 			CollectionInfo: info,
 			ReplicateInfo: &commonpb.ReplicateInfo{
 				IsReplicate:  true,
@@ -332,6 +333,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *m
 		}
 		return nil
 	}
+	taskID := util.GetTaskIDFromCtx(ctx)
 	r.collectionLock.Lock()
 	if _, ok := r.replicateCollections[info.ID]; ok {
 		r.collectionLock.Unlock()
@@ -351,6 +353,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *m
 				MsgTimestamp: msgTs,
 			},
 			ReplicateParam: api.ReplicateParam{Database: targetInfo.DatabaseName},
+			TaskID:         taskID,
 		}:
 			r.droppedCollections.Store(info.ID, struct{}{})
 			for _, name := range info.PhysicalChannelNames {
@@ -369,7 +372,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *m
 	err = ForeachChannel(info.VirtualChannelNames, targetInfo.VChannels, func(sourceVChannel, targetVChannel string) error {
 		sourcePChannel := funcutil.ToPhysicalChannel(sourceVChannel)
 		targetPChannel := funcutil.ToPhysicalChannel(targetVChannel)
-		channelHandler, err := r.startReadChannel(&model.SourceCollectionInfo{
+		channelHandler, err := r.startReadChannel(ctx, &model.SourceCollectionInfo{
 			PChannel:     sourcePChannel,
 			VChannel:     sourceVChannel,
 			CollectionID: info.ID,
@@ -445,8 +448,11 @@ func ForeachChannel(sourcePChannels, targetPChannels []string, f func(sourcePCha
 func (r *replicateChannelManager) AddPartition(ctx context.Context, dbInfo *model.DatabaseInfo, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo) error {
 	var handlers []*replicateChannelHandler
 	collectionID := collectionInfo.ID
+	taskID := util.GetTaskIDFromCtx(ctx)
 	partitionLog := log.With(zap.Int64("partition_id", partitionInfo.PartitionID), zap.Int64("collection_id", collectionID),
-		zap.String("collection_name", collectionInfo.Schema.Name), zap.String("partition_name", partitionInfo.PartitionName))
+		zap.String("collection_name", collectionInfo.Schema.Name), zap.String("partition_name", partitionInfo.PartitionName),
+		zap.String("task_id", taskID),
+	)
 	if dbInfo.Dropped {
 		partitionLog.Info("the database has been dropped when add partition")
 		return nil
@@ -515,6 +521,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, dbInfo *mode
 				MsgTimestamp: partitionInfo.PartitionCreatedTimestamp,
 			},
 			ReplicateParam: api.ReplicateParam{Database: dbInfo.Name},
+			TaskID:         taskID,
 		}:
 		case <-ctx.Done():
 			partitionLog.Warn("context is done when adding partition")
@@ -535,6 +542,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, dbInfo *mode
 				MsgTimestamp: msgTs,
 			},
 			ReplicateParam: api.ReplicateParam{Database: dbInfo.Name},
+			TaskID:         taskID,
 		}:
 			r.droppedPartitions.Store(partitionInfo.PartitionID, struct{}{})
 			for _, handler := range handlers {
@@ -554,7 +562,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, dbInfo *mode
 	r.replicatePartitions[collectionID][partitionInfo.PartitionID] = barrier.CloseChan
 	r.partitionLock.Unlock()
 	for _, handler := range handlers {
-		err = handler.AddPartitionInfo(collectionInfo, partitionInfo, barrier.BarrierChan)
+		err = handler.AddPartitionInfo(taskID, collectionInfo, partitionInfo, barrier.BarrierChan)
 		if err != nil {
 			return err
 		}
@@ -619,7 +627,7 @@ func (r *replicateChannelManager) GetChannelLatestMsgID(ctx context.Context, cha
 // startReadChannel start read channel
 // sourcePChannel: source milvus channel name, collectionID: source milvus collection id, startPosition: start position of the source milvus collection
 // targetInfo: target collection info, it will be used to replace the message info in the source milvus channel
-func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceCollectionInfo, targetInfo *model.TargetCollectionInfo) (*replicateChannelHandler, error) {
+func (r *replicateChannelManager) startReadChannel(ctx context.Context, sourceInfo *model.SourceCollectionInfo, targetInfo *model.TargetCollectionInfo) (*replicateChannelHandler, error) {
 	r.channelLock.Lock()
 	defer r.channelLock.Unlock()
 
@@ -631,8 +639,8 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 	)
 	channelMappingKey := r.channelMapping.GetMapKey(sourceInfo.PChannel, targetInfo.PChannel)
 	channelMappingValue := r.channelMapping.GetMapValue(sourceInfo.PChannel, targetInfo.PChannel)
+	taskID := util.GetTaskIDFromCtx(ctx)
 
-	// TODO how to handle the seek position when the pchannel has been replicated
 	channelHandler, ok := r.channelHandlerMap[channelMappingKey]
 	if !ok {
 		var err error
@@ -640,7 +648,11 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 			MessageBufferSize: r.messageBufferSize,
 			TTInterval:        r.ttInterval,
 			RetryOptions:      r.retryOptions,
-		}, r.streamCreator, r.downstream, channelMappingKey == sourceInfo.PChannel)
+		}, r.streamCreator,
+			r.downstream,
+			channelMappingKey == sourceInfo.PChannel,
+			taskID,
+		)
 		if err != nil {
 			channelLog.Warn("init replicate channel handler failed", zap.Error(err))
 			return nil, err
@@ -678,7 +690,7 @@ func (r *replicateChannelManager) startReadChannel(sourceInfo *model.SourceColle
 	}
 	// the msg dispatch client maybe blocked, and has get the target channel,
 	// so we can use the goroutine and release the channelLock
-	go channelHandler.AddCollection(sourceInfo, targetInfo)
+	go channelHandler.AddCollection(taskID, sourceInfo, targetInfo)
 	return nil, nil
 }
 
@@ -879,7 +891,7 @@ type replicateChannelHandler struct {
 	startReadChan chan struct{}
 }
 
-func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollectionInfo, targetInfo *model.TargetCollectionInfo) {
+func (r *replicateChannelHandler) AddCollection(taskID string, sourceInfo *model.SourceCollectionInfo, targetInfo *model.TargetCollectionInfo) {
 	select {
 	case <-r.replicateCtx.Done():
 		log.Warn("replicate channel handler closed")
@@ -916,7 +928,7 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 					return
 				}
 
-				r.innerHandleReplicateMsg(false, api.GetReplicateMsg(sourceInfo.PChannel, targetInfo.CollectionName, collectionID, msgPack))
+				r.innerHandleReplicateMsg(false, api.GetReplicateMsg(sourceInfo.PChannel, targetInfo.CollectionName, collectionID, msgPack, taskID))
 			}
 		}
 	}()
@@ -964,7 +976,7 @@ func (r *replicateChannelHandler) AddCollection(sourceInfo *model.SourceCollecti
 					},
 				},
 			}
-			r.generatePackChan <- api.GetReplicateMsg(sourceInfo.PChannel, targetInfo.CollectionName, collectionID, generateMsgPack)
+			r.generatePackChan <- api.GetReplicateMsg(sourceInfo.PChannel, targetInfo.CollectionName, collectionID, generateMsgPack, taskID)
 			dropCollectionLog.Info("has generate msg for dropped collection")
 			return struct{}{}, nil
 		})
@@ -996,7 +1008,7 @@ func (r *replicateChannelHandler) RemoveCollection(collectionID int64) {
 	log.Info("remove collection from handler", zap.Int64("collection_id", collectionID))
 }
 
-func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo, barrierChan chan<- uint64) error {
+func (r *replicateChannelHandler) AddPartitionInfo(taskID string, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo, barrierChan chan<- uint64) error {
 	collectionID := collectionInfo.ID
 	partitionID := partitionInfo.PartitionID
 	collectionName := collectionInfo.Schema.Name
@@ -1071,7 +1083,7 @@ func (r *replicateChannelHandler) AddPartitionInfo(collectionInfo *pb.Collection
 					},
 				},
 			}
-			r.generatePackChan <- api.GetReplicateMsg(sourcePChannel, collectionName, collectionID, generateMsgPack)
+			r.generatePackChan <- api.GetReplicateMsg(sourcePChannel, collectionName, collectionID, generateMsgPack, taskID)
 			partitionLog.Info("has generate msg for dropped partition")
 			return struct{}{}, nil
 		})
@@ -1178,13 +1190,14 @@ func (r *replicateChannelHandler) getTSManagerChannelKey(channelName string) str
 
 func (r *replicateChannelHandler) innerHandleReplicateMsg(forward bool, msg *api.ReplicateMsg) {
 	msgPack := msg.MsgPack
-	p := r.handlePack(forward, msgPack)
+	p := r.handlePack(forward, msgPack, msg.TaskID)
 	if p == api.EmptyMsgPack {
 		return
 	}
 	p.CollectionID = msg.CollectionID
 	p.CollectionName = msg.CollectionName
 	p.PChannelName = msg.PChannelName
+	p.TaskID = msg.TaskID
 	GetTSManager().SendTargetMsg(r.getTSManagerChannelKey(r.targetPChannel), p)
 }
 
@@ -1323,7 +1336,7 @@ func isSupportedMsgType(msgType commonpb.MsgType) bool {
 		msgType == commonpb.MsgType_DropPartition
 }
 
-func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPack) *api.ReplicateMsg {
+func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPack, taskID string) *api.ReplicateMsg {
 	sort.Slice(pack.Msgs, func(i, j int) bool {
 		return pack.Msgs[i].BeginTs() < pack.Msgs[j].BeginTs() ||
 			(pack.Msgs[i].BeginTs() == pack.Msgs[j].BeginTs() && pack.Msgs[i].Type() == commonpb.MsgType_Delete)
@@ -1591,7 +1604,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	}
 
 	if forwardChannel != "" {
-		r.forwardMsgFunc(forwardChannel, api.GetReplicateMsg(streamPChannel, sourceCollectionName, sourceCollectionID, newPack))
+		r.forwardMsgFunc(forwardChannel, api.GetReplicateMsg(streamPChannel, sourceCollectionName, sourceCollectionID, newPack, taskID))
 		return api.EmptyMsgPack
 	}
 
@@ -1630,7 +1643,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	resetLastTs := needTsMsg
 	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
 	if !needTsMsg {
-		return api.GetReplicateMsg("", sourceCollectionName, sourceCollectionID, newPack)
+		return api.GetReplicateMsg("", sourceCollectionName, sourceCollectionID, newPack, "")
 	}
 	timeTickResult := &msgpb.TimeTickMsg{
 		Base: commonpbutil.NewMsgBase(
@@ -1655,7 +1668,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	msgTime, _ := tsoutil.ParseHybridTs(generateTS)
 	TSMetricVec.WithLabelValues(r.targetPChannel).Set(float64(msgTime))
 	r.ttRateLog.Debug("time tick msg", zap.String("channel", r.targetPChannel), zap.Uint64("max_ts", generateTS))
-	return api.GetReplicateMsg("", sourceCollectionName, sourceCollectionID, newPack)
+	return api.GetReplicateMsg("", sourceCollectionName, sourceCollectionID, newPack, "")
 }
 
 func resetMsgPackTimestamp(pack *msgstream.MsgPack, newTimestamp uint64) bool {
@@ -1783,6 +1796,7 @@ func initReplicateChannelHandler(ctx context.Context,
 	opts *model.HandlerOpts,
 	streamCreator StreamCreator,
 	downstream string, sourceKey bool,
+	taskID string,
 ) (*replicateChannelHandler, error) {
 	err := streamCreator.CheckConnection(ctx, sourceInfo.VChannel, sourceInfo.SeekPosition)
 	if err != nil {
@@ -1816,6 +1830,6 @@ func initReplicateChannelHandler(ctx context.Context,
 		sourceKey:          sourceKey,
 		startReadChan:      make(chan struct{}),
 	}
-	go channelHandler.AddCollection(sourceInfo, targetInfo)
+	go channelHandler.AddCollection(taskID, sourceInfo, targetInfo)
 	return channelHandler, nil
 }

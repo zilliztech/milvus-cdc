@@ -58,7 +58,7 @@ var _ api.Reader = (*CollectionReader)(nil)
 type CollectionReader struct {
 	api.DefaultReader
 
-	id                     string
+	id                     string // which is task id
 	channelManager         api.ChannelManager
 	metaOp                 api.MetaOp
 	channelSeekPositions   map[int64]map[string]*msgpb.MsgPosition
@@ -92,6 +92,7 @@ func NewCollectionReader(id string,
 
 func (reader *CollectionReader) StartRead(ctx context.Context) {
 	reader.startOnce.Do(func() {
+		ctx = util.GetCtxWithTaskID(ctx, reader.id)
 		reader.metaOp.SubscribeCollectionEvent(reader.id, func(info *pb.CollectionInfo) bool {
 			collectionLog := log.With(
 				zap.String("task_id", reader.id),
