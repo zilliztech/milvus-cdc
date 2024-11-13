@@ -19,6 +19,7 @@
 package util
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -41,6 +42,10 @@ var (
 	DroppedCollectionKey = "collection"
 	DroppedPartitionKey  = "partition"
 )
+
+type ctxTaskType struct{}
+
+var CtxTaskKey = ctxTaskType{}
 
 // ToBytes performs unholy acts to avoid allocations
 func ToBytes(s string) []byte {
@@ -199,4 +204,16 @@ func GetCollectionNameFromFull(fullName string) (string, string) {
 		panic("invalid full collection name")
 	}
 	return names[0], names[1]
+}
+
+func GetCtxWithTaskID(ctx context.Context, taskID string) context.Context {
+	return context.WithValue(ctx, CtxTaskKey, taskID)
+}
+
+func GetTaskIDFromCtx(ctx context.Context) string {
+	taskID, ok := ctx.Value(CtxTaskKey).(string)
+	if !ok {
+		return ""
+	}
+	return taskID
 }

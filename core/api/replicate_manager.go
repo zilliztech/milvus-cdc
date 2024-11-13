@@ -58,6 +58,7 @@ type ReplicateAPIEvent struct {
 	PartitionInfo  *pb.PartitionInfo
 	ReplicateInfo  *commonpb.ReplicateInfo
 	ReplicateParam ReplicateParam
+	TaskID         string
 	Error          error
 }
 

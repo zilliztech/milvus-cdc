@@ -272,7 +272,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 	t.Run("read channel", func(t *testing.T) {
 		{
 			// start read
-			handler, err := realManager.startReadChannel(&model.SourceCollectionInfo{
+			handler, err := realManager.startReadChannel(context.Background(), &model.SourceCollectionInfo{
 				PChannel:     "test_read_channel",
 				VChannel:     "test_read_channel_v0",
 				CollectionID: 11001,
@@ -294,7 +294,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 			handler.startReadChannel()
 			assert.Equal(t, "ttest_read_channel", <-realManager.GetChannelChan())
 
-			_, err = realManager.startReadChannel(&model.SourceCollectionInfo{
+			_, err = realManager.startReadChannel(context.Background(), &model.SourceCollectionInfo{
 				PChannel:     "test_read_channel_2",
 				VChannel:     "test_read_channel_2_v0",
 				CollectionID: 11002,
@@ -436,7 +436,7 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 	t.Run("read channel", func(t *testing.T) {
 		{
 			// start read
-			handler, err := realManager.startReadChannel(&model.SourceCollectionInfo{
+			handler, err := realManager.startReadChannel(context.Background(), &model.SourceCollectionInfo{
 				PChannel:     "kafka_test_read_channel",
 				VChannel:     "kafka_test_read_channel_v0",
 				CollectionID: 11001,
@@ -458,7 +458,7 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 			handler.startReadChannel()
 			assert.Equal(t, "kafka_ttest_read_channel", <-realManager.GetChannelChan())
 
-			_, err = realManager.startReadChannel(&model.SourceCollectionInfo{
+			_, err = realManager.startReadChannel(context.Background(), &model.SourceCollectionInfo{
 				PChannel:     "kafka_test_read_channel_2",
 				VChannel:     "kafka_test_read_channel_2_v0",
 				CollectionID: 11002,
@@ -565,7 +565,7 @@ func newReplicateChannelHandler(ctx context.Context,
 		factory: opts.Factory,
 	}
 
-	channelHandler, err := initReplicateChannelHandler(ctx, sourceInfo, targetInfo, targetClient, metaOp, apiEventChan, opts, creator, "milvus", true)
+	channelHandler, err := initReplicateChannelHandler(ctx, sourceInfo, targetInfo, targetClient, metaOp, apiEventChan, opts, creator, "milvus", true, "")
 	if err == nil {
 		channelHandler.addCollectionCnt = new(int)
 		channelHandler.addCollectionLock = &deadlock.RWMutex{}
@@ -654,7 +654,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		assert.True(t, handler.containCollection("foo"))
 		handler.Close()
 
-		handler.AddCollection(&model.SourceCollectionInfo{
+		handler.AddCollection("", &model.SourceCollectionInfo{
 			CollectionID: 1,
 		}, &model.TargetCollectionInfo{
 			CollectionName: "test",
@@ -698,7 +698,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 
 		go func() {
 			time.Sleep(600 * time.Millisecond)
-			handler.AddCollection(&model.SourceCollectionInfo{
+			handler.AddCollection("", &model.SourceCollectionInfo{
 				CollectionID: 2,
 			}, &model.TargetCollectionInfo{
 				CollectionName: "test2",
@@ -708,7 +708,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 				DroppedPartition: make(map[int64]struct{}),
 			})
 		}()
-		err = handler.AddPartitionInfo(&pb.CollectionInfo{
+		err = handler.AddPartitionInfo("", &pb.CollectionInfo{
 			ID: 2,
 			Schema: &schemapb.CollectionSchema{
 				Name: "test2",
@@ -740,7 +740,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}, nil).Once()
 		assert.EqualValues(t, 0, handler.updateTargetPartitionInfo(3, "col3", "p2"))
 		assert.EqualValues(t, 0, handler.updateTargetPartitionInfo(3, "col3", "p2"))
-		handler.AddCollection(&model.SourceCollectionInfo{
+		handler.AddCollection("", &model.SourceCollectionInfo{
 			CollectionID: 3,
 		}, &model.TargetCollectionInfo{
 			CollectionName: "col3",
@@ -798,7 +798,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}
 		GetTSManager().InitTSInfo(replicateID, handler.targetPChannel, 100*time.Millisecond, math.MaxUint64, 10)
 
-		err = handler.AddPartitionInfo(&pb.CollectionInfo{
+		err = handler.AddPartitionInfo("", &pb.CollectionInfo{
 			ID: 1,
 			Schema: &schemapb.CollectionSchema{
 				Name: "test",
