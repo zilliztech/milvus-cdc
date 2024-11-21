@@ -20,7 +20,6 @@ package util
 
 import (
 	"bytes"
-	"sync"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
@@ -28,23 +27,6 @@ import (
 )
 
 var SuffixSnapshotTombstone = []byte{0xE2, 0x9B, 0xBC} // base64 value: "4pu8"
-
-type OnceWriteChan[T any] struct {
-	once sync.Once
-	ch   chan<- T
-}
-
-func NewOnceWriteChan[T any](c chan<- T) *OnceWriteChan[T] {
-	return &OnceWriteChan[T]{
-		ch: c,
-	}
-}
-
-func (o *OnceWriteChan[T]) Write(data T) {
-	o.once.Do(func() {
-		o.ch <- data
-	})
-}
 
 func IsTombstone(data []byte) bool {
 	return bytes.Equal(data, SuffixSnapshotTombstone)

@@ -384,8 +384,8 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *m
 			PartitionInfo:        targetInfo.Partitions,
 			PChannel:             targetPChannel,
 			VChannel:             targetVChannel,
-			BarrierChan:          util.NewOnceWriteChan(barrier.BarrierChan),
-			PartitionBarrierChan: make(map[int64]*util.OnceWriteChan[uint64]),
+			BarrierChan:          model.NewOnceWriteChan(barrier.BarrierChan),
+			PartitionBarrierChan: make(map[int64]*model.OnceWriteChan[uint64]),
 			Dropped:              targetInfo.Dropped,
 			DroppedPartition:     make(map[int64]struct{}),
 		})
@@ -1036,7 +1036,7 @@ func (r *replicateChannelHandler) AddPartitionInfo(taskID string, collectionInfo
 		r.recordLock.Unlock()
 		return nil
 	}
-	targetInfo.PartitionBarrierChan[partitionID] = util.NewOnceWriteChan(barrierChan)
+	targetInfo.PartitionBarrierChan[partitionID] = model.NewOnceWriteChan(barrierChan)
 	sourcePChannel := r.collectionNames[collectionName].PChannel
 	partitionLog.Info("add partition info done")
 	r.recordLock.Unlock()
@@ -1522,7 +1522,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				log.Warn("invalid drop partition message, empty partition name", zap.Any("msg", msg))
 				continue
 			}
-			var partitionBarrierChan *util.OnceWriteChan[uint64]
+			var partitionBarrierChan *model.OnceWriteChan[uint64]
 			retryErr := retry.Do(r.replicateCtx, func() error {
 				err = nil
 				r.recordLock.RLock()

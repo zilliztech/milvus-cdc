@@ -25,11 +25,13 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+
+	"github.com/zilliztech/milvus-cdc/core/model"
 )
 
 func TestOnceChan(t *testing.T) {
 	c := make(chan int, 1)
-	onceChan := NewOnceWriteChan(c)
+	onceChan := model.NewOnceWriteChan(c)
 	onceChan.Write(1)
 	onceChan.Write(2)
 	data := <-c

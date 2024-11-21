@@ -19,10 +19,10 @@
 package model
 
 import (
+	"sync"
+
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/retry"
-
-	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 type SourceCollectionInfo struct {
@@ -46,8 +46,8 @@ type TargetCollectionInfo struct {
 	PartitionInfo        map[string]int64
 	PChannel             string
 	VChannel             string
-	BarrierChan          *util.OnceWriteChan[uint64]
-	PartitionBarrierChan map[int64]*util.OnceWriteChan[uint64] // id is the source partition id
+	BarrierChan          *OnceWriteChan[uint64]
+	PartitionBarrierChan map[int64]*OnceWriteChan[uint64] // id is the source partition id
 	Dropped              bool
 	DroppedPartition     map[int64]struct{} // id is the source partition id
 }
@@ -74,4 +74,21 @@ type DatabaseInfo struct {
 	ID      int64
 	Name    string
 	Dropped bool
+}
+
+type OnceWriteChan[T any] struct {
+	once sync.Once
+	ch   chan<- T
+}
+
+func NewOnceWriteChan[T any](c chan<- T) *OnceWriteChan[T] {
+	return &OnceWriteChan[T]{
+		ch: c,
+	}
+}
+
+func (o *OnceWriteChan[T]) Write(data T) {
+	o.once.Do(func() {
+		o.ch <- data
+	})
 }

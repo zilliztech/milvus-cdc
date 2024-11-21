@@ -898,6 +898,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	writerObj := cdcwriter.NewChannelWriter(dataHandler, config.WriterConfig{
 		MessageBufferSize: bufferSize,
 		Retry:             e.config.Retry,
+		ReplicateID:       e.config.ReplicateID,
 	}, metaOp.GetAllDroppedObj(), downstream)
 	e.replicateEntityMap.Lock()
 	defer e.replicateEntityMap.Unlock()
@@ -1372,6 +1373,7 @@ func (e *MetaCDC) GetPosition(req *request.GetPositionRequest) (*request.GetPosi
 			resp.Positions = append(resp.Positions, request.Position{
 				ChannelName: s,
 				Time:        info.Time,
+				TT:          tsoutil.ComposeTS(info.Time+1, 0),
 				MsgID:       msgID,
 			})
 		}
@@ -1383,6 +1385,7 @@ func (e *MetaCDC) GetPosition(req *request.GetPositionRequest) (*request.GetPosi
 			resp.OpPositions = append(resp.OpPositions, request.Position{
 				ChannelName: s,
 				Time:        info.Time,
+				TT:          tsoutil.ComposeTS(info.Time+1, 0),
 				MsgID:       msgID,
 			})
 		}
@@ -1394,6 +1397,7 @@ func (e *MetaCDC) GetPosition(req *request.GetPositionRequest) (*request.GetPosi
 			resp.TargetPositions = append(resp.TargetPositions, request.Position{
 				ChannelName: s,
 				Time:        info.Time,
+				TT:          tsoutil.ComposeTS(info.Time+1, 0),
 				MsgID:       msgID,
 			})
 		}

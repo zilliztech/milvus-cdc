@@ -22,6 +22,7 @@ require (
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.34.2
+	gopkg.in/yaml.v2 v2.4.0
 	sigs.k8s.io/yaml v1.3.0
 )
 
@@ -156,7 +157,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apimachinery v0.29.2 // indirect
 )
@@ -167,7 +167,7 @@ replace (
 	// github.com/milvus-io/milvus-sdk-go/v2 => github.com/SimFG/milvus-sdk-go/v2 v2.0.0-20231025090810-3c862f081ed2
 	// github.com/milvus-io/milvus-sdk-go/v2 => ../../milvus-sdk-go
 	//github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240727040408-64020f3da23b // master-cdc-bak
-	github.com/milvus-io/milvus-proto/go-api/v2 => github.com/SimFG/milvus-proto/go-api/v2 v2.0.0-20240923040205-ef42b6b1a81b // 2.4-cdc-null
+	github.com/milvus-io/milvus-proto/go-api/v2 => github.com/SimFG/milvus-proto/go-api/v2 v2.0.0-20241120065629-5a84afe5a345 // 2.4-cdc-null
 	github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20240929115325-612f86d538e8 // cdc-v2-pkg
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => ./../rocksdb

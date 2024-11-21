@@ -25,3 +25,4 @@ generate-mockery:
 
 	@cd "$(PWD)/core"; mockery -r --name "$(shell echo $(strip $(CORE_API)) | tr ' ' '|')" --output ./mocks --case snake --with-expecter
 	@cd "$(PWD)/server"; mockery -r --name "$(shell echo $(strip $(SERVER_API)) | tr ' ' '|')" --output ./mocks --case snake --with-expecter
+	@cd "$(PWD)/core"; mockery --srcpkg github.com/milvus-io/milvus-proto/go-api/v2/milvuspb --name MilvusServiceServer --output ./servermocks --case snake --with-expecter

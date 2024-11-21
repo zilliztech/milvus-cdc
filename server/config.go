@@ -36,6 +36,7 @@ type CDCServerConfig struct {
 	Retry          config.RetrySettings
 	LogLevel       string
 	DetectDeadLock bool
+	ReplicateID    string
 }
 
 type CDCMetaStoreConfig struct {
