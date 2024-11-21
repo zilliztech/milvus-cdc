@@ -35,10 +35,10 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 	"github.com/milvus-io/milvus-sdk-go/v2/merr"
-	"github.com/milvus-io/milvus-sdk-go/v2/mocks"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
+	mocks "github.com/zilliztech/milvus-cdc/core/servermocks"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
 

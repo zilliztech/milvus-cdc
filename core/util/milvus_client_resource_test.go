@@ -32,8 +32,9 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
-	"github.com/milvus-io/milvus-sdk-go/v2/mocks"
 	"github.com/milvus-io/milvus/pkg/util/resource"
+
+	mocks "github.com/zilliztech/milvus-cdc/core/servermocks"
 )
 
 func TestNewMilvusClient(t *testing.T) {

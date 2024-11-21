@@ -60,6 +60,7 @@ type ChannelWriter struct {
 
 	retryOptions []retry.Option
 	downstream   string
+	replicateID  string
 }
 
 func NewChannelWriter(dataHandler api.DataHandler,
@@ -72,6 +73,7 @@ func NewChannelWriter(dataHandler api.DataHandler,
 		messageManager: NewReplicateMessageManager(dataHandler, writerConfig.MessageBufferSize),
 		retryOptions:   util.GetRetryOptions(writerConfig.Retry),
 		downstream:     downstream,
+		replicateID:    writerConfig.ReplicateID,
 	}
 	w.initAPIEventFuncs()
 	w.initOPMessageFuncs()
@@ -157,6 +159,20 @@ func (c *ChannelWriter) HandleReplicateMessage(ctx context.Context, channelName 
 	}
 	msgBytesArr := make([][]byte, 0)
 	for _, msg := range msgPack.Msgs {
+		if c.replicateID != "" {
+			msgBase, ok := msg.(interface{ GetBase() *commonpb.MsgBase })
+			if ok {
+				replicateInfo := msgBase.GetBase().ReplicateInfo
+				if replicateInfo == nil {
+					replicateInfo = &commonpb.ReplicateInfo{}
+					msgBase.GetBase().ReplicateInfo = replicateInfo
+				}
+				replicateInfo.IsReplicate = true
+				replicateInfo.ReplicateID = c.replicateID
+			} else {
+				log.Warn("failed to get replicate info", zap.Any("msg", msg.Type()))
+			}
+		}
 		if msg.Type() != commonpb.MsgType_TimeTick {
 			logFields := []zap.Field{
 				zap.String("channel", channelName),
@@ -442,6 +458,12 @@ func (c *ChannelWriter) createCollection(ctx context.Context, apiEvent *api.Repl
 	dbName, colName := c.mapDBAndCollectionName(apiEvent.ReplicateParam.Database, entitySchema.CollectionName)
 	apiEvent.ReplicateParam.Database = dbName
 	entitySchema.CollectionName = colName
+	if c.replicateID != "" {
+		collectionInfo.Properties = append(collectionInfo.Properties, &commonpb.KeyValuePair{
+			Key:   "replicate.id",
+			Value: c.replicateID,
+		})
+	}
 	createParam := &api.CreateCollectionParam{
 		MsgBaseParam:     api.MsgBaseParam{Base: &commonpb.MsgBase{ReplicateInfo: apiEvent.ReplicateInfo}},
 		ReplicateParam:   apiEvent.ReplicateParam,

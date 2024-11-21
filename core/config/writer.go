@@ -21,4 +21,5 @@ package config
 type WriterConfig struct {
 	MessageBufferSize int
 	Retry             RetrySettings
+	ReplicateID       string
 }

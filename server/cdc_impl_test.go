@@ -35,7 +35,6 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
-	sdkmocks "github.com/milvus-io/milvus-sdk-go/v2/mocks"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/typeutil"
 
@@ -44,6 +43,7 @@ import (
 	coremodel "github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	cdcreader "github.com/zilliztech/milvus-cdc/core/reader"
+	coreservermocks "github.com/zilliztech/milvus-cdc/core/servermocks"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/mocks"
 	"github.com/zilliztech/milvus-cdc/server/model"
@@ -709,14 +709,14 @@ func initMetaCDCMap(cdc *MetaCDC) {
 	cdc.cdcTasks.Unlock()
 }
 
-func NewMockMilvus(t *testing.T) (*sdkmocks.MilvusServiceServer, func() error) {
+func NewMockMilvus(t *testing.T) (*coreservermocks.MilvusServiceServer, func() error) {
 	listen, err := net.Listen("tcp", ":50051")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
 	server := grpc.NewServer()
-	milvusService := sdkmocks.NewMilvusServiceServer(t)
+	milvusService := coreservermocks.NewMilvusServiceServer(t)
 	milvusService.EXPECT().Connect(mock.Anything, mock.Anything).Return(&milvuspb.ConnectResponse{
 		Status: &commonpb.Status{},
 	}, nil).Maybe()

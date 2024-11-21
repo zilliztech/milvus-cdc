@@ -285,9 +285,9 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 				},
 				PChannel:    "ttest_read_channel",
 				VChannel:    "ttest_read_channel_v0",
-				BarrierChan: util.NewOnceWriteChan(make(chan<- uint64)),
-				PartitionBarrierChan: map[int64]*util.OnceWriteChan[uint64]{
-					1101: util.NewOnceWriteChan(make(chan<- uint64)),
+				BarrierChan: model.NewOnceWriteChan(make(chan<- uint64)),
+				PartitionBarrierChan: map[int64]*model.OnceWriteChan[uint64]{
+					1101: model.NewOnceWriteChan(make(chan<- uint64)),
 				},
 			})
 			assert.NoError(t, err)
@@ -449,9 +449,9 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 				},
 				PChannel:    "kafka_ttest_read_channel",
 				VChannel:    "kafka_ttest_read_channel_v0",
-				BarrierChan: util.NewOnceWriteChan(make(chan<- uint64)),
-				PartitionBarrierChan: map[int64]*util.OnceWriteChan[uint64]{
-					1101: util.NewOnceWriteChan(make(chan<- uint64)),
+				BarrierChan: model.NewOnceWriteChan(make(chan<- uint64)),
+				PartitionBarrierChan: map[int64]*model.OnceWriteChan[uint64]{
+					1101: model.NewOnceWriteChan(make(chan<- uint64)),
 				},
 			})
 			assert.NoError(t, err)
@@ -702,8 +702,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 				CollectionID: 2,
 			}, &model.TargetCollectionInfo{
 				CollectionName: "test2",
-				PartitionBarrierChan: map[int64]*util.OnceWriteChan[uint64]{
-					1001: util.NewOnceWriteChan(make(chan<- uint64)),
+				PartitionBarrierChan: map[int64]*model.OnceWriteChan[uint64]{
+					1001: model.NewOnceWriteChan(make(chan<- uint64)),
 				},
 				DroppedPartition: make(map[int64]struct{}),
 			})
@@ -779,8 +779,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 			},
 			PChannel:             "test_q",
 			VChannel:             "test_q_v1",
-			BarrierChan:          util.NewOnceWriteChan(barrierChan),
-			PartitionBarrierChan: map[int64]*util.OnceWriteChan[uint64]{},
+			BarrierChan:          model.NewOnceWriteChan(barrierChan),
+			PartitionBarrierChan: map[int64]*model.OnceWriteChan[uint64]{},
 			DroppedPartition:     make(map[int64]struct{}),
 		}, targetClient, &api.DefaultMetaOp{}, apiEventChan, &model.HandlerOpts{
 			Factory:    factory,
