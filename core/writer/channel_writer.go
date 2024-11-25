@@ -181,6 +181,7 @@ func (c *ChannelWriter) HandleReplicateMessage(ctx context.Context, channelName 
 			if msg.Type() == commonpb.MsgType_Insert {
 				insertMsg := msg.(*msgstream.InsertMsg)
 				logFields = append(logFields,
+					zap.String("db", insertMsg.GetDbName()),
 					zap.String("collection", insertMsg.GetCollectionName()),
 					zap.String("partition", insertMsg.GetPartitionName()),
 					zap.Uint64("insert_data_len", insertMsg.GetNumRows()),
@@ -194,6 +195,7 @@ func (c *ChannelWriter) HandleReplicateMessage(ctx context.Context, channelName 
 			if msg.Type() == commonpb.MsgType_Delete {
 				deleteMsg := msg.(*msgstream.DeleteMsg)
 				logFields = append(logFields,
+					zap.String("db", deleteMsg.GetDbName()),
 					zap.String("collection", deleteMsg.GetCollectionName()),
 					zap.String("partition", deleteMsg.GetPartitionName()),
 					zap.Int64("delete_data_len", deleteMsg.GetNumRows()),

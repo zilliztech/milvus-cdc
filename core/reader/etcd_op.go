@@ -822,7 +822,7 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 		collectionName := collection.Schema.Name
 		originDBName := getDBNameForCollection(collection.ID)
 		if originDBName == "" {
-			log.Panic("fail to get db name for collection", zap.Int64("collection_id", collection.ID))
+			log.Info("fail to get db name for collection, maybe the db has been dropped", zap.Int64("collection_id", collection.ID))
 			continue
 		}
 		// maybe the database has been drop, so get the database name from the target
