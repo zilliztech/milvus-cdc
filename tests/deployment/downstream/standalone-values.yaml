@@ -24,6 +24,8 @@ etcd:
     tag: 3.5.5-r2  
 minio:
   mode: standalone
+pulsarv3:
+  enabled: false
 pulsar:
   enabled: false
 kafka:
