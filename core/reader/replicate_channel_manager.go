@@ -1119,6 +1119,9 @@ func (r *replicateChannelHandler) updateTargetPartitionInfo(collectionID int64, 
 
 func (r *replicateChannelHandler) getPartitionInfoForMilvus(ctx context.Context, collectionName string, collectionID int64) (*model.CollectionInfo, error) {
 	sourceDBInfo := r.metaOp.GetDatabaseInfoForCollection(ctx, collectionID)
+	if sourceDBInfo.Dropped {
+		return nil, errors.New("the database has been dropped")
+	}
 	partitionInfo, err := r.targetClient.GetPartitionInfo(ctx, collectionName, sourceDBInfo.Name)
 	if err != nil {
 		return nil, err
