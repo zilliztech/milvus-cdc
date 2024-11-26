@@ -683,13 +683,13 @@ func (e *EtcdOp) GetDatabaseInfoForCollection(ctx context.Context, id int64) mod
 	}
 
 	// it will update all database info and this collection info
-	_ = retry.Do(ctx, func() error {
-		name := e.getCollectionNameByID(ctx, id)
-		if name == "" {
-			return errors.Newf("not found the collection %d", id)
+	name := e.getCollectionNameByID(ctx, id)
+	if name == "" {
+		log.Info("not found the collection name, maybe the db or collection has benn deleted", zap.Int64("collection_id", id))
+		return model.DatabaseInfo{
+			Dropped: true,
 		}
-		return nil
-	}, e.retryOptions...)
+	}
 
 	dbID, _ = e.collectionID2DBID.Load(id)
 	dbName, _ = e.dbID2Name.Load(dbID)
