@@ -856,13 +856,13 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 	for _, partition := range partitions {
 		collectionName := e.collectionID2Name.LoadWithDefault(partition.CollectionId, "")
 		if collectionName == "" {
-			log.Panic("fail to get collection name for partition",
+			log.Info("fail to get collection name for partition",
 				zap.Int64("partition_id", partition.PartitionID), zap.Int64("collection_id", partition.CollectionId))
 			continue
 		}
 		originDBName := getDBNameForCollection(partition.CollectionId)
 		if originDBName == "" {
-			log.Panic("fail to get db name for collection", zap.Int64("collection_id", partition.CollectionId))
+			log.Info("fail to get db name for collection", zap.Int64("collection_id", partition.CollectionId))
 			continue
 		}
 		// targetMilvus is nil when downstream is not milvus
