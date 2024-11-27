@@ -112,7 +112,7 @@ func GetMsgDispatcherClient(creator FactoryCreator, mqConfig config.MQConfig, tt
 	if err != nil {
 		return nil, err
 	}
-	return msgdispatcher.NewClient(warpFactory, "cdc", 8444), nil
+	return msgdispatcher.NewClient(warpFactory, "cdc-"+util.GetUUID(), 8444), nil
 }
 
 func GetStreamFactory(creator FactoryCreator, mqConfig config.MQConfig, ttMsgStream bool) (msgstream.Factory, error) {
