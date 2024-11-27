@@ -22,12 +22,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/cockroachdb/errors"
-	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -436,7 +434,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	}
 
 	info := &meta.TaskInfo{
-		TaskID:                e.getUUID(),
+		TaskID:                util.GetUUID(),
 		MilvusConnectParam:    req.MilvusConnectParam,
 		KafkaConnectParam:     req.KafkaConnectParam,
 		CollectionInfos:       req.CollectionInfos,
@@ -696,11 +694,6 @@ func (e *MetaCDC) checkCollectionInfos(infos []model.CollectionInfo) error {
 		errMsg += fmt.Sprintf("there are some collection names whose length exceeds %d characters, %v", e.config.MaxNameLength, longNames)
 	}
 	return servererror.NewClientError(errMsg)
-}
-
-func (e *MetaCDC) getUUID() string {
-	uid := uuid.Must(uuid.NewRandom())
-	return strings.ReplaceAll(uid.String(), "-", "")
 }
 
 func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) error {

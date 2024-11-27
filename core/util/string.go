@@ -28,6 +28,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 
@@ -216,4 +217,9 @@ func GetTaskIDFromCtx(ctx context.Context) string {
 		return ""
 	}
 	return taskID
+}
+
+func GetUUID() string {
+	uid := uuid.Must(uuid.NewRandom())
+	return strings.ReplaceAll(uid.String(), "-", "")
 }
