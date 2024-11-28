@@ -1228,9 +1228,13 @@ func (e *MetaCDC) pauseTaskWithReason(taskID, reason string, currentStates []met
 	if replicateEntity, ok := e.replicateEntityMap.data[uKey]; ok {
 		if quitFunc, ok := replicateEntity.taskQuitFuncs.GetAndRemove(taskID); ok {
 			quitFunc()
+			replicateEntity.refCnt.Dec()
+		}
+		if replicateEntity.refCnt.Load() == 0 {
+			replicateEntity.entityQuitFunc()
+			delete(e.replicateEntityMap.data, uKey)
 		}
 	}
-	delete(e.replicateEntityMap.data, uKey)
 	e.replicateEntityMap.Unlock()
 	return err
 }
@@ -1284,9 +1288,9 @@ func (e *MetaCDC) delete(taskID string) error {
 		}
 		if replicateEntity.refCnt.Load() == 0 {
 			replicateEntity.entityQuitFunc()
+			delete(e.replicateEntityMap.data, uKey)
 		}
 	}
-	delete(e.replicateEntityMap.data, uKey)
 	e.replicateEntityMap.Unlock()
 
 	return err
