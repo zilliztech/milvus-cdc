@@ -24,7 +24,7 @@ class TestCdcGet(TestBase):
         col_list = []
         task_id_list = []
         for i in range(10):
-            time.sleep(0.1)
+            time.sleep(1)
             collection_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
             col_list.append(collection_name)
             request_data = {

@@ -1,7 +1,7 @@
 import time
 from datetime import datetime
 from utils.util_log import test_log as log
-from api.milvus_cdc import MilvusCdcClient
+from api.milvus_cdc import MilvusCdcClient, DEFAULT_TOKEN
 from pymilvus import (
     connections,
     Collection
@@ -52,7 +52,7 @@ class TestCdcPause(TestBase):
         connections.connect(host=upstream_host, port=upstream_port)
         checker = InsertEntitiesCollectionChecker(host=upstream_host, port=upstream_port, c_name=collection_name)
         checker.run()
-        time.sleep(60)
+        time.sleep(20)
         # pause the insert task
         log.info(f"start to pause the insert task")
         checker.pause()
@@ -66,7 +66,7 @@ class TestCdcPause(TestBase):
         # check the collection in downstream
         connections.disconnect("default")
         log.info(f"start to connect to downstream {downstream_host} {downstream_port}")
-        connections.connect(host=downstream_host, port=downstream_port)
+        connections.connect(host=downstream_host, port=downstream_port, token=DEFAULT_TOKEN)
         collection = Collection(name=collection_name)
         collection.create_index(field_name="float_vector",
                                 index_params={"index_type": "IVF_FLAT", "metric_type": "L2", "params": {"nlist": 128}})
@@ -87,7 +87,7 @@ class TestCdcPause(TestBase):
         log.info(f"count_by_query_downstream: {count_by_query_downstream}")
         assert count_by_query_upstream == count_by_query_downstream
         # wait for the collection to be flushed
-        time.sleep(20)
+        time.sleep(10)
         collection.flush()
         num_entities_downstream = collection.num_entities
         log.info(f"num_entities_downstream: {num_entities_downstream}")
@@ -116,7 +116,7 @@ class TestCdcPause(TestBase):
         connections.connect(host=upstream_host, port=upstream_port)
         # insert entities into the collection
         checker.resume()
-        time.sleep(60)
+        time.sleep(20)
         checker.pause()
         # check the collection in upstream
         count_by_query_upstream_second = checker.get_count_by_query()
@@ -129,15 +129,16 @@ class TestCdcPause(TestBase):
         # connect to downstream
         connections.disconnect("default")
         log.info(f"start to connect to downstream {downstream_host} {downstream_port}")
-        connections.connect(host=downstream_host, port=downstream_port)
+        connections.connect(host=downstream_host, port=downstream_port, token=DEFAULT_TOKEN)
         # check the collection in downstream has not been synced
-        timeout = 60
+        timeout = 30
+        collection = Collection(name=collection_name)
         count_by_query_downstream_second = len(
-            collection.query(expr=checker.query_expr, output_fields=checker.output_fields))
+            collection.query(expr=checker.query_expr, output_fields=checker.output_fields, consistency_level="Eventually"))
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             count_by_query_downstream_second = len(
-                collection.query(expr=checker.query_expr, output_fields=checker.output_fields))
+                collection.query(expr=checker.query_expr, output_fields=checker.output_fields, consistency_level="Eventually"))
             if count_by_query_downstream_second == count_by_query_upstream_second:
                 assert False
             time.sleep(1)
