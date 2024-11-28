@@ -1,6 +1,7 @@
 import json
 import requests
 
+DEFAULT_TOKEN = 'root:Milvus'
 
 class MilvusCdcClient:
 
@@ -17,7 +18,7 @@ class MilvusCdcClient:
         payload = json.dumps(body)
         response = requests.post(url, headers=self.headers, data=payload)
         if response.status_code == 200:
-            return response.json(), True
+            return response.json()['data'], True
         else:
             return response.text, False
     
@@ -28,8 +29,8 @@ class MilvusCdcClient:
         }
         payload = json.dumps(body)
         response = requests.post(url, headers=self.headers, data=payload)
-        if response.status_code == 200:
-            return response.json(), True
+        if response.status_code == 200 and 'data' in response.json():
+            return response.json()['data'], True
         else:
             return response.text, False
     
@@ -43,8 +44,8 @@ class MilvusCdcClient:
         }
         payload = json.dumps(body)
         response = requests.post(url, headers=self.headers, data=payload)
-        if response.status_code == 200:
-            return response.json(), True
+        if response.status_code == 200 and 'data' in response.json():
+            return response.json()['data']['task'], True
         else:
             return response.text, False
     

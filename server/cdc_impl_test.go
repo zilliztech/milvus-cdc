@@ -1591,6 +1591,25 @@ func TestCheckDuplicateCollection(t *testing.T) {
 		assert.Len(t, excludeCollections, 0)
 	})
 
+	t.Run("collection duplicate test", func(t *testing.T) {
+		metaCDC := &MetaCDC{}
+		initMetaCDCMap(metaCDC)
+		excludeCollections, err := metaCDC.checkDuplicateCollection("foo", []string{
+			util.GetFullCollectionName("foo", "*"),
+		}, model.ExtraInfo{
+			EnableUserRole: true,
+		}, nil)
+		assert.NoError(t, err)
+		assert.Len(t, excludeCollections, 0)
+
+		_, err = metaCDC.checkDuplicateCollection("foo", []string{
+			util.GetFullCollectionName("default", "col1"),
+		}, model.ExtraInfo{
+			EnableUserRole: false,
+		}, nil)
+		assert.NoError(t, err)
+	})
+
 	t.Run("map collection name", func(t *testing.T) {
 		metaCDC := &MetaCDC{}
 		initMetaCDCMap(metaCDC)

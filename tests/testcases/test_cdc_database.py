@@ -38,7 +38,7 @@ class TestCDCSyncRequest(TestBase):
         """
         connections.connect(host=upstream_host, port=upstream_port)
         col_list = []
-        for i in range(10):
+        for i in range(5):
             time.sleep(0.1)
             collection_name = prefix + "not_match_database_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
             col_list.append(collection_name)
@@ -86,7 +86,7 @@ class TestCDCSyncRequest(TestBase):
         db.create_database("hoo")
         db.using_database(db_name="hoo")
         col_list = []
-        for i in range(10):
+        for i in range(5):
             time.sleep(0.1)
             collection_name = prefix + "not_match_database_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
             col_list.append(collection_name)

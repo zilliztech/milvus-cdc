@@ -327,13 +327,6 @@ func (e *MetaCDC) checkDuplicateCollection(uKey string,
 	}
 	if names, ok := e.collectionNames.data[uKey]; ok {
 		var duplicateCollections []string
-		containsAny := false
-		for _, name := range names {
-			d, c := util.GetCollectionNameFromFull(name)
-			if d == cdcreader.AllDatabase || c == cdcreader.AllCollection {
-				containsAny = true
-			}
-		}
 		for _, newCollectionName := range newCollectionNames {
 			if lo.Contains(names, newCollectionName) {
 				duplicateCollections = append(duplicateCollections, newCollectionName)
@@ -343,9 +336,12 @@ func (e *MetaCDC) checkDuplicateCollection(uKey string,
 			if nd == cdcreader.AllDatabase && nc == cdcreader.AllCollection {
 				continue
 			}
-			if containsAny && !lo.Contains(e.collectionNames.excludeData[uKey], newCollectionName) {
-				duplicateCollections = append(duplicateCollections, newCollectionName)
-				continue
+			for _, name := range names {
+				match, containAny := matchCollectionName(name, newCollectionName)
+				if match && containAny && !lo.Contains(e.collectionNames.excludeData[uKey], newCollectionName) {
+					duplicateCollections = append(duplicateCollections, newCollectionName)
+					break
+				}
 			}
 		}
 		if len(duplicateCollections) > 0 {
@@ -886,7 +882,7 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	}
 	if err != nil {
 		taskLog.Warn("fail to new the data handler", zap.Error(err))
-		return nil, servererror.NewClientError("fail to new the data handler, task_id: ")
+		return nil, servererror.NewClientError("fail to new the data handler, task_id: " + info.TaskID)
 	}
 	writerObj := cdcwriter.NewChannelWriter(dataHandler, config.WriterConfig{
 		MessageBufferSize: bufferSize,

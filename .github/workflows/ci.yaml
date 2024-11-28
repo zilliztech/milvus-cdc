@@ -688,7 +688,7 @@ jobs:
                   "db_collections": {
                       "foo": [
                           {
-                            "name": "*" 
+                            "name": "*"
                           }
                       ]
                   }
@@ -696,12 +696,16 @@ jobs:
           }'
 
       - name: Run test
-        timeout-minutes: 15
+        timeout-minutes: 30
         shell: bash
         working-directory: tests
         run: |
           pip install -r requirements.txt --trusted-host https://test.pypi.org
           pytest testcases/test_cdc_database.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
+          pytest testcases/test_cdc_get.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
+          pytest testcases/test_cdc_list.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
+          pytest testcases/test_cdc_pause.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
+          pytest testcases/test_cdc_resume.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
 
       - name: List CDC task
         if: ${{ always() }}
