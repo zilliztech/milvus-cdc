@@ -27,6 +27,7 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/requestutil"
@@ -172,6 +173,28 @@ func (c *ChannelWriter) HandleReplicateMessage(ctx context.Context, channelName 
 			} else {
 				log.Warn("failed to get replicate info", zap.Any("msg", msg.Type()))
 			}
+			if msg.Type() == commonpb.MsgType_TimeTick {
+				msg = &msgstream.ReplicateMsg{
+					BaseMsg: msgstream.BaseMsg{
+						BeginTimestamp: msg.BeginTs(),
+						EndTimestamp:   msg.EndTs(),
+						HashValues:     []uint32{0},
+					},
+					ReplicateMsg: &msgpb.ReplicateMsg{
+						Base: &commonpb.MsgBase{
+							MsgType:   commonpb.MsgType_Replicate,
+							Timestamp: msg.EndTs(),
+							ReplicateInfo: &commonpb.ReplicateInfo{
+								IsReplicate: true,
+								ReplicateID: c.replicateID,
+							},
+						},
+						IsEnd:      false,
+						Database:   "",
+						Collection: "",
+					},
+				}
+			}
 		}
 		if msg.Type() != commonpb.MsgType_TimeTick {
 			logFields := []zap.Field{
@@ -221,6 +244,13 @@ func (c *ChannelWriter) HandleReplicateMessage(ctx context.Context, channelName 
 				dbName, colName = c.mapDBAndCollectionName(dbName, colName)
 				dropCollectionMsg.DbName = dbName
 				dropCollectionMsg.CollectionName = colName
+			}
+			if msg.Type() == commonpb.MsgType_Replicate {
+				replicateMsg := msg.(*msgstream.ReplicateMsg)
+				logFields = append(logFields,
+					zap.String("replicate_id", replicateMsg.GetBase().GetReplicateInfo().GetReplicateID()),
+					zap.Any("ts", replicateMsg.EndTs()),
+				)
 			}
 
 			log.Debug("replicate msg", logFields...)

@@ -100,8 +100,8 @@ func TestTS(t *testing.T) {
 }
 
 func TestGetTT(t *testing.T) {
-	curTime := time.UnixMilli(1732111898778)
-	// curTime := time.Now()
+	// curTime := time.UnixMilli(1732111898778)
+	curTime := time.Now()
 	tt := tsoutil.ComposeTSByTime(curTime, 0)
 	log.Info("compose ts by time", zap.Any("tt", tt))
 	log.Info("cur time", zap.Any("curTime", tsoutil.ComposeTS(1732111898778, 0)))

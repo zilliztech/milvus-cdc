@@ -142,7 +142,11 @@ func (dcsc *DisptachClientStreamCreator) GetStreamChan(ctx context.Context,
 	if !IsVirtualChannel(vchannel) {
 		log.Panic("the channel name is not virtual channel", zap.String("channel_name", vchannel))
 	}
-	msgpackChan, err := dcsc.dispatchClient.Register(ctx, vchannel, seekPosition, subPositionType)
+	msgpackChan, err := dcsc.dispatchClient.Register(ctx,
+		msgdispatcher.NewStreamConfig(
+			vchannel, seekPosition, subPositionType,
+		),
+	)
 	if err != nil {
 		log.Warn("fail to register the channel", zap.Error(err))
 		return nil, nil, err
