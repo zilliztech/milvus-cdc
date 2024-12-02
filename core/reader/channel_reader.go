@@ -80,9 +80,12 @@ func NewChannelReader(channelName, seekPosition string,
 		channelReader.seekPosition.ChannelName = vchannel
 	}
 	msgPackChan, err := dispatchClient.Register(context.Background(),
-		vchannel,
-		channelReader.seekPosition,
-		channelReader.subscriptionPosition)
+		msgdispatcher.NewStreamConfig(
+			vchannel,
+			channelReader.seekPosition,
+			channelReader.subscriptionPosition,
+		),
+	)
 	if err != nil {
 		log.Warn("fail to init the msg stream", zap.Error(err))
 		return nil, err
