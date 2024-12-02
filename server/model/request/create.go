@@ -30,6 +30,7 @@ type CreateRequest struct {
 	ExtraInfo          model.ExtraInfo                   `json:"extra_info" mapstructure:"extra_info"`
 	BufferConfig       model.BufferConfig                `json:"buffer_config" mapstructure:"buffer_config"`
 	NameMapping        []model.NameMapping               `json:"name_mapping" mapstructure:"name_mapping"`
+	DisableAutoStart   bool                              `json:"disable_auto_start" mapstructure:"disable_auto_start"`
 	// Deprecated
 	Positions map[string]string `json:"positions" mapstructure:"positions"`
 }
