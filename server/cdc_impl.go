@@ -197,6 +197,12 @@ func (e *MetaCDC) ReloadTask() {
 
 		metrics.TaskNumVec.Add(taskInfo.TaskID, taskInfo.State)
 		metrics.TaskStateVec.WithLabelValues(taskInfo.TaskID).Set(float64(taskInfo.State))
+		if taskInfo.DisableAutoStart {
+			if taskInfo.State != meta.TaskStatePaused {
+				_ = e.pauseTaskWithReason(taskInfo.TaskID, "the task is disabled auto start", []meta.TaskState{})
+			}
+			continue
+		}
 		if err := e.startInternal(taskInfo, taskInfo.State == meta.TaskStateRunning); err != nil {
 			log.Warn("fail to start the task", zap.Any("task_info", taskInfo), zap.Error(err))
 			_ = e.pauseTaskWithReason(taskInfo.TaskID, "fail to start task, err: "+err.Error(), []meta.TaskState{})
@@ -441,6 +447,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		ExcludeCollections:    excludeCollectionNames,
 		WriterCacheConfig:     req.BufferConfig,
 		State:                 meta.TaskStateInitial,
+		DisableAutoStart:      req.DisableAutoStart,
 	}
 	for _, collectionInfo := range req.CollectionInfos {
 		positions := make(map[string]*meta.PositionInfo, len(collectionInfo.Positions))
@@ -549,7 +556,7 @@ func (e *MetaCDC) validCreateRequest(req *request.CreateRequest) error {
 	if isMilvusEmpty && kafkaConnectParam.Address == "" {
 		return servererror.NewClientError("the downstream address is empty")
 	} else if !isMilvusEmpty && kafkaConnectParam.Address != "" {
-		return servererror.NewClientError("dont support milvus and kafka at the same time now")
+		return servererror.NewClientError("don't support milvus and kafka at the same time now")
 	}
 
 	if !isMilvusEmpty {
@@ -1214,6 +1221,7 @@ func (e *MetaCDC) pauseTaskWithReason(taskID, reason string, currentStates []met
 	}
 	cdcTask.State = meta.TaskStatePaused
 	cdcTask.Reason = reason
+	metrics.TaskStateVec.WithLabelValues(cdcTask.TaskID).Set(float64(cdcTask.State))
 	e.cdcTasks.Unlock()
 
 	var uKey string

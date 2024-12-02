@@ -69,6 +69,7 @@ type TaskInfo struct {
 	RPCRequestChannelInfo model.ChannelInfo
 	ExtraInfo             model.ExtraInfo
 	ExcludeCollections    []string // it's used for the `*` collection name
+	DisableAutoStart      bool
 	State                 TaskState
 	Reason                string
 }
