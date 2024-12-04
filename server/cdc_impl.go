@@ -1248,6 +1248,9 @@ func (e *MetaCDC) Delete(req *request.DeleteRequest) (*request.DeleteResponse, e
 	_, ok := e.cdcTasks.data[req.TaskID]
 	e.cdcTasks.RUnlock()
 	if !ok {
+		if req.IgnoreNotFound {
+			return &request.DeleteResponse{}, nil
+		}
 		return nil, servererror.NewClientError("not found the task, task_id: " + req.TaskID)
 	}
 

@@ -573,6 +573,9 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, dbInfo *mode
 func (r *replicateChannelManager) StopReadCollection(ctx context.Context, info *pb.CollectionInfo) error {
 	for _, channel := range info.GetPhysicalChannelNames() {
 		handler := r.stopReadChannel(channel, info.ID)
+		if handler == nil {
+			continue
+		}
 		handler.Close()
 	}
 	r.collectionLock.Lock()

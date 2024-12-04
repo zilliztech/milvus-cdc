@@ -20,7 +20,8 @@ package request
 
 //go:generate easytags $GOFILE json,mapstructure
 type DeleteRequest struct {
-	TaskID string `json:"task_id" mapstructure:"task_id"`
+	TaskID         string `json:"task_id" mapstructure:"task_id"`
+	IgnoreNotFound bool   `json:"ignore_not_found" mapstructure:"ignore_not_found"`
 }
 
 type DeleteResponse struct{}
