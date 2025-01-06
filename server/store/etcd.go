@@ -27,8 +27,10 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 
+	api2 "github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
+	meta2 "github.com/zilliztech/milvus-cdc/core/meta"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/api"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
@@ -42,12 +44,13 @@ var (
 type EtcdMetaStore struct {
 	log                         *zap.Logger
 	etcdClient                  *clientv3.Client
+	replicateStore              api2.ReplicateStore
 	taskInfoStore               *TaskInfoEtcdStore
 	taskCollectionPositionStore *TaskCollectionPositionEtcdStore
 	txnMap                      map[any][]clientv3.Op
 }
 
-var _ api.MetaStoreFactory = &EtcdMetaStore{}
+var _ api.MetaStoreFactory = (*EtcdMetaStore)(nil)
 
 func NewEtcdMetaStoreWithAddress(ctx context.Context, endpoints []string, rootPath string) (*EtcdMetaStore, error) {
 	return NewEtcdMetaStore(ctx, config.EtcdServerConfig{
@@ -78,12 +81,18 @@ func NewEtcdMetaStore(ctx context.Context, etcdServerConfig config.EtcdServerCon
 		log.Warn("fail to get task collection position store")
 		return nil, err
 	}
+	replicateStore, err := meta2.NewEtcdReplicateStore(etcdServerConfig.Address, etcdServerConfig.RootPath)
+	if err != nil {
+		log.Warn("fail to get replicate store", zap.Error(err))
+		return nil, err
+	}
 
 	return &EtcdMetaStore{
 		log:                         log,
 		etcdClient:                  etcdClient,
 		taskInfoStore:               taskInfoStore,
 		taskCollectionPositionStore: taskCollectionPositionStore,
+		replicateStore:              replicateStore,
 		txnMap:                      txnMap,
 	}, nil
 }
@@ -94,6 +103,10 @@ func (e *EtcdMetaStore) GetTaskInfoMetaStore(ctx context.Context) api.MetaStore[
 
 func (e *EtcdMetaStore) GetTaskCollectionPositionMetaStore(ctx context.Context) api.MetaStore[*meta.TaskCollectionPosition] {
 	return e.taskCollectionPositionStore
+}
+
+func (e *EtcdMetaStore) GetReplicateStore(ctx context.Context) api2.ReplicateStore {
+	return e.replicateStore
 }
 
 func (e *EtcdMetaStore) Txn(ctx context.Context) (any, func(err error) error, error) {

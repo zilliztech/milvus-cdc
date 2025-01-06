@@ -59,6 +59,7 @@ type ReplicateAPIEvent struct {
 	ReplicateInfo  *commonpb.ReplicateInfo
 	ReplicateParam ReplicateParam
 	TaskID         string
+	MsgID          string
 	Error          error
 }
 

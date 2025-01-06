@@ -33,10 +33,15 @@ type SourceCollectionInfo struct {
 	ShardNum     int
 }
 
-// source collection info in the handler
+// HandlerCollectionInfo source collection info in the handler
 type HandlerCollectionInfo struct {
 	CollectionID int64
 	PChannel     string
+}
+
+type BarrierSignal struct {
+	Msg      msgstream.TsMsg
+	VChannel string
 }
 
 type TargetCollectionInfo struct {
@@ -46,8 +51,8 @@ type TargetCollectionInfo struct {
 	PartitionInfo        map[string]int64
 	PChannel             string
 	VChannel             string
-	BarrierChan          *OnceWriteChan[uint64]
-	PartitionBarrierChan map[int64]*OnceWriteChan[uint64] // id is the source partition id
+	BarrierChan          *OnceWriteChan[*BarrierSignal]
+	PartitionBarrierChan map[int64]*OnceWriteChan[*BarrierSignal] // id is the source partition id
 	Dropped              bool
 	DroppedPartition     map[int64]struct{} // id is the source partition id
 }

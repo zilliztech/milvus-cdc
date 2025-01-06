@@ -62,6 +62,7 @@ type replicateChannelManager struct {
 	streamCreator        StreamCreator
 	targetClient         api.TargetAPI
 	metaOp               api.MetaOp
+	replicateMeta        api.ReplicateMeta
 
 	retryOptions          []retry.Option
 	startReadRetryOptions []retry.Option
@@ -105,6 +106,7 @@ func NewReplicateChannelManager(
 	client api.TargetAPI,
 	readConfig config.ReaderConfig,
 	metaOp api.MetaOp,
+	replicateMeta api.ReplicateMeta,
 	msgPackCallback func(string, *msgstream.MsgPack),
 	downstream string,
 ) (api.ChannelManager, error) {
@@ -114,6 +116,7 @@ func NewReplicateChannelManager(
 		streamCreator:        NewDisptachClientStreamCreator(factory, dispatchClient),
 		targetClient:         client,
 		metaOp:               metaOp,
+		replicateMeta:        replicateMeta,
 		retryOptions:         util.GetRetryOptions(readConfig.Retry),
 		startReadRetryOptions: util.GetRetryOptions(config.RetrySettings{
 			RetryTimes:  readConfig.Retry.RetryTimes,
@@ -354,6 +357,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *m
 			},
 			ReplicateParam: api.ReplicateParam{Database: targetInfo.DatabaseName},
 			TaskID:         taskID,
+			MsgID:          api.GetDropCollectionMsgID(info.ID),
 		}:
 			r.droppedCollections.Store(info.ID, struct{}{})
 			for _, name := range info.PhysicalChannelNames {
@@ -363,6 +367,26 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *m
 		r.collectionLock.Lock()
 		delete(r.replicateCollections, info.ID)
 		r.collectionLock.Unlock()
+	}, func(vchannel string, m msgstream.TsMsg) {
+		dropCollectionMsg, ok := m.(*msgstream.DropCollectionMsg)
+		if !ok {
+			log.Panic("the message is not drop collection message", zap.Any("msg", m))
+		}
+		msgID := api.GetDropCollectionMsgID(dropCollectionMsg.CollectionID)
+		_, err := r.replicateMeta.UpdateTaskDropCollectionMsg(ctx, api.TaskDropCollectionMsg{
+			Base: api.BaseTaskMsg{
+				TaskID:         taskID,
+				MsgID:          msgID,
+				TargetChannels: info.VirtualChannelNames,
+				ReadyChannels:  []string{vchannel},
+			},
+			DatabaseName:   dropCollectionMsg.DbName,
+			CollectionName: dropCollectionMsg.CollectionName,
+			DropTS:         dropCollectionMsg.EndTs(),
+		})
+		if err != nil {
+			log.Panic("failed to update task drop collection msg", zap.Error(err))
+		}
 	})
 	r.replicateCollections[info.ID] = barrier.CloseChan
 	r.collectionLock.Unlock()
@@ -384,8 +408,8 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *m
 			PartitionInfo:        targetInfo.Partitions,
 			PChannel:             targetPChannel,
 			VChannel:             targetVChannel,
-			BarrierChan:          model.NewOnceWriteChan(barrier.BarrierChan),
-			PartitionBarrierChan: make(map[int64]*model.OnceWriteChan[uint64]),
+			BarrierChan:          model.NewOnceWriteChan(barrier.BarrierSignalChan),
+			PartitionBarrierChan: make(map[int64]*model.OnceWriteChan[*model.BarrierSignal]),
 			Dropped:              targetInfo.Dropped,
 			DroppedPartition:     make(map[int64]struct{}),
 		})
@@ -543,11 +567,33 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, dbInfo *mode
 			},
 			ReplicateParam: api.ReplicateParam{Database: dbInfo.Name},
 			TaskID:         taskID,
+			MsgID:          api.GetDropPartitionMsgID(collectionID, partitionInfo.PartitionID),
 		}:
 			r.droppedPartitions.Store(partitionInfo.PartitionID, struct{}{})
 			for _, handler := range handlers {
 				handler.RemovePartitionInfo(collectionID, partitionInfo.PartitionName, partitionInfo.PartitionID)
 			}
+		}
+	}, func(vchannel string, m msgstream.TsMsg) {
+		dropPartitionMsg, ok := m.(*msgstream.DropPartitionMsg)
+		if !ok {
+			log.Panic("the message is not drop partition message", zap.Any("msg", m))
+		}
+		msgID := api.GetDropPartitionMsgID(collectionID, partitionInfo.PartitionID)
+		_, err := r.replicateMeta.UpdateTaskDropPartitionMsg(ctx, api.TaskDropPartitionMsg{
+			Base: api.BaseTaskMsg{
+				TaskID:         taskID,
+				MsgID:          msgID,
+				TargetChannels: collectionInfo.VirtualChannelNames,
+				ReadyChannels:  []string{vchannel},
+			},
+			DatabaseName:   dropPartitionMsg.DbName,
+			CollectionName: dropPartitionMsg.CollectionName,
+			PartitionName:  dropPartitionMsg.PartitionName,
+			DropTS:         dropPartitionMsg.EndTs(),
+		})
+		if err != nil {
+			log.Panic("failed to update task drop partition msg", zap.Error(err))
 		}
 	})
 	r.partitionLock.Lock()
@@ -562,7 +608,7 @@ func (r *replicateChannelManager) AddPartition(ctx context.Context, dbInfo *mode
 	r.replicatePartitions[collectionID][partitionInfo.PartitionID] = barrier.CloseChan
 	r.partitionLock.Unlock()
 	for _, handler := range handlers {
-		err = handler.AddPartitionInfo(taskID, collectionInfo, partitionInfo, barrier.BarrierChan)
+		err = handler.AddPartitionInfo(taskID, collectionInfo, partitionInfo, barrier.BarrierSignalChan)
 		if err != nil {
 			return err
 		}
@@ -1011,7 +1057,7 @@ func (r *replicateChannelHandler) RemoveCollection(collectionID int64) {
 	log.Info("remove collection from handler", zap.Int64("collection_id", collectionID))
 }
 
-func (r *replicateChannelHandler) AddPartitionInfo(taskID string, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo, barrierChan chan<- uint64) error {
+func (r *replicateChannelHandler) AddPartitionInfo(taskID string, collectionInfo *pb.CollectionInfo, partitionInfo *pb.PartitionInfo, barrierChan chan<- *model.BarrierSignal) error {
 	collectionID := collectionInfo.ID
 	partitionID := partitionInfo.PartitionID
 	collectionName := collectionInfo.Schema.Name
@@ -1501,7 +1547,10 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			realMsg = msg.(*msgstream.DropCollectionMsg)
 
 			realMsg.CollectionID = info.CollectionID
-			info.BarrierChan.Write(msg.EndTs())
+			info.BarrierChan.Write(&model.BarrierSignal{
+				Msg:      msg,
+				VChannel: info.VChannel,
+			})
 			needTsMsg = true
 			r.RemoveCollection(collectionID)
 		case *msgstream.DropPartitionMsg:
@@ -1528,7 +1577,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				log.Warn("invalid drop partition message, empty partition name", zap.Any("msg", msg))
 				continue
 			}
-			var partitionBarrierChan *model.OnceWriteChan[uint64]
+			var partitionBarrierChan *model.OnceWriteChan[*model.BarrierSignal]
 			retryErr := retry.Do(r.replicateCtx, func() error {
 				err = nil
 				r.recordLock.RLock()
@@ -1561,7 +1610,10 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 						zap.Int64("partition_id", partitionID), zap.String("partition_name", realMsg.PartitionName))
 					continue
 				}
-				partitionBarrierChan.Write(msg.EndTs())
+				partitionBarrierChan.Write(&model.BarrierSignal{
+					Msg:      msg,
+					VChannel: info.VChannel,
+				})
 				r.RemovePartitionInfo(sourceCollectionID, realMsg.PartitionName, partitionID)
 			}
 		}

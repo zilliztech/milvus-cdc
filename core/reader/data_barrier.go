@@ -18,17 +18,24 @@
 
 package reader
 
+import (
+	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+
+	"github.com/zilliztech/milvus-cdc/core/model"
+)
+
 type Barrier struct {
-	Dest        int
-	BarrierChan chan uint64
-	CloseChan   chan struct{}
+	Dest              int
+	BarrierSignalChan chan *model.BarrierSignal
+	CloseChan         chan struct{}
+	UpdateFunc        func()
 }
 
-func NewBarrier(count int, f func(msgTs uint64, b *Barrier)) *Barrier {
+func NewBarrier(count int, f func(msgTs uint64, b *Barrier), u func(vchannel string, m msgstream.TsMsg)) *Barrier {
 	barrier := &Barrier{
-		Dest:        count,
-		BarrierChan: make(chan uint64, count),
-		CloseChan:   make(chan struct{}),
+		Dest:              count,
+		BarrierSignalChan: make(chan *model.BarrierSignal, count),
+		CloseChan:         make(chan struct{}),
 	}
 
 	go func() {
@@ -37,7 +44,11 @@ func NewBarrier(count int, f func(msgTs uint64, b *Barrier)) *Barrier {
 		for current < barrier.Dest {
 			select {
 			case <-barrier.CloseChan:
-			case msgTs = <-barrier.BarrierChan:
+			case signal := <-barrier.BarrierSignalChan:
+				if u != nil {
+					u(signal.VChannel, signal.Msg)
+				}
+				msgTs = signal.Msg.BeginTs()
 				current++
 			}
 		}

@@ -42,14 +42,21 @@ import (
 func GetMockObjs(t *testing.T) (*mocks.DataHandler, api.Writer) {
 	dataHandler := mocks.NewDataHandler(t)
 	messageManager := mocks.NewMessageManager(t)
-	w := NewChannelWriter(dataHandler, config.WriterConfig{
-		MessageBufferSize: 10,
-		Retry: config.RetrySettings{
-			RetryTimes:  2,
-			InitBackOff: 1,
-			MaxBackOff:  1,
+	replicateMeta := mocks.NewReplicateMeta(t)
+	w := NewChannelWriter(
+		dataHandler,
+		replicateMeta,
+		config.WriterConfig{
+			MessageBufferSize: 10,
+			Retry: config.RetrySettings{
+				RetryTimes:  2,
+				InitBackOff: 1,
+				MaxBackOff:  1,
+			},
 		},
-	}, map[string]map[string]uint64{}, "milvus")
+		map[string]map[string]uint64{},
+		"milvus",
+	)
 	assert.NotNil(t, w)
 	realWriter := w.(*ChannelWriter)
 	realWriter.messageManager = messageManager

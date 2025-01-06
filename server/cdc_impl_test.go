@@ -38,6 +38,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/typeutil"
 
+	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	coremocks "github.com/zilliztech/milvus-cdc/core/mocks"
 	coremodel "github.com/zilliztech/milvus-cdc/core/model"
@@ -512,6 +513,7 @@ func TestCreateRequest(t *testing.T) {
 		factory := mocks.NewMetaStoreFactory(t)
 		store := mocks.NewMetaStore[*meta.TaskInfo](t)
 		positionStore := mocks.NewMetaStore[*meta.TaskCollectionPosition](t)
+		replicateStore := coremocks.NewReplicateStore(t)
 		mqFactoryCreator := coremocks.NewFactoryCreator(t)
 		mqFactory := msgstream.NewMockFactory(t)
 		mq := msgstream.NewMockMsgStream(t)
@@ -520,6 +522,7 @@ func TestCreateRequest(t *testing.T) {
 
 		factory.EXPECT().GetTaskInfoMetaStore(mock.Anything).Return(store)
 		factory.EXPECT().GetTaskCollectionPositionMetaStore(mock.Anything).Return(positionStore)
+		factory.EXPECT().GetReplicateStore(mock.Anything).Return(replicateStore)
 		// check the task num
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{}, nil).Once()
 		// save position
@@ -542,6 +545,8 @@ func TestCreateRequest(t *testing.T) {
 				},
 			},
 		}, nil).Once()
+		// recovery meta task msg
+		replicateStore.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]api.MetaMsg{}, nil)
 		// new channel reader
 		mqFactory.EXPECT().NewMsgStream(mock.Anything).Return(mq, nil).Once()
 		mq.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
@@ -616,6 +621,7 @@ func TestCreateRequest(t *testing.T) {
 		factory := mocks.NewMetaStoreFactory(t)
 		store := mocks.NewMetaStore[*meta.TaskInfo](t)
 		positionStore := mocks.NewMetaStore[*meta.TaskCollectionPosition](t)
+		replicateStore := coremocks.NewReplicateStore(t)
 		mqFactoryCreator := coremocks.NewFactoryCreator(t)
 		mqFactory := msgstream.NewMockFactory(t)
 		mq := msgstream.NewMockMsgStream(t)
@@ -624,6 +630,7 @@ func TestCreateRequest(t *testing.T) {
 
 		factory.EXPECT().GetTaskInfoMetaStore(mock.Anything).Return(store)
 		factory.EXPECT().GetTaskCollectionPositionMetaStore(mock.Anything).Return(positionStore)
+		factory.EXPECT().GetReplicateStore(mock.Anything).Return(replicateStore)
 		// check the task num
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{}, nil).Once()
 		// save position
@@ -646,6 +653,8 @@ func TestCreateRequest(t *testing.T) {
 				},
 			},
 		}, nil).Once()
+		// recovery meta task msg
+		replicateStore.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]api.MetaMsg{}, nil)
 		// new channel reader
 		mqFactory.EXPECT().NewMsgStream(mock.Anything).Return(mq, nil).Once()
 		mq.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
@@ -1141,6 +1150,7 @@ func TestResume(t *testing.T) {
 		factory := mocks.NewMetaStoreFactory(t)
 		store := mocks.NewMetaStore[*meta.TaskInfo](t)
 		positionStore := mocks.NewMetaStore[*meta.TaskCollectionPosition](t)
+		replicateStore := coremocks.NewReplicateStore(t)
 		mqFactoryCreator := coremocks.NewFactoryCreator(t)
 		mqFactory := msgstream.NewMockFactory(t)
 		mq := msgstream.NewMockMsgStream(t)
@@ -1152,6 +1162,8 @@ func TestResume(t *testing.T) {
 
 		factory.EXPECT().GetTaskInfoMetaStore(mock.Anything).Return(store).Maybe()
 		factory.EXPECT().GetTaskCollectionPositionMetaStore(mock.Anything).Return(positionStore).Maybe()
+		factory.EXPECT().GetReplicateStore(mock.Anything).Return(replicateStore).Maybe()
+		replicateStore.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]api.MetaMsg{}, nil)
 		// // check the task num
 		// store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{}, nil).Once()
 		// // save position

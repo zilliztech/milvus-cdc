@@ -17,7 +17,7 @@ static-check:
 	@echo "Running go-lint check:"
 	@(env bash $(PWD)/scripts/run_go_lint.sh)
 
-CORE_API := DataHandler MessageManager MetaOp Reader ChannelManager TargetAPI Writer FactoryCreator
+CORE_API := DataHandler MessageManager MetaOp Reader ChannelManager TargetAPI Writer FactoryCreator ReplicateStore ReplicateMeta
 SERVER_API := MetaStore MetaStoreFactory CDCService
 
 generate-mockery:

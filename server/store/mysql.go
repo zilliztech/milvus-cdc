@@ -29,6 +29,7 @@ import (
 	"github.com/goccy/go-json"
 	"go.uber.org/zap"
 
+	api2 "github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/api"
@@ -40,6 +41,7 @@ type MySQLMetaStore struct {
 	db                          *sql.DB
 	taskInfoStore               *TaskInfoMysqlStore
 	taskCollectionPositionStore *TaskCollectionPositionMysqlStore
+	replicateStore              api2.ReplicateStore
 	txnMap                      map[any]func() *sql.Tx
 }
 
@@ -81,11 +83,16 @@ func (s *MySQLMetaStore) init(ctx context.Context, dataSourceName string, rootPa
 		return err
 	}
 	s.txnMap = txnMap
+	s.replicateStore, err = NewMySQLReplicateStore(ctx, dataSourceName, rootPath)
+	if err != nil {
+		s.log.Warn("fail to create replicate store", zap.Error(err))
+		return err
+	}
 
 	return nil
 }
 
-var _ api.MetaStoreFactory = &MySQLMetaStore{}
+var _ api.MetaStoreFactory = (*MySQLMetaStore)(nil)
 
 func (s *MySQLMetaStore) GetTaskInfoMetaStore(ctx context.Context) api.MetaStore[*meta.TaskInfo] {
 	return s.taskInfoStore
@@ -93,6 +100,10 @@ func (s *MySQLMetaStore) GetTaskInfoMetaStore(ctx context.Context) api.MetaStore
 
 func (s *MySQLMetaStore) GetTaskCollectionPositionMetaStore(ctx context.Context) api.MetaStore[*meta.TaskCollectionPosition] {
 	return s.taskCollectionPositionStore
+}
+
+func (s *MySQLMetaStore) GetReplicateStore(ctx context.Context) api2.ReplicateStore {
+	return s.replicateStore
 }
 
 func (s *MySQLMetaStore) Txn(ctx context.Context) (any, func(err error) error, error) {

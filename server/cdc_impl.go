@@ -42,6 +42,7 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
+	meta2 "github.com/zilliztech/milvus-cdc/core/meta"
 	coremodel "github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	cdcreader "github.com/zilliztech/milvus-cdc/core/reader"
@@ -207,6 +208,8 @@ func (e *MetaCDC) ReloadTask() {
 			log.Warn("fail to start the task", zap.Any("task_info", taskInfo), zap.Error(err))
 			_ = e.pauseTaskWithReason(taskInfo.TaskID, "fail to start task, err: "+err.Error(), []meta.TaskState{})
 		}
+		// replicateEntity := e.replicateEntityMap.data[uKey]
+		// replicateEntity.
 	}
 }
 
@@ -852,6 +855,11 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	// default value: 10
 	bufferSize := e.config.SourceConfig.ReadChanLen
 	ttInterval := e.config.SourceConfig.TimeTickInterval
+	replicateMeta, err := meta2.NewReplicateMetaImpl(e.metaStoreFactory.GetReplicateStore(ctx))
+	if err != nil {
+		taskLog.Warn("fail to new replicate meta", zap.Error(err))
+		return nil, servererror.NewClientError("fail to new replicate meta")
+	}
 	channelManager, err := cdcreader.NewReplicateChannelManager(
 		msgTTDispatcherClient,
 		streamFactory,
@@ -863,7 +871,10 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 			SourceChannelNum:  e.config.SourceConfig.ChannelNum,
 			TargetChannelNum:  info.MilvusConnectParam.ChannelNum,
 			ReplicateID:       uKey,
-		}, metaOp, func(s string, pack *msgstream.MsgPack) {
+		},
+		metaOp,
+		replicateMeta,
+		func(s string, pack *msgstream.MsgPack) {
 			replicateMetric(info.TaskID, s, pack, metrics.OPTypeRead)
 		}, downstream)
 	if err != nil {
@@ -891,11 +902,17 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 		taskLog.Warn("fail to new the data handler", zap.Error(err))
 		return nil, servererror.NewClientError("fail to new the data handler, task_id: " + info.TaskID)
 	}
-	writerObj := cdcwriter.NewChannelWriter(dataHandler, config.WriterConfig{
-		MessageBufferSize: bufferSize,
-		Retry:             e.config.Retry,
-		ReplicateID:       e.config.ReplicateID,
-	}, metaOp.GetAllDroppedObj(), downstream)
+	writerObj := cdcwriter.NewChannelWriter(
+		dataHandler,
+		replicateMeta,
+		config.WriterConfig{
+			MessageBufferSize: bufferSize,
+			Retry:             e.config.Retry,
+			ReplicateID:       e.config.ReplicateID,
+		},
+		metaOp.GetAllDroppedObj(),
+		downstream,
+	)
 	e.replicateEntityMap.Lock()
 	defer e.replicateEntityMap.Unlock()
 	// TODO fubang should be fix
