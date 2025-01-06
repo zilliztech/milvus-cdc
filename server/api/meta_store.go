@@ -21,6 +21,7 @@ package api
 import (
 	"context"
 
+	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 )
 
@@ -37,6 +38,7 @@ type MetaStore[M any] interface {
 type MetaStoreFactory interface {
 	GetTaskInfoMetaStore(ctx context.Context) MetaStore[*meta.TaskInfo]
 	GetTaskCollectionPositionMetaStore(ctx context.Context) MetaStore[*meta.TaskCollectionPosition]
+	GetReplicateStore(ctx context.Context) api.ReplicateStore
 	// Txn return commit function and error
 	Txn(ctx context.Context) (any, func(err error) error, error)
 }

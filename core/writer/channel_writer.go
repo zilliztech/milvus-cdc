@@ -28,6 +28,7 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/requestutil"
@@ -36,6 +37,7 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
+	"github.com/zilliztech/milvus-cdc/core/pb"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
@@ -49,6 +51,7 @@ type (
 type ChannelWriter struct {
 	dataHandler    api.DataHandler
 	messageManager api.MessageManager
+	replicateMeta  api.ReplicateMeta
 
 	opMessageFuncs map[commonpb.MsgType]opMessageFunc
 	apiEventFuncs  map[api.ReplicateAPIEventType]apiEventFunc
@@ -64,13 +67,16 @@ type ChannelWriter struct {
 	replicateID  string
 }
 
-func NewChannelWriter(dataHandler api.DataHandler,
+func NewChannelWriter(
+	dataHandler api.DataHandler,
+	replicateMeta api.ReplicateMeta,
 	writerConfig config.WriterConfig,
 	droppedObjs map[string]map[string]uint64,
 	downstream string,
 ) api.Writer {
 	w := &ChannelWriter{
 		dataHandler:    dataHandler,
+		replicateMeta:  replicateMeta,
 		messageManager: NewReplicateMessageManager(dataHandler, writerConfig.MessageBufferSize),
 		retryOptions:   util.GetRetryOptions(writerConfig.Retry),
 		downstream:     downstream,
@@ -344,6 +350,76 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 	return endPosition.MsgID, nil
 }
 
+func (c *ChannelWriter) RecoveryMetaMsg(ctx context.Context, taskID string) error {
+	dropCollectionMetaMsgs, err := c.replicateMeta.GetTaskDropCollectionMsg(ctx, taskID, "")
+	if err != nil {
+		log.Warn("fail to get task drop collection msg", zap.Error(err))
+		return err
+	}
+	for _, metaMsg := range dropCollectionMetaMsgs {
+		if !metaMsg.Base.IsReady() {
+			continue
+		}
+		err = c.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
+			EventType: api.ReplicateDropCollection,
+			CollectionInfo: &pb.CollectionInfo{
+				Schema: &schemapb.CollectionSchema{
+					Name: metaMsg.CollectionName,
+				},
+			},
+			ReplicateInfo: &commonpb.ReplicateInfo{
+				IsReplicate:  true,
+				MsgTimestamp: metaMsg.DropTS,
+			},
+			ReplicateParam: api.ReplicateParam{
+				Database: metaMsg.DatabaseName,
+			},
+			TaskID: metaMsg.Base.TaskID,
+			MsgID:  metaMsg.Base.MsgID,
+		})
+		if err != nil {
+			log.Warn("fail to handle replicate api event", zap.Error(err))
+			return err
+		}
+	}
+
+	dropPartitionMetaMsgs, err := c.replicateMeta.GetTaskDropPartitionMsg(ctx, taskID, "")
+	if err != nil {
+		log.Warn("fail to get task drop partition msg", zap.Error(err))
+		return err
+	}
+	for _, metaMsg := range dropPartitionMetaMsgs {
+		if !metaMsg.Base.IsReady() {
+			continue
+		}
+		err = c.HandleReplicateAPIEvent(ctx, &api.ReplicateAPIEvent{
+			EventType: api.ReplicateDropPartition,
+			CollectionInfo: &pb.CollectionInfo{
+				Schema: &schemapb.CollectionSchema{
+					Name: metaMsg.CollectionName,
+				},
+			},
+			PartitionInfo: &pb.PartitionInfo{
+				PartitionName: metaMsg.PartitionName,
+			},
+			ReplicateInfo: &commonpb.ReplicateInfo{
+				IsReplicate:  true,
+				MsgTimestamp: metaMsg.DropTS,
+			},
+			ReplicateParam: api.ReplicateParam{
+				Database: metaMsg.DatabaseName,
+			},
+			TaskID: metaMsg.Base.TaskID,
+			MsgID:  metaMsg.Base.MsgID,
+		})
+		if err != nil {
+			log.Warn("fail to handle replicate api event", zap.Error(err))
+			return err
+		}
+	}
+	return nil
+}
+
 // WaitDatabaseReady wait for database ready, return value: skip the op or not, wait timeout or not
 func (c *ChannelWriter) WaitDatabaseReady(ctx context.Context, databaseName string, msgTs uint64, collectionName string) InfoState {
 	if databaseName == "" || databaseName == util.DefaultDbName {
@@ -537,6 +613,11 @@ func (c *ChannelWriter) dropCollection(ctx context.Context, apiEvent *api.Replic
 	}
 	_, dropKey := util.GetCollectionInfoKeys(collectionName, databaseName)
 	c.collectionInfos.Store(dropKey, apiEvent.ReplicateInfo.MsgTimestamp)
+	err = c.replicateMeta.RemoveTaskMsg(ctx, apiEvent.TaskID, apiEvent.MsgID)
+	if err != nil {
+		log.Warn("fail to remove task msg", zap.Error(err))
+		return err
+	}
 	return nil
 }
 
@@ -600,6 +681,11 @@ func (c *ChannelWriter) dropPartition(ctx context.Context, apiEvent *api.Replica
 	}
 	_, dropKey := util.GetPartitionInfoKeys(partitionName, collectionName, databaseName)
 	c.partitionInfos.Store(dropKey, apiEvent.ReplicateInfo.MsgTimestamp)
+	err = c.replicateMeta.RemoveTaskMsg(ctx, apiEvent.TaskID, apiEvent.MsgID)
+	if err != nil {
+		log.Warn("fail to remove task msg", zap.Error(err))
+		return err
+	}
 	return nil
 }
 

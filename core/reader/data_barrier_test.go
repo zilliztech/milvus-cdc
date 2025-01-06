@@ -24,12 +24,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+
+	"github.com/zilliztech/milvus-cdc/core/model"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 func TestNewBarrier(t *testing.T) {
 	t.Run("close", func(t *testing.T) {
-		b := NewBarrier(2, func(msgTs uint64, b *Barrier) {})
+		b := NewBarrier(2, func(msgTs uint64, b *Barrier) {}, nil)
 		close(b.CloseChan)
 	})
 
@@ -39,9 +42,23 @@ func TestNewBarrier(t *testing.T) {
 		b := NewBarrier(2, func(msgTs uint64, b *Barrier) {
 			assert.EqualValues(t, 2, msgTs)
 			isExecuted.Store(true)
-		})
-		b.BarrierChan <- 2
-		b.BarrierChan <- 2
+		}, nil)
+		b.BarrierSignalChan <- &model.BarrierSignal{
+			Msg: &msgstream.TimeTickMsg{
+				BaseMsg: msgstream.BaseMsg{
+					BeginTimestamp: 2,
+				},
+			},
+			VChannel: "v1",
+		}
+		b.BarrierSignalChan <- &model.BarrierSignal{
+			Msg: &msgstream.TimeTickMsg{
+				BaseMsg: msgstream.BaseMsg{
+					BeginTimestamp: 2,
+				},
+			},
+			VChannel: "v2",
+		}
 		assert.Eventually(t, isExecuted.Load, time.Second, time.Millisecond*100)
 	})
 }

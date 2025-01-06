@@ -30,6 +30,7 @@ type Writer interface {
 	HandleReplicateAPIEvent(ctx context.Context, apiEvent *ReplicateAPIEvent) error
 	HandleReplicateMessage(ctx context.Context, channelName string, msgPack *msgstream.MsgPack) ([]byte, []byte, error)
 	HandleOpMessagePack(ctx context.Context, msgPack *msgstream.MsgPack) ([]byte, error)
+	RecoveryMetaMsg(ctx context.Context, taskID string) error
 }
 
 type DefaultWriter struct{}
@@ -49,4 +50,9 @@ func (d *DefaultWriter) HandleReplicateMessage(ctx context.Context, channelName 
 func (d *DefaultWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstream.MsgPack) ([]byte, error) {
 	log.Warn("HandleOpMessagePack is not implemented, please check it")
 	return nil, nil
+}
+
+func (d *DefaultWriter) RecoveryMetaMsg(ctx context.Context, taskID string) error {
+	log.Warn("RecoveryMetaMsg is not implemented, please check it")
+	return nil
 }

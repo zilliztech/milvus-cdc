@@ -285,9 +285,9 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 				},
 				PChannel:    "ttest_read_channel",
 				VChannel:    "ttest_read_channel_v0",
-				BarrierChan: model.NewOnceWriteChan(make(chan<- uint64)),
-				PartitionBarrierChan: map[int64]*model.OnceWriteChan[uint64]{
-					1101: model.NewOnceWriteChan(make(chan<- uint64)),
+				BarrierChan: model.NewOnceWriteChan(make(chan<- *model.BarrierSignal)),
+				PartitionBarrierChan: map[int64]*model.OnceWriteChan[*model.BarrierSignal]{
+					1101: model.NewOnceWriteChan(make(chan<- *model.BarrierSignal)),
 				},
 			})
 			assert.NoError(t, err)
@@ -449,9 +449,9 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 				},
 				PChannel:    "kafka_ttest_read_channel",
 				VChannel:    "kafka_ttest_read_channel_v0",
-				BarrierChan: model.NewOnceWriteChan(make(chan<- uint64)),
-				PartitionBarrierChan: map[int64]*model.OnceWriteChan[uint64]{
-					1101: model.NewOnceWriteChan(make(chan<- uint64)),
+				BarrierChan: model.NewOnceWriteChan(make(chan<- *model.BarrierSignal)),
+				PartitionBarrierChan: map[int64]*model.OnceWriteChan[*model.BarrierSignal]{
+					1101: model.NewOnceWriteChan(make(chan<- *model.BarrierSignal)),
 				},
 			})
 			assert.NoError(t, err)
@@ -702,8 +702,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 				CollectionID: 2,
 			}, &model.TargetCollectionInfo{
 				CollectionName: "test2",
-				PartitionBarrierChan: map[int64]*model.OnceWriteChan[uint64]{
-					1001: model.NewOnceWriteChan(make(chan<- uint64)),
+				PartitionBarrierChan: map[int64]*model.OnceWriteChan[*model.BarrierSignal]{
+					1001: model.NewOnceWriteChan(make(chan<- *model.BarrierSignal)),
 				},
 				DroppedPartition: make(map[int64]struct{}),
 			})
@@ -716,7 +716,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}, &pb.PartitionInfo{
 			PartitionID:   2001,
 			PartitionName: "p2",
-		}, make(chan<- uint64))
+		}, make(chan<- *model.BarrierSignal))
 		assert.NoError(t, err)
 		time.Sleep(1500 * time.Millisecond)
 		handler.RemovePartitionInfo(2, "p2", 10002)
@@ -763,8 +763,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once().Twice()
 		stream.EXPECT().Chan().Return(streamChan)
 
-		barrierChan := make(chan uint64, 1)
-		partitionBarrierChan := make(chan uint64, 1)
+		barrierChan := make(chan *model.BarrierSignal, 1)
+		partitionBarrierChan := make(chan *model.BarrierSignal, 1)
 		apiEventChan := make(chan *api.ReplicateAPIEvent, 10)
 		handler, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{
 			CollectionID: 1,
@@ -780,7 +780,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			PChannel:             "test_q",
 			VChannel:             "test_q_v1",
 			BarrierChan:          model.NewOnceWriteChan(barrierChan),
-			PartitionBarrierChan: map[int64]*model.OnceWriteChan[uint64]{},
+			PartitionBarrierChan: map[int64]*model.OnceWriteChan[*model.BarrierSignal]{},
 			DroppedPartition:     make(map[int64]struct{}),
 		}, targetClient, &api.DefaultMetaOp{}, apiEventChan, &model.HandlerOpts{
 			Factory:    factory,
@@ -818,13 +818,14 @@ func TestReplicateChannelHandler(t *testing.T) {
 		go func() {
 			defer close(done)
 			{
+				log.Info("receive timetick msg")
 				// timetick pack
 				replicateMsg := <-targetMsgChan
 				pack := replicateMsg.MsgPack
 				// assert pack
 				assert.NotNil(t, pack)
 				assert.EqualValues(t, 1, pack.BeginTs)
-				assert.EqualValues(t, 2, pack.EndTs)
+				assert.EqualValues(t, 3, pack.EndTs)
 				assert.Len(t, pack.StartPositions, 1)
 				assert.Len(t, pack.EndPositions, 1)
 				assert.Len(t, pack.Msgs, 1)
@@ -832,6 +833,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 				assert.True(t, ok, pack.Msgs[0])
 			}
 			{
+				log.Info("receive insert msg")
 				// insert msg
 				replicateMsg := <-targetMsgChan
 				pack := replicateMsg.MsgPack
@@ -843,6 +845,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			}
 
 			{
+				log.Info("receive delete msg")
 				// delete msg
 				replicateMsg := <-targetMsgChan
 				pack := replicateMsg.MsgPack
@@ -862,6 +865,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			}
 
 			{
+				log.Info("receive drop partition msg")
 				// drop partition msg
 				replicateMsg := <-targetMsgChan
 				pack := replicateMsg.MsgPack
@@ -869,17 +873,20 @@ func TestReplicateChannelHandler(t *testing.T) {
 				dropMsg := pack.Msgs[0].(*msgstream.DropPartitionMsg)
 				assert.EqualValues(t, 100, dropMsg.CollectionID)
 				assert.EqualValues(t, 100021, dropMsg.PartitionID)
-				assert.EqualValues(t, 2, <-partitionBarrierChan)
+				signal := <-partitionBarrierChan
+				assert.EqualValues(t, 12, signal.Msg.EndTs())
 			}
 
 			{
+				log.Info("receive drop collection msg")
 				// drop collection msg
 				replicateMsg := <-targetMsgChan
 				pack := replicateMsg.MsgPack
 				assert.Len(t, pack.Msgs, 2)
 				dropMsg := pack.Msgs[0].(*msgstream.DropCollectionMsg)
 				assert.EqualValues(t, 100, dropMsg.CollectionID)
-				assert.EqualValues(t, 2, <-barrierChan)
+				signal := <-barrierChan
+				assert.EqualValues(t, 14, signal.Msg.EndTs())
 			}
 		}()
 
@@ -887,7 +894,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		log.Info("create collection msg / create partition msg / timetick msg")
 		streamChan <- &msgstream.MsgPack{
 			BeginTs: 1,
-			EndTs:   2,
+			EndTs:   3,
 			StartPositions: []*msgstream.MsgPosition{
 				{
 					ChannelName: "test_p",
@@ -901,7 +908,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 			Msgs: []msgstream.TsMsg{
 				&msgstream.CreateCollectionMsg{
 					BaseMsg: msgstream.BaseMsg{
-						BeginTimestamp: 1,
+						BeginTimestamp: 2,
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
@@ -913,7 +920,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 				},
 				&msgstream.CreatePartitionMsg{
 					BaseMsg: msgstream.BaseMsg{
-						BeginTimestamp: 1,
+						BeginTimestamp: 2,
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
@@ -925,7 +932,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 				},
 				&msgstream.TimeTickMsg{
 					BaseMsg: msgstream.BaseMsg{
-						BeginTimestamp: 1,
+						BeginTimestamp: 2,
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
@@ -937,7 +944,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 				},
 				&msgstream.TimeTickMsg{
 					BaseMsg: msgstream.BaseMsg{
-						BeginTimestamp: 1,
+						BeginTimestamp: 2,
 						EndTimestamp:   2,
 						HashValues:     []uint32{0},
 					},
@@ -951,8 +958,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}
 
 		streamChan <- &msgstream.MsgPack{
-			BeginTs: 1,
-			EndTs:   2,
+			BeginTs: 3,
+			EndTs:   5,
 			StartPositions: []*msgstream.MsgPosition{
 				{
 					ChannelName: "test_p",
@@ -966,8 +973,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 			Msgs: []msgstream.TsMsg{
 				&msgstream.TimeTickMsg{
 					BaseMsg: msgstream.BaseMsg{
-						BeginTimestamp: 1,
-						EndTimestamp:   2,
+						BeginTimestamp: 4,
+						EndTimestamp:   4,
 						HashValues:     []uint32{0},
 					},
 					TimeTickMsg: &msgpb.TimeTickMsg{
@@ -980,8 +987,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 		}
 
 		streamChan <- &msgstream.MsgPack{
-			BeginTs: 1,
-			EndTs:   2,
+			BeginTs: 5,
+			EndTs:   7,
 			StartPositions: []*msgstream.MsgPosition{
 				{
 					ChannelName: "test_p",
@@ -995,8 +1002,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 			Msgs: []msgstream.TsMsg{
 				&msgstream.TimeTickMsg{
 					BaseMsg: msgstream.BaseMsg{
-						BeginTimestamp: 1,
-						EndTimestamp:   2,
+						BeginTimestamp: 6,
+						EndTimestamp:   6,
 						HashValues:     []uint32{0},
 					},
 					TimeTickMsg: &msgpb.TimeTickMsg{
@@ -1011,8 +1018,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 		// insert msg
 		log.Info("insert msg")
 		streamChan <- &msgstream.MsgPack{
-			BeginTs: 1,
-			EndTs:   2,
+			BeginTs: 7,
+			EndTs:   9,
 			StartPositions: []*msgstream.MsgPosition{
 				{
 					ChannelName: "test_p",
@@ -1026,8 +1033,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 			Msgs: []msgstream.TsMsg{
 				&msgstream.InsertMsg{
 					BaseMsg: msgstream.BaseMsg{
-						BeginTimestamp: 1,
-						EndTimestamp:   2,
+						BeginTimestamp: 8,
+						EndTimestamp:   8,
 						HashValues:     []uint32{0},
 						MsgPosition:    &msgstream.MsgPosition{ChannelName: "test_p"},
 					},
@@ -1047,8 +1054,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 		// delete msg
 		log.Info("delete msg")
 		streamChan <- &msgstream.MsgPack{
-			BeginTs: 1,
-			EndTs:   2,
+			BeginTs: 9,
+			EndTs:   11,
 			StartPositions: []*msgstream.MsgPosition{
 				{
 					ChannelName: "test_p",
@@ -1062,8 +1069,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 			Msgs: []msgstream.TsMsg{
 				&msgstream.DeleteMsg{
 					BaseMsg: msgstream.BaseMsg{
-						BeginTimestamp: 1,
-						EndTimestamp:   1,
+						BeginTimestamp: 10,
+						EndTimestamp:   10,
 						HashValues:     []uint32{0},
 						MsgPosition:    &msgstream.MsgPosition{ChannelName: "test_p"},
 					},
@@ -1077,8 +1084,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 				},
 				&msgstream.DeleteMsg{
 					BaseMsg: msgstream.BaseMsg{
-						BeginTimestamp: 2,
-						EndTimestamp:   2,
+						BeginTimestamp: 11,
+						EndTimestamp:   11,
 						HashValues:     []uint32{0},
 						MsgPosition:    &msgstream.MsgPosition{ChannelName: "test_p"},
 					},
@@ -1098,8 +1105,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 		// drop partition msg
 		log.Info("drop partition msg")
 		streamChan <- &msgstream.MsgPack{
-			BeginTs: 1,
-			EndTs:   2,
+			BeginTs: 11,
+			EndTs:   13,
 			StartPositions: []*msgstream.MsgPosition{
 				{
 					ChannelName: "test_p",
@@ -1113,8 +1120,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 			Msgs: []msgstream.TsMsg{
 				&msgstream.DropPartitionMsg{
 					BaseMsg: msgstream.BaseMsg{
-						BeginTimestamp: 1,
-						EndTimestamp:   2,
+						BeginTimestamp: 12,
+						EndTimestamp:   12,
 						HashValues:     []uint32{0},
 						MsgPosition:    &msgstream.MsgPosition{ChannelName: "test_p"},
 					},
@@ -1133,8 +1140,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 		// drop collection msg
 		log.Info("drop collection msg")
 		streamChan <- &msgstream.MsgPack{
-			BeginTs: 1,
-			EndTs:   2,
+			BeginTs: 13,
+			EndTs:   15,
 			StartPositions: []*msgstream.MsgPosition{
 				{
 					ChannelName: "test_p",
@@ -1148,8 +1155,8 @@ func TestReplicateChannelHandler(t *testing.T) {
 			Msgs: []msgstream.TsMsg{
 				&msgstream.DropCollectionMsg{
 					BaseMsg: msgstream.BaseMsg{
-						BeginTimestamp: 1,
-						EndTimestamp:   2,
+						BeginTimestamp: 14,
+						EndTimestamp:   14,
 						HashValues:     []uint32{0},
 						MsgPosition:    &msgstream.MsgPosition{ChannelName: "test_p"},
 					},
