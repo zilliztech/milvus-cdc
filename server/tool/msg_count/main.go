@@ -308,7 +308,21 @@ func GetMQMessageDetail(ctx context.Context, config PositionConfig, pchannel str
 	select {
 	case <-ctx.Done():
 		markPrintln(ctx.Err())
-	case msgpack := <-msgStream.Chan():
+	case consumePack := <-msgStream.Chan():
+		msgpack := &msgstream.MsgPack{
+			BeginTs:        consumePack.BeginTs,
+			EndTs:          consumePack.EndTs,
+			Msgs:           make([]msgstream.TsMsg, 0),
+			StartPositions: consumePack.StartPositions,
+			EndPositions:   consumePack.EndPositions,
+		}
+		for _, msg := range consumePack.Msgs {
+			unMsg, err := msg.Unmarshal(msgStream.GetUnmarshalDispatcher())
+			if err != nil {
+				log.Panic("fail to unmarshal the message", zap.Error(err))
+			}
+			msgpack.Msgs = append(msgpack.Msgs, unMsg)
+		}
 		endTs := msgpack.EndTs
 		end := msgpack.EndPositions[0]
 		msgTime := tsoutil.PhysicalTime(endTs)
@@ -343,7 +357,21 @@ func MsgCountForStream(ctx context.Context, msgStream msgstream.MsgStream, confi
 			markPrintln("count timeout, err: ", ctx.Err())
 			markPrintln("current count:", msgCount)
 			return
-		case msgpack := <-msgStream.Chan():
+		case consumePack := <-msgStream.Chan():
+			msgpack := &msgstream.MsgPack{
+				BeginTs:        consumePack.BeginTs,
+				EndTs:          consumePack.EndTs,
+				Msgs:           make([]msgstream.TsMsg, 0),
+				StartPositions: consumePack.StartPositions,
+				EndPositions:   consumePack.EndPositions,
+			}
+			for _, msg := range consumePack.Msgs {
+				unMsg, err := msg.Unmarshal(msgStream.GetUnmarshalDispatcher())
+				if err != nil {
+					log.Panic("fail to unmarshal the message", zap.Error(err))
+				}
+				msgpack.Msgs = append(msgpack.Msgs, unMsg)
+			}
 			end := msgpack.EndPositions[0]
 			ok, err := latestMsgID.LessOrEqualThan(end.GetMsgID())
 			if err != nil {

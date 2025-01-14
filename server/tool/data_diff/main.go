@@ -226,7 +226,21 @@ func GetStreamData(
 		case <-ctx.Done():
 			log.Warn("Timeout", zap.Int("timeout", timeout))
 			return dataMap
-		case msgPack := <-msgStream.Chan():
+		case consumePack := <-msgStream.Chan():
+			msgPack := &msgstream.MsgPack{
+				BeginTs:        consumePack.BeginTs,
+				EndTs:          consumePack.EndTs,
+				Msgs:           make([]msgstream.TsMsg, 0),
+				StartPositions: consumePack.StartPositions,
+				EndPositions:   consumePack.EndPositions,
+			}
+			for _, msg := range consumePack.Msgs {
+				unMsg, err := msg.Unmarshal(msgStream.GetUnmarshalDispatcher())
+				if err != nil {
+					log.Panic("fail to unmarshal the message", zap.Error(err))
+				}
+				msgPack.Msgs = append(msgPack.Msgs, unMsg)
+			}
 			end := msgPack.EndPositions[0]
 			ok, err := latestID.LessOrEqualThan(end.GetMsgID())
 			if err != nil {

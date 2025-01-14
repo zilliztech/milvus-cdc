@@ -76,7 +76,7 @@ func createTopic(topic string) error {
 	if err != nil {
 		return err
 	}
-	s.AsProducer([]string{topic})
+	s.AsProducer(context.Background(), []string{topic})
 	s.Close()
 	return nil
 }
@@ -551,13 +551,12 @@ func TestCreateRequest(t *testing.T) {
 		mqFactory.EXPECT().NewMsgStream(mock.Anything).Return(mq, nil).Once()
 		mq.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 		// start read channel
-		streamChan := make(chan *msgstream.MsgPack)
+		streamChan := make(chan *msgstream.ConsumeMsgPack)
 		mq.EXPECT().Chan().Return(streamChan)
 		// update state
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{
 			{
-				TaskID: "1",
-				State:  meta.TaskStateInitial,
+				State: meta.TaskStateInitial,
 			},
 		}, nil).Once()
 		store.EXPECT().Put(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
@@ -659,7 +658,7 @@ func TestCreateRequest(t *testing.T) {
 		mqFactory.EXPECT().NewMsgStream(mock.Anything).Return(mq, nil).Once()
 		mq.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 		// start read channel
-		streamChan := make(chan *msgstream.MsgPack)
+		streamChan := make(chan *msgstream.ConsumeMsgPack)
 		mq.EXPECT().Chan().Return(streamChan)
 		// update state
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{
@@ -1190,7 +1189,7 @@ func TestResume(t *testing.T) {
 		mqFactory.EXPECT().NewMsgStream(mock.Anything).Return(mq, nil).Once()
 		mq.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 		// start read channel
-		streamChan := make(chan *msgstream.MsgPack)
+		streamChan := make(chan *msgstream.ConsumeMsgPack)
 		mq.EXPECT().Chan().Return(streamChan)
 		// update state
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{

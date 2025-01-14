@@ -1163,6 +1163,9 @@ func (r *replicateChannelHandler) updateTargetPartitionInfo(collectionID int64, 
 		return 0
 	}
 	targetInfo.PartitionInfo = collectionInfo.Partitions
+	if partitionName == "" {
+		return 0
+	}
 	return targetInfo.PartitionInfo[partitionName]
 }
 
@@ -1374,6 +1377,40 @@ func (r *replicateChannelHandler) getPartitionID(sourceCollectionID, sourceParti
 	return id, nil
 }
 
+func (r *replicateChannelHandler) getPartitionIDs(sourceCollectionID int64, sourcePartitionIDs []int64, info *model.TargetCollectionInfo) ([]int64, error) {
+	var ids []int64
+	r.recordLock.RLock()
+	ids = lo.Values(info.PartitionInfo)
+	r.recordLock.RUnlock()
+	if len(ids) == len(sourcePartitionIDs) {
+		return ids, nil
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	err := retry.Do(r.replicateCtx, func() error {
+		log.Warn("wait partition info", zap.Int64("collection_id", info.CollectionID), zap.Int64s("source_partition_ids", sourcePartitionIDs))
+		_ = r.updateTargetPartitionInfo(sourceCollectionID, info.CollectionName, "")
+
+		r.recordLock.RLock()
+		ids = lo.Values(info.PartitionInfo)
+		r.recordLock.RUnlock()
+		if len(ids) == len(sourcePartitionIDs) {
+			return nil
+		}
+
+		return errors.Newf("not found the partition ids")
+	}, r.handlerOpts.RetryOptions...)
+	if err != nil {
+		log.Warn("fail to find the partition ids",
+			zap.Int64("source_collection", sourceCollectionID),
+			zap.Any("target_collection", info.CollectionID),
+			zap.Int64s("source_partition_ids", sourcePartitionIDs))
+		return nil, err
+	}
+
+	return ids, nil
+}
+
 func (r *replicateChannelHandler) isDroppingPartition(partition int64, info *model.TargetCollectionInfo) bool {
 	r.recordLock.RLock()
 	defer r.recordLock.RUnlock()
@@ -1385,7 +1422,8 @@ func isSupportedMsgType(msgType commonpb.MsgType) bool {
 	return msgType == commonpb.MsgType_Insert ||
 		msgType == commonpb.MsgType_Delete ||
 		msgType == commonpb.MsgType_DropCollection ||
-		msgType == commonpb.MsgType_DropPartition
+		msgType == commonpb.MsgType_DropPartition ||
+		msgType == commonpb.MsgType_Import
 }
 
 func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPack, taskID string) *api.ReplicateMsg {
@@ -1616,6 +1654,17 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 				})
 				r.RemovePartitionInfo(sourceCollectionID, realMsg.PartitionName, partitionID)
 			}
+		case *msgstream.ImportMsg:
+			if info.Dropped {
+				log.Info("skip import msg because collection has been dropped", zap.Int64("collection_id", sourceCollectionID))
+				continue
+			}
+			realMsg.CollectionID = info.CollectionID
+			var partitionIDs []int64
+			partitionIDs, err = r.getPartitionIDs(sourceCollectionID, realMsg.PartitionIDs, info)
+			if err == nil {
+				realMsg.PartitionIDs = partitionIDs
+			}
 		}
 		if err != nil {
 			r.sendErrEvent(err)
@@ -1782,8 +1831,11 @@ func resetMsgTimestamp(msg msgstream.TsMsg, newTimestamp uint64) {
 	case *msgstream.DropPartitionMsg:
 		realMsg.BeginTimestamp = newTimestamp
 		realMsg.EndTimestamp = newTimestamp
+	case *msgstream.ImportMsg:
+		realMsg.BeginTimestamp = newTimestamp
+		realMsg.EndTimestamp = newTimestamp
 	default:
-		log.Warn("reset msg timestamp: not support msg type", zap.Any("msg", msg))
+		log.Panic("reset msg timestamp: not support msg type", zap.Any("msg", msg))
 		return
 	}
 	pos := msg.Position()
