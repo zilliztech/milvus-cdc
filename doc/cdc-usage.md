@@ -1,20 +1,18 @@
 # Milvus-CDC Usage
 
 ## Limitation
+1. The **deployment supports only Pulsar and Kafka Message Queues**, as the built-in RocksMQ is inaccessible from the source side.
+2. All collections must currently be synchronized from the source cluster, requiring CDC tasks to be specified as `*`.
+3. The following operations are supported for synchronization from the source cluster to the target cluster via CDC:  
+   - Create/Drop Collection  
+   - Insert/Delete  
+   - Create/Drop Partition  
+   - Create/Drop Index  
+   - Load/Release/Flush  
+   - Load/Release Partitions  
+   - Create/Drop Database
 
-1. Only the cluster dimension can be synchronized, that is, the collection name can only be specified as `*` when creating a task. The collection dimension will also be supported in the future.
-2. Supported operations
-- Create/Drop Collection
-- Insert/Delete
-- Create/Drop Partition
-- Create/Drop Index
-- Load/Release/Flush
-- Load/Release Partitions
-- Create/Drop Database
-
-**Anything not mentioned is not supported;**
-
-3. Milvus cdc only supports synchronized data. If you need active and backup disaster recovery functions, please contact us;
+**Only mentioned items are supported, and Milvus CDC exclusively supports synchronized data, for inquiries on active and backup disaster recovery functions, please contact us.**
 
 ## Configuration
 
