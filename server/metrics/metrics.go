@@ -118,7 +118,7 @@ var (
 			Subsystem: systemName,
 			Name:      "replicate_data_size",
 			Help:      "the size of the message",
-		}, []string{taskIDLabelName, vchannelLabelName, opTypeName})
+		}, []string{taskIDLabelName, vchannelLabelName, opTypeName, messageTypeLabelName})
 
 	ReplicateDataCntVec = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
