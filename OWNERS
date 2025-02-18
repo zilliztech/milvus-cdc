@@ -1,0 +1,6 @@
+filters:
+  ".*":
+    reviewers:
+      - maintainers
+    approvers:
+      - maintainers

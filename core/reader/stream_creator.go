@@ -54,7 +54,32 @@ func (fsc *FactoryStreamCreator) GetStreamChan(ctx context.Context,
 	if err != nil {
 		return nil, nil, err
 	}
-	return stream.Chan(), StreamCloser(func() {
+	msgPackChan := make(chan *msgstream.MsgPack)
+	go func() {
+		for {
+			consumePack, ok := <-stream.Chan()
+			if !ok {
+				log.Info("the consume pack channel is closed")
+				return
+			}
+			msgPack := &msgstream.MsgPack{
+				BeginTs:        consumePack.BeginTs,
+				EndTs:          consumePack.EndTs,
+				Msgs:           make([]msgstream.TsMsg, 0),
+				StartPositions: consumePack.StartPositions,
+				EndPositions:   consumePack.EndPositions,
+			}
+			for _, msg := range consumePack.Msgs {
+				unMsg, err := msg.Unmarshal(stream.GetUnmarshalDispatcher())
+				if err != nil {
+					log.Panic("fail to unmarshal the message", zap.Error(err))
+				}
+				msgPack.Msgs = append(msgPack.Msgs, unMsg)
+			}
+			msgPackChan <- msgPack
+		}
+	}()
+	return msgPackChan, StreamCloser(func() {
 		stream.Close()
 	}), nil
 }

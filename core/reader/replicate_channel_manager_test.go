@@ -262,7 +262,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 	})
 
 	stream := msgstream.NewMockMsgStream(t)
-	streamChan := make(chan *msgstream.MsgPack)
+	streamChan := make(chan *msgstream.ConsumeMsgPack)
 
 	factory.EXPECT().NewMsgStream(mock.Anything).Return(stream, nil).Maybe()
 	stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -426,7 +426,7 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 
 	realManager := manager.(*replicateChannelManager)
 	stream := msgstream.NewMockMsgStream(t)
-	streamChan := make(chan *msgstream.MsgPack)
+	streamChan := make(chan *msgstream.ConsumeMsgPack)
 
 	factory.EXPECT().NewMsgStream(mock.Anything).Return(stream, nil).Maybe()
 	stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -615,7 +615,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Twice()
 		stream.EXPECT().Close().Return().Maybe()
 		stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(nil).Twice()
-		stream.EXPECT().Chan().Return(make(chan *msgstream.MsgPack)).Maybe()
+		stream.EXPECT().Chan().Return(make(chan *msgstream.ConsumeMsgPack)).Maybe()
 		handler, err := newReplicateChannelHandler(context.Background(),
 			&model.SourceCollectionInfo{PChannel: "test_p", SeekPosition: &msgstream.MsgPosition{ChannelName: "test_p", MsgID: []byte("test")}},
 			&model.TargetCollectionInfo{PChannel: "test_p"}, api.TargetAPI(nil), &api.DefaultMetaOp{}, nil, &model.HandlerOpts{Factory: factory})
@@ -635,7 +635,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(3)
 		stream.EXPECT().Close().Return().Maybe()
 		stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2)
-		stream.EXPECT().Chan().Return(make(chan *msgstream.MsgPack)).Maybe()
+		stream.EXPECT().Chan().Return(make(chan *msgstream.ConsumeMsgPack)).Maybe()
 
 		handler, err := newReplicateChannelHandler(context.Background(), &model.SourceCollectionInfo{
 			PChannel: "test_p",
@@ -673,7 +673,7 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(4)
 		stream.EXPECT().Close().Return().Maybe()
 		stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2)
-		stream.EXPECT().Chan().Return(make(chan *msgstream.MsgPack)).Maybe()
+		stream.EXPECT().Chan().Return(make(chan *msgstream.ConsumeMsgPack)).Maybe()
 
 		apiEventChan := make(chan *api.ReplicateAPIEvent)
 		handler, err := func() (*replicateChannelHandler, error) {
@@ -755,13 +755,23 @@ func TestReplicateChannelHandler(t *testing.T) {
 		stream := msgstream.NewMockMsgStream(t)
 		targetClient := mocks.NewTargetAPI(t)
 		streamChan := make(chan *msgstream.MsgPack)
+		consumeStreamChan := make(chan *msgstream.ConsumeMsgPack)
+		go func() {
+			for {
+				msgpack := <-streamChan
+				consumeStreamChan <- msgstream.BuildConsumeMsgPack(msgpack)
+			}
+		}()
 		replicateID := "127.0.0.1:19530"
 
 		factory.EXPECT().NewMsgStream(mock.Anything).Return(stream, nil)
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Twice()
 		stream.EXPECT().Close().Return().Maybe()
 		stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once().Twice()
-		stream.EXPECT().Chan().Return(streamChan)
+		stream.EXPECT().Chan().Return(consumeStreamChan)
+		f := &msgstream.ProtoUDFactory{}
+		dispatcher := f.NewUnmarshalDispatcher()
+		stream.EXPECT().GetUnmarshalDispatcher().Return(dispatcher).Maybe()
 
 		barrierChan := make(chan *model.BarrierSignal, 1)
 		partitionBarrierChan := make(chan *model.BarrierSignal, 1)

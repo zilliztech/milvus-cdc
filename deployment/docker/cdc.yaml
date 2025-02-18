@@ -1,5 +1,5 @@
 address: 0.0.0.0:8444
-maxTaskNum: 100
+maxTaskNum: 200
 metaStoreConfig:
   storeType: etcd
   etcd:

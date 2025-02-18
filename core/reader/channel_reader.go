@@ -102,6 +102,7 @@ func NewChannelReader(channelName, seekPosition string,
 	return channelReader, nil
 }
 
+// ONLY FOR TEST
 func (c *ChannelReader) initMsgStream(mqConfig config.MQConfig, creator FactoryCreator) (func(), error) {
 	var factory msgstream.Factory
 	switch {
@@ -136,7 +137,33 @@ func (c *ChannelReader) initMsgStream(mqConfig config.MQConfig, creator FactoryC
 			return nil, err
 		}
 	}
-	c.msgPackChan = stream.Chan()
+	msgPackChan := make(chan *msgstream.MsgPack)
+	go func() {
+		consumePackChan := stream.Chan()
+		for {
+			consumePack, ok := <-consumePackChan
+			if !ok {
+				log.Info("the consume pack channel is closed")
+				return
+			}
+			msgPack := &msgstream.MsgPack{
+				BeginTs:        consumePack.BeginTs,
+				EndTs:          consumePack.EndTs,
+				Msgs:           make([]msgstream.TsMsg, 0),
+				StartPositions: consumePack.StartPositions,
+				EndPositions:   consumePack.EndPositions,
+			}
+			for _, msg := range consumePack.Msgs {
+				unMsg, err := msg.Unmarshal(stream.GetUnmarshalDispatcher())
+				if err != nil {
+					log.Panic("fail to unmarshal the message", zap.Error(err))
+				}
+				msgPack.Msgs = append(msgPack.Msgs, unMsg)
+			}
+			msgPackChan <- msgPack
+		}
+	}()
+	c.msgPackChan = msgPackChan
 	return func() {
 		stream.Close()
 	}, nil

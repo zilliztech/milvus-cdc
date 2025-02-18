@@ -30,6 +30,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus/pkg/mq/common"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 
@@ -141,8 +143,8 @@ func TestNewChannelReader(t *testing.T) {
 			// success
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 			stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-			packChan := make(chan *msgstream.MsgPack, 1)
-			stream.EXPECT().Chan().Return(packChan).Once()
+			packChan := make(chan *msgstream.ConsumeMsgPack, 1)
+			stream.EXPECT().Chan().Return(packChan)
 			_, err := NewChannelReaderWithFactory("test", base64.StdEncoding.EncodeToString([]byte("foo")), config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
@@ -150,6 +152,7 @@ func TestNewChannelReader(t *testing.T) {
 				Kafka: config.KafkaConfig{},
 			}, nil, creator)
 			assert.NoError(t, err)
+			time.Sleep(time.Second)
 		}
 	})
 
@@ -163,7 +166,7 @@ func TestNewChannelReader(t *testing.T) {
 		factory := msgstream.NewMockMqFactory()
 		stream := msgstream.NewMockMsgStream(t)
 		stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-		packChan := make(chan *msgstream.MsgPack, 1)
+		packChan := make(chan *msgstream.ConsumeMsgPack, 1)
 		stream.EXPECT().Chan().Return(packChan)
 		factory.NewMsgStreamFunc = func(ctx context.Context) (msgstream.MsgStream, error) {
 			return stream, nil
@@ -194,17 +197,20 @@ func TestChannelReader(t *testing.T) {
 	creator := mocks.NewFactoryCreator(t)
 	factory := msgstream.NewMockMqFactory()
 	stream := msgstream.NewMockMsgStream(t)
+	f := &msgstream.ProtoUDFactory{}
+	dispatcher := f.NewUnmarshalDispatcher()
+	stream.EXPECT().GetUnmarshalDispatcher().Return(dispatcher).Maybe()
 
 	creator.EXPECT().NewPmsFactory(mock.Anything).Return(factory)
 	factory.NewMsgStreamFunc = func(ctx context.Context) (msgstream.MsgStream, error) {
 		return stream, nil
 	}
 	stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	stream.EXPECT().Close().Return()
 
 	t.Run("quit", func(t *testing.T) {
-		dataChan := make(chan *msgstream.MsgPack, 1)
+		dataChan := make(chan *msgstream.ConsumeMsgPack, 1)
 		stream.EXPECT().Chan().Return(dataChan).Once()
+		stream.EXPECT().Close().Return().Once()
 		reader, err := NewChannelReaderWithFactory("test", "", config.MQConfig{
 			Pulsar: config.PulsarConfig{
 				Address: "localhost",
@@ -216,7 +222,7 @@ func TestChannelReader(t *testing.T) {
 	})
 
 	t.Run("close", func(t *testing.T) {
-		dataChan := make(chan *msgstream.MsgPack, 1)
+		dataChan := make(chan *msgstream.ConsumeMsgPack, 1)
 		stream.EXPECT().Chan().Return(dataChan).Once()
 		reader, err := NewChannelReaderWithFactory("test", "", config.MQConfig{
 			Pulsar: config.PulsarConfig{
@@ -225,11 +231,37 @@ func TestChannelReader(t *testing.T) {
 		}, nil, creator)
 		assert.NoError(t, err)
 		reader.StartRead(ctx)
+		time.Sleep(100 * time.Millisecond)
 		close(dataChan)
 	})
 
+	getConsumeMsgpack := func(tt uint64, diff bool) *msgstream.ConsumeMsgPack {
+		endTt := tt
+		if diff {
+			endTt++
+		}
+		ttMsg := &msgstream.TimeTickMsg{
+			BaseMsg: msgstream.BaseMsg{
+				BeginTimestamp: tt,
+				EndTimestamp:   endTt,
+			},
+			TimeTickMsg: &msgpb.TimeTickMsg{
+				Base: &commonpb.MsgBase{
+					MsgType:   commonpb.MsgType_TimeTick,
+					Timestamp: tt,
+				},
+			},
+		}
+		pack := &msgstream.MsgPack{
+			BeginTs: tt,
+			EndTs:   endTt,
+			Msgs:    []msgstream.TsMsg{ttMsg},
+		}
+		return msgstream.BuildConsumeMsgPack(pack)
+	}
+
 	t.Run("empty handler", func(t *testing.T) {
-		dataChan := make(chan *msgstream.MsgPack, 1)
+		dataChan := make(chan *msgstream.ConsumeMsgPack, 1)
 		stream.EXPECT().Chan().Return(dataChan).Once()
 		reader, err := NewChannelReaderWithFactory("test", "", config.MQConfig{
 			Pulsar: config.PulsarConfig{
@@ -237,13 +269,13 @@ func TestChannelReader(t *testing.T) {
 			},
 		}, nil, creator)
 		assert.NoError(t, err)
-		dataChan <- &msgstream.MsgPack{}
+		dataChan <- getConsumeMsgpack(1, false)
 		reader.StartRead(ctx)
 		time.Sleep(time.Second)
 	})
 
 	t.Run("success", func(t *testing.T) {
-		dataChan := make(chan *msgstream.MsgPack, 1)
+		dataChan := make(chan *msgstream.ConsumeMsgPack, 1)
 		stream.EXPECT().Chan().Return(dataChan).Once()
 		reader, err := NewChannelReaderWithFactory("test", "", config.MQConfig{
 			Pulsar: config.PulsarConfig{
@@ -254,14 +286,8 @@ func TestChannelReader(t *testing.T) {
 		}, creator)
 		assert.NoError(t, err)
 		reader.StartRead(ctx)
-		dataChan <- &msgstream.MsgPack{
-			BeginTs: 1,
-			EndTs:   1,
-		}
-		dataChan <- &msgstream.MsgPack{
-			BeginTs: 2,
-			EndTs:   3,
-		}
+		dataChan <- getConsumeMsgpack(1, false)
+		dataChan <- getConsumeMsgpack(2, true)
 		time.Sleep(time.Second)
 	})
 }

@@ -237,6 +237,10 @@ func (c *ChannelWriter) HandleReplicateMessage(ctx context.Context, channelName 
 			}
 			if msg.Type() == commonpb.MsgType_DropPartition {
 				dropPartitionMsg := msg.(*msgstream.DropPartitionMsg)
+				logFields = append(logFields,
+					zap.String("db", dropPartitionMsg.GetDbName()),
+					zap.String("collection", dropPartitionMsg.GetCollectionName()),
+				)
 				dbName := dropPartitionMsg.GetDbName()
 				colName := dropPartitionMsg.GetCollectionName()
 				dbName, colName = c.mapDBAndCollectionName(dbName, colName)
@@ -245,11 +249,27 @@ func (c *ChannelWriter) HandleReplicateMessage(ctx context.Context, channelName 
 			}
 			if msg.Type() == commonpb.MsgType_DropCollection {
 				dropCollectionMsg := msg.(*msgstream.DropCollectionMsg)
+				logFields = append(logFields,
+					zap.String("db", dropCollectionMsg.GetDbName()),
+					zap.String("collection", dropCollectionMsg.GetCollectionName()),
+				)
 				dbName := dropCollectionMsg.GetDbName()
 				colName := dropCollectionMsg.GetCollectionName()
 				dbName, colName = c.mapDBAndCollectionName(dbName, colName)
 				dropCollectionMsg.DbName = dbName
 				dropCollectionMsg.CollectionName = colName
+			}
+			if msg.Type() == commonpb.MsgType_Import {
+				importMsg := msg.(*msgstream.ImportMsg)
+				logFields = append(logFields,
+					zap.String("db", importMsg.GetDbName()),
+					zap.String("collection", importMsg.GetCollectionName()),
+				)
+				dbName := importMsg.GetDbName()
+				colName := importMsg.GetCollectionName()
+				dbName, colName = c.mapDBAndCollectionName(dbName, colName)
+				importMsg.DbName = dbName
+				importMsg.CollectionName = colName
 			}
 			if msg.Type() == commonpb.MsgType_Replicate {
 				replicateMsg := msg.(*msgstream.ReplicateMsg)

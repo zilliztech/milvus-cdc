@@ -30,7 +30,7 @@ linters-settings:
       - prefix(github.com/zilliztech)
     custom-order: true
   gofumpt:
-    lang-version: "1.21"
+    # lang-version: "1.21"
     module-path: github.com/zilliztech
   goimports:
     local-prefixes: github.com/zilliztech
@@ -74,12 +74,15 @@ linters-settings:
   misspell:
     locale: US
 
+run:
+  go: "1.21"
+  skip-dirs:
+    - pb/*
+    - mocks/*
+    - tool/*
+
 issues:
   exclude-use-default: false
-  exclude-dirs:
-    - pb
-    - mocks
-    - tool
   exclude:
     - should have a package comment
     - should have comment
