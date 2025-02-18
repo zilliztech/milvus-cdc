@@ -1113,9 +1113,7 @@ func replicateMetric(taskID string, channelName string, msgPack *msgstream.MsgPa
 	metrics.ReplicateTimeVec.
 		WithLabelValues(taskID, channelName, op).
 		Set(float64(msgTime))
-	var packSize int
 	for _, msg := range msgPack.Msgs {
-		packSize += msg.Size()
 		switch realMsg := msg.(type) {
 		case *msgstream.InsertMsg:
 			metrics.ReplicateDataCntVec.WithLabelValues(taskID,
@@ -1124,8 +1122,8 @@ func replicateMetric(taskID string, channelName string, msgPack *msgstream.MsgPa
 			metrics.ReplicateDataCntVec.WithLabelValues(taskID,
 				strconv.FormatInt(realMsg.GetCollectionID(), 10), realMsg.GetCollectionName(), op, "delete").Add(float64(realMsg.GetNumRows()))
 		}
+		metrics.ReplicateDataSizeVec.WithLabelValues(taskID, channelName, op, msg.Type().String()).Add(float64(msg.Size()))
 	}
-	metrics.ReplicateDataSizeVec.WithLabelValues(taskID, channelName, op).Add(float64(packSize))
 }
 
 func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *ReplicateEntity, channelName, channelPosition string) (api.Reader, error) {
