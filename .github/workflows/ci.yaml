@@ -64,6 +64,7 @@ jobs:
           helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values.yaml
           kubectl get pods
           kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
+          kubectl port-forward service/cdc-downstream-minio 9010:9000 >/dev/null 2>&1 &
           sleep 20s
           nc -vz 127.0.0.1 19500
 
@@ -253,6 +254,7 @@ jobs:
           helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values-auth.yaml
           kubectl get pods
           kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
+          kubectl port-forward service/cdc-downstream-minio 9010:9000 >/dev/null 2>&1 &
           sleep 20s
           nc -vz 127.0.0.1 19500
 
@@ -539,6 +541,7 @@ jobs:
           helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values-8.yaml
           kubectl get pods
           kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
+          kubectl port-forward service/cdc-downstream-minio 9010:9000 >/dev/null 2>&1 &
           sleep 20s
           nc -vz 127.0.0.1 19500
 
@@ -680,6 +683,7 @@ jobs:
           helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values-auth.yaml
           kubectl get pods
           kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
+          kubectl port-forward service/cdc-downstream-minio 9010:9000 >/dev/null 2>&1 &
           sleep 20s
           nc -vz 127.0.0.1 19500
 

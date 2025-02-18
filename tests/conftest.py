@@ -13,6 +13,10 @@ def pytest_addoption(parser):
     parser.addoption("--downstream_password", action="store", default="", help="downstream password")
     parser.addoption("--duration_time", action="store", default=7200, help="duration_time")
     parser.addoption("--task_num", action="store", default=10, help="task_num")
+    parser.addoption("--upstream_minio_endpoint", action="store", default="127.0.0.1:9000", help="upstream minio endpoint")
+    parser.addoption("--upstream_minio_bucket_name", action="store", default="a-bucket", help="upstream minio bucket name")
+    parser.addoption("--downstream_minio_endpoint", action="store", default="127.0.0.1:9010", help="downstream minio endpoint")
+    parser.addoption("--downstream_minio_bucket_name", action="store", default="milvus-bucket", help="downstream minio bucket name")
 
 @pytest.fixture
 def upstream_host(request):
@@ -57,3 +61,19 @@ def duration_time(request):
 @pytest.fixture
 def task_num(request):
     return request.config.getoption("--task_num")
+
+@pytest.fixture
+def upstream_minio_endpoint(request):
+    return request.config.getoption("--upstream_minio_endpoint")
+
+@pytest.fixture
+def upstream_minio_bucket_name(request):
+    return request.config.getoption("--upstream_minio_bucket_name")
+
+@pytest.fixture
+def downstream_minio_endpoint(request):
+    return request.config.getoption("--downstream_minio_endpoint")
+
+@pytest.fixture
+def downstream_minio_bucket_name(request):
+    return request.config.getoption("--downstream_minio_bucket_name")

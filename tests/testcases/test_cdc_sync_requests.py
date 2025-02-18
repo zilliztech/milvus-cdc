@@ -5,23 +5,20 @@ import time
 import numpy as np
 from datetime import datetime
 from utils.util_log import test_log as log
-from api.milvus_cdc import MilvusCdcClient
+from utils.utils_import import MinioSyncer
 from pymilvus import (
     connections, list_collections,
     Collection, Partition, db,
     utility,
 )
+import pandas as pd
 from pymilvus.client.types import LoadState
 from pymilvus.orm.role import Role
+from pymilvus.bulk_writer import RemoteBulkWriter, BulkFileType
 from base.checker import default_schema, list_partitions
-from base.checker import (
-    InsertEntitiesPartitionChecker,
-    InsertEntitiesCollectionChecker
-)
 from base.client_base import TestBase
 
 prefix = "cdc_create_task_"
-# client = MilvusCdcClient('http://localhost:8444')
 
 
 class TestCDCSyncRequest(TestBase):
@@ -529,14 +526,14 @@ class TestCDCSyncRequest(TestBase):
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
-        replicas = None
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
             try:
                 res = c_downstream.get_replicas()
-            except Exception as e:
-                replicas = 0
+            except Exception:
+                log.error("get replicas failed")
+                continue
             if len(res.groups) == 1:
                 log.info(f"replicas num in downstream: {len(res.groups)}")
                 log.info(f"replicas synced in downstream successfully cost time: {time.time() - t0:.2f}s")
@@ -552,19 +549,18 @@ class TestCDCSyncRequest(TestBase):
         c.release()
         c_state = utility.load_state(collection_name)
         assert c_state == LoadState.NotLoad, f"upstream collection state is {c_state}"
-        log.info(f"replicas released in upstream successfully")
+        log.info("replicas released in upstream successfully")
         # check replicas in downstream
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 60
-        replicas = None
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
             c_state = utility.load_state(collection_name)
             if c_state == LoadState.NotLoad:
-                log.info(f"replicas released in downstream successfully")
+                log.info("replicas released in downstream successfully")
                 log.info(f"replicas synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
             time.sleep(1)
@@ -763,7 +759,7 @@ class TestCDCSyncRequest(TestBase):
             try:
                 self.connect_downstream(downstream_host, downstream_port, f"{username}:{new_password}")
                 success_update = True
-            except Exception as e:
+            except Exception:
                 connections.disconnect("default")
                 time.sleep(2)
                 continue
@@ -797,3 +793,105 @@ class TestCDCSyncRequest(TestBase):
         assert len(user_list) == 0, user_list
         assert len(role_list) == 0, role_list
         connections.disconnect("default")
+
+    @pytest.mark.parametrize("file_type", ["json", "parquet"])
+    def test_cdc_sync_import_entities_request(self, upstream_host, upstream_port, downstream_host, downstream_port, file_type,
+        upstream_minio_endpoint, downstream_minio_endpoint, upstream_minio_bucket_name, downstream_minio_bucket_name):
+        """
+        target: test cdc default
+        method: import entities in upstream
+        expected: entities in downstream is inserted
+        """
+        connections.connect(host=upstream_host, port=upstream_port)
+        collection_name = prefix + "import_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        c = Collection(name=collection_name, schema=default_schema)
+        log.info(f"create collection {collection_name} in upstream")
+        # insert data to upstream
+        nb = 3000
+        data = pd.DataFrame(
+            {
+                "int64": [i for i in range(nb)],
+                "float": [np.float32(i) for i in range(nb)],
+                "varchar": [str(i) for i in range(nb)],
+                "float_vector": [[random.random() for _ in range(128)] for _ in range(nb)]
+            }
+        )
+        with RemoteBulkWriter(
+            schema=default_schema,
+            remote_path="bulk_data",
+            connect_param=RemoteBulkWriter.ConnectParam(
+                bucket_name=upstream_minio_bucket_name,
+                endpoint=upstream_minio_endpoint,
+                access_key="minioadmin",
+                secret_key="minioadmin",
+            ),
+            file_type=BulkFileType.JSON if file_type == "json" else BulkFileType.PARQUET,
+        ) as remote_writer:
+            for _, row in data.iterrows():
+                remote_writer.append_row(row.to_dict())
+            remote_writer.commit()
+            files = remote_writer.batch_files
+            print(files)
+        # sync data from upstream to downstream
+        syncer = MinioSyncer(
+            src_endpoint=upstream_minio_endpoint,
+            src_access_key="minioadmin",
+            src_secret_key="minioadmin",
+            dst_endpoint=downstream_minio_endpoint,
+            dst_access_key="minioadmin",
+            dst_secret_key="minioadmin",
+            secure=False
+        )
+        # Sync only the specific files generated by RemoteBulkWriter
+        all_files = [file for batch in files for file in batch]  # Flatten the list of files
+        success, errors, skipped = syncer.sync_files(
+            src_bucket=upstream_minio_bucket_name,
+            dst_bucket=downstream_minio_bucket_name,
+            files=all_files
+        )
+
+        print(f"Sync completed: {success} files synced successfully, {skipped} files skipped, {errors} errors encountered")
+
+        # import data using bulk insert
+        for f in files:
+            t0 = time.time()
+            task_id = utility.do_bulk_insert(collection_name, files=f)
+            log.info(f"bulk insert task ids: {task_id}")
+            states = utility.get_bulk_insert_state(task_id=task_id)
+            while states.state != utility.BulkInsertState.ImportCompleted:
+                time.sleep(5)
+                states = utility.get_bulk_insert_state(task_id=task_id)
+            tt = time.time() - t0
+            log.info(f"bulk insert state: {states} in {tt} with states: {states}")
+            assert states.state == utility.BulkInsertState.ImportCompleted
+
+        c.flush()
+        index_params = {"index_type": "IVF_FLAT", "params": {"nlist": 128}, "metric_type": "L2"}
+        c.create_index("float_vector", index_params)
+        c.load()
+        # get number of entities in upstream
+        log.info(f"number of entities in upstream: {c.num_entities}")
+        # check collections in downstream
+        connections.disconnect("default")
+        self.connect_downstream(downstream_host, downstream_port)
+        c_downstream = Collection(name=collection_name)
+        timeout = 360
+        t0 = time.time()
+        log.info(f"all collections in downstream {list_collections()}")
+        while True and time.time() - t0 < timeout:
+            if time.time() - t0 > timeout:
+                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                break
+            # get the number of entities in downstream
+            if c_downstream.num_entities != nb:
+                log.info(f"sync progress:{c_downstream.num_entities / (nb) * 100:.2f}%")
+            # collections in subset of downstream
+            if c_downstream.num_entities == nb:
+                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                break
+            time.sleep(1)
+            try:
+                c_downstream.flush(timeout=5)
+            except Exception as e:
+                log.info(f"flush err: {str(e)}")
+        assert c_downstream.num_entities == nb
