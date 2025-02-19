@@ -82,8 +82,8 @@ func (s *MySQLReplicateStore) Get(ctx context.Context, key string, withPrefix bo
 		sqlStr = fmt.Sprintf("SELECT task_msg_value FROM task_msg WHERE task_msg_key LIKE '%s%%'", taskMsgKey)
 	} else {
 		sqlStr = "SELECT task_msg_value FROM task_msg WHERE task_msg_key = ?"
+		sqlArgs = append(sqlArgs, taskMsgKey)
 	}
-	sqlArgs = append(sqlArgs, taskMsgKey)
 
 	rows, err := s.db.QueryContext(ctx, sqlStr, sqlArgs...)
 	if err != nil {
