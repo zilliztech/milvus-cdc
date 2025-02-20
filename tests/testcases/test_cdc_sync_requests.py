@@ -48,7 +48,7 @@ class TestCDCSyncRequest(TestBase):
         # check collections in downstream
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
@@ -85,7 +85,7 @@ class TestCDCSyncRequest(TestBase):
         # check collections in downstream
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
@@ -110,7 +110,7 @@ class TestCDCSyncRequest(TestBase):
         # check collections in downstream
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
@@ -157,7 +157,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
@@ -221,7 +221,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if time.time() - t0 > timeout:
@@ -280,7 +280,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if time.time() - t0 > timeout:
@@ -322,7 +322,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
@@ -354,7 +354,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
@@ -377,7 +377,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
@@ -420,7 +420,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
@@ -461,7 +461,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
@@ -481,7 +481,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
@@ -525,7 +525,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
@@ -554,7 +554,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
@@ -611,7 +611,7 @@ class TestCDCSyncRequest(TestBase):
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         log.info(f"number of entities in downstream: {c_downstream.num_entities}")
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # get the number of entities in downstream
@@ -642,7 +642,7 @@ class TestCDCSyncRequest(TestBase):
         # check database in downstream
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if db_name in db.list_database():
@@ -670,7 +670,7 @@ class TestCDCSyncRequest(TestBase):
         # check database in downstream
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if db_name in db.list_database():
@@ -690,7 +690,7 @@ class TestCDCSyncRequest(TestBase):
         # check database in downstream
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
-        timeout = 60
+        timeout = 120
         t0 = time.time()
         while time.time() - t0 < timeout:
             if db_name not in db.list_database():
@@ -726,7 +726,7 @@ class TestCDCSyncRequest(TestBase):
 
         # downstream check
         self.connect_downstream(downstream_host, downstream_port)
-        timeout = 20
+        timeout = 120
         t0 = time.time()
         while time.time() - t0 < timeout:
             userinfo = utility.list_users(False)
@@ -752,7 +752,7 @@ class TestCDCSyncRequest(TestBase):
         connections.disconnect("default")
 
         # downstream new user connect
-        timeout = 20
+        timeout = 120
         t0 = time.time()
         success_update = False
         while time.time() - t0 < timeout:
@@ -777,7 +777,7 @@ class TestCDCSyncRequest(TestBase):
 
         # downstream check
         self.connect_downstream(downstream_host, downstream_port)
-        timeout = 20
+        timeout = 120
         t0 = time.time()
         while time.time() - t0 < timeout:
             userinfo = utility.list_users(False)

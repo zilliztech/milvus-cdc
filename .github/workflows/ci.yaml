@@ -12,7 +12,7 @@ jobs:
   milvus-cdc-system-test:
       runs-on: ubuntu-latest
       steps:
-      - uses: actions/checkout@v2                 
+      - uses: actions/checkout@v2
 
       - uses: actions/setup-go@v4
         with:
@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: '3.8'
           cache: 'pip'
-      
+
       - name: Build CDC
         timeout-minutes: 15
         shell: bash
@@ -35,7 +35,7 @@ jobs:
 
       - name: Creating kind cluster
         uses: helm/kind-action@v1.2.0
-        
+
       - name: Print cluster information
         run: |
           kubectl config view
@@ -100,7 +100,7 @@ jobs:
                   "db_collections": {
                       "*": [
                           {
-                            "name": "*" 
+                            "name": "*"
                           }
                       ]
                   }
@@ -113,7 +113,7 @@ jobs:
           repository: zhuwenxing/milvus
           ref: refine_checker
           path: milvus
-        
+
       - name: Run test
         timeout-minutes: 15
         shell: bash
@@ -121,12 +121,12 @@ jobs:
         run: |
           pip install -r requirements.txt --trusted-host https://test.pypi.org
           cd chaos && pytest testcases/test_concurrent_operation.py --host 127.0.0.1 --log-cli-level=INFO --capture=no --request_duration 10m
-         
+
       - name: List CDC task
         timeout-minutes: 15
         working-directory: deployment/docker
         shell: bash
-        run: | 
+        run: |
           docker compose logs
           curl --location '127.0.0.1:8444/cdc' \
           --header 'Content-Type: application/json' \
@@ -135,7 +135,7 @@ jobs:
           }'
 
       - name: Diff upstream and downstream
-        if: ${{ always() }}  
+        if: ${{ always() }}
         timeout-minutes: 10
         shell: bash
         working-directory: milvus/tests/python_client/chaos/scripts
@@ -159,15 +159,15 @@ jobs:
         run: |
           docker compose ps -a
           docker stats --no-stream
-          bash ../../../scripts/export_log_docker.sh 
+          bash ../../../scripts/export_log_docker.sh
       - name: Export downstream milvus logs
         if: ${{ always() }}
         timeout-minutes: 5
         working-directory: scripts
         run: |
           kubectl get pods || true
-          bash export_log_k8s.sh default cdc-downstream k8s_logs        
-          
+          bash export_log_k8s.sh default cdc-downstream k8s_logs
+
       - name: Upload logs
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -177,7 +177,7 @@ jobs:
             scripts/k8s_logs
             tests/deployment/upstream/logs
             deployment/docker/server.log
-  
+
   milvus-cdc-function-test:
       name: CDC Function Test
       runs-on: ubuntu-latest
@@ -202,7 +202,7 @@ jobs:
             echo "Waiting for MySQL to be ready... ($i/30)"
             sleep 2
           done
-      
+
       - uses: actions/setup-go@v4
         with:
           go-version: '1.21'
@@ -214,18 +214,18 @@ jobs:
         with:
           python-version: '3.8'
           cache: 'pip'
-      
+
       - name: Build CDC
         timeout-minutes: 15
         working-directory: server
         shell: bash
         run: |
           make build
-          ls -l 
+          ls -l
 
       - name: Creating kind cluster
         uses: helm/kind-action@v1.2.0
-        
+
       - name: Print cluster information
         run: |
           kubectl config view
@@ -289,13 +289,13 @@ jobs:
                   "db_collections": {
                       "*": [
                           {
-                            "name": "*" 
+                            "name": "*"
                           }
                       ]
                   }
               }
           }'
-        
+
       - name: Run test
         timeout-minutes: 15
         shell: bash
@@ -309,7 +309,7 @@ jobs:
         timeout-minutes: 15
         working-directory: server
         shell: bash
-        run: | 
+        run: |
           cat server.log | tail -n 100
           curl --location '127.0.0.1:8444/cdc' \
           --header 'Content-Type: application/json' \
@@ -324,15 +324,15 @@ jobs:
         run: |
           docker compose ps -a
           docker stats --no-stream
-          bash ../../../scripts/export_log_docker.sh 
+          bash ../../../scripts/export_log_docker.sh
       - name: Export downstream milvus logs
         if: ${{ always() }}
         timeout-minutes: 5
         working-directory: scripts
         run: |
           kubectl get pods || true
-          bash export_log_k8s.sh default cdc-downstream k8s_logs        
-          
+          bash export_log_k8s.sh default cdc-downstream k8s_logs
+
       - name: Upload logs
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -366,7 +366,7 @@ jobs:
           shell: bash
           run: |
             make build
-            ls -l 
+            ls -l
 
         - name: Creating kind cluster
           uses: helm/kind-action@v1.2.0
@@ -399,6 +399,7 @@ jobs:
             helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values.yaml
             kubectl get pods
             kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
+            kubectl port-forward service/cdc-downstream-minio 9010:9000 >/dev/null 2>&1 &
             sleep 20s
             nc -vz 127.0.0.1 19500
 
@@ -431,7 +432,7 @@ jobs:
                     "db_collections": {
                         "*": [
                             {
-                              "name": "*" 
+                              "name": "*"
                             }
                         ]
                     }
@@ -473,7 +474,7 @@ jobs:
           working-directory: scripts
           run: |
             kubectl get pods || true
-            bash export_log_k8s.sh default cdc-downstream k8s_logs        
+            bash export_log_k8s.sh default cdc-downstream k8s_logs
 
         - name: Upload logs
           if: ${{ always() }}
@@ -508,7 +509,7 @@ jobs:
         shell: bash
         run: |
           make build
-          ls -l 
+          ls -l
 
       - name: Creating kind cluster
         uses: helm/kind-action@v1.2.0
@@ -574,7 +575,7 @@ jobs:
                   "db_collections": {
                       "*": [
                           {
-                            "name": "*" 
+                            "name": "*"
                           }
                       ]
                   }
@@ -616,7 +617,7 @@ jobs:
         working-directory: scripts
         run: |
           kubectl get pods || true
-          bash export_log_k8s.sh default cdc-downstream k8s_logs        
+          bash export_log_k8s.sh default cdc-downstream k8s_logs
 
       - name: Upload logs
         if: ${{ always() }}
@@ -650,7 +651,7 @@ jobs:
         shell: bash
         run: |
           make build
-          ls -l 
+          ls -l
 
       - name: Creating kind cluster
         uses: helm/kind-action@v1.2.0
@@ -761,7 +762,7 @@ jobs:
         working-directory: scripts
         run: |
           kubectl get pods || true
-          bash export_log_k8s.sh default cdc-downstream k8s_logs        
+          bash export_log_k8s.sh default cdc-downstream k8s_logs
 
       - name: Upload logs
         if: ${{ always() }}
