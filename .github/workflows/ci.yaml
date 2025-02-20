@@ -178,10 +178,30 @@ jobs:
             deployment/docker/server.log
   
   milvus-cdc-function-test:
+      name: CDC Function Test
       runs-on: ubuntu-latest
+      strategy:
+        matrix:
+          metastore: [etcd, mysql]
       steps:
-      - uses: actions/checkout@v2                 
+      - uses: actions/checkout@v2
 
+      - name: Set up MySQL
+        if: matrix.metastore == 'mysql'
+        run: |
+          cd deployment/docker
+          docker compose -f docker-compose-mysql.yml up -d
+          # Wait for MySQL to be ready
+          for i in {1..30}; do
+            if docker exec milvus-cdc-mysql mysql --protocol=tcp -h127.0.0.1 -uroot -proot -e "SELECT 1;" &>/dev/null; then
+              echo "MySQL is ready!"
+              docker exec milvus-cdc-mysql mysql --protocol=tcp -h127.0.0.1 -uroot -proot -e "show databases;"
+              break
+            fi
+            echo "Waiting for MySQL to be ready... ($i/30)"
+            sleep 2
+          done
+      
       - uses: actions/setup-go@v4
         with:
           go-version: '1.21'
@@ -236,12 +256,15 @@ jobs:
           sleep 20s
           nc -vz 127.0.0.1 19500
 
-      - name: Deploy Milvus CDC
+      - name: Deploy Milvus CDC (${{ matrix.metastore }} metastore)
         timeout-minutes: 15
         working-directory: server
         shell: bash
         run: |
           cp ../deployment/docker/cdc.yaml configs/cdc.yaml
+          if [ "${{ matrix.metastore }}" == "mysql" ]; then
+            yq -i '.metaStoreConfig.storeType = "mysql"' configs/cdc.yaml
+          fi
           ../bin/cdc > server.log 2>&1 &
           sleep 20s
 
