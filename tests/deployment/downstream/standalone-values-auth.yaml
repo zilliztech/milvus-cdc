@@ -1,11 +1,11 @@
 cluster:
   enabled: false
 log:
-  level: debug  
+  level: debug
 image:
   all:
-    repository: simfg/milvus-dev
-    tag: 2.4-20240925-bdc59f3b-amd64
+    repository: milvusdb/milvus
+    tag: master-20250219-aba39ff9-amd64
     pullPolicy: IfNotPresent
 standalone:
   messageQueue: kafka
@@ -21,7 +21,7 @@ etcd:
   image:
     debug: true
     repository: milvusdb/etcd
-    tag: 3.5.5-r2  
+    tag: 3.5.5-r2
 minio:
   mode: standalone
 pulsarv3:
@@ -39,4 +39,3 @@ extraConfigFiles:
       ttMsgEnabled: false
       security:
         authorizationEnabled: true
- 
