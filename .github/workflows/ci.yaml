@@ -341,7 +341,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: func-test-logs
+          name: func-test-logs-${{ matrix.metastore }}
           path: |
             scripts/k8s_logs
             tests/deployment/upstream/logs
