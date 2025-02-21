@@ -256,7 +256,11 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			readerLog.Info("exist collection",
 				zap.String("name", info.Schema.Name),
 				zap.Int64("collection_id", info.ID),
-				zap.String("state", info.State.String()))
+				zap.String("state", info.State.String()),
+				zap.Strings("seek_channels", lo.Map(seekPositions, func(v *msgpb.MsgPosition, _ int) string {
+					return v.GetChannelName()
+				})),
+			)
 			if err := reader.channelManager.StartReadCollection(ctx, &dbInfo, info, seekPositions); err != nil {
 				readerLog.Warn("fail to start to replicate the collection data", zap.Any("collection", info), zap.Error(err))
 				reader.sendError(err)

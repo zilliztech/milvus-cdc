@@ -984,7 +984,10 @@ func (r *replicateChannelHandler) AddCollection(taskID string, sourceInfo *model
 	r.recordLock.Unlock()
 	log.Info("add collection to channel handler",
 		zap.String("channel_name", sourceInfo.VChannel),
-		zap.Int64("collection_id", collectionID), zap.String("collection_name", targetInfo.CollectionName))
+		zap.Int64("collection_id", collectionID),
+		zap.String("collection_name", targetInfo.CollectionName),
+		zap.String("seek_channel", sourceInfo.SeekPosition.GetChannelName()),
+	)
 
 	if targetInfo.Dropped {
 		replicatePool.Submit(func() (struct{}, error) {
