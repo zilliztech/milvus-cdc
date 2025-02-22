@@ -1475,7 +1475,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	GetTSManager().CollectTS(tsManagerChannelKey, beginTS)
 	r.addCollectionLock.RUnlock()
 
-	if r.msgPackCallback != nil {
+	if r.msgPackCallback != nil && !forward {
 		r.msgPackCallback(r.sourcePChannel, pack)
 	}
 	newPack := &msgstream.MsgPack{

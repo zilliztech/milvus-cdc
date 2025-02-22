@@ -40,19 +40,23 @@ type DataReadConfig struct {
 	Etcd       config.EtcdServerConfig
 	Pulsar     config.PulsarConfig
 	Kafka      config.KafkaConfig
-	Database   string
+	ChannelMap map[string]string
+
+	Database   string // root config
 	Collection string
-	ID         int64
+
+	ID         int64 // not config
+	DecodeType int   // not config
 }
 
 type PKData struct {
 	PK     string
-	Insert uint64
-	Delete uint64
+	Insert []uint64
+	Delete []uint64
 }
 
 func (p *PKData) String() string {
-	return fmt.Sprintf("PK: %s, Insert: %d, Delete: %d", p.PK, p.Insert, p.Delete)
+	return fmt.Sprintf("PK: %s, Insert: %v, Delete: %v", p.PK, p.Insert, p.Delete)
 }
 
 type DiffData struct {
@@ -66,7 +70,8 @@ type Config struct {
 	Timeout    int
 	Database   string
 	Collection string
-	PrintDiff  bool
+	PrintDiff  bool `yaml:"printDiff"`
+	DecodeType int  `yaml:"decodeType"` // 0: same the cdc task, 1: msg position raw data
 }
 
 func main() {
@@ -76,9 +81,14 @@ func main() {
 	var dataA, dataB map[string]*PKData
 	yamlConfig.A.Collection = yamlConfig.Collection
 	yamlConfig.B.Collection = yamlConfig.Collection
+	yamlConfig.A.DecodeType = yamlConfig.DecodeType
 	yamlConfig.A.Database = yamlConfig.Database
 	yamlConfig.B.Database = yamlConfig.Database
+	yamlConfig.B.DecodeType = yamlConfig.DecodeType
 	log.Info("Start to read data", zap.Any("config", yamlConfig))
+	if yamlConfig.Timeout == 0 {
+		yamlConfig.Timeout = 600
+	}
 	go func() {
 		defer w.Done()
 		dataA = ReadData(yamlConfig.A, yamlConfig.Timeout)
@@ -142,15 +152,31 @@ func main() {
 			log.Info("Diff B", zap.String("pk", k), zap.Any("current", v.Current), zap.Any("deleted", v.Deleted))
 		}
 	}
+
 	log.Info("data result", zap.Int("dataA", dataCntA), zap.Int("dataB", dataCntB))
 	log.Info("Diff result", zap.Int("diffA", len(diffA)), zap.Int("diffB", len(diffB)))
 }
 
 func ValidData(data *PKData) bool {
-	return data.Insert >= data.Delete
+	maxInsert := uint64(0)
+	maxDelete := uint64(0)
+	for _, v := range data.Insert {
+		if v > maxInsert {
+			maxInsert = v
+		}
+	}
+	for _, v := range data.Delete {
+		if v > maxDelete {
+			maxDelete = v
+		}
+	}
+	return maxInsert >= maxDelete
 }
 
 func ReadData(readConfig DataReadConfig, timeout int) map[string]*PKData {
+	if len(readConfig.Etcd.Address) == 0 {
+		return map[string]*PKData{}
+	}
 	collectionInfo, err := tool.GetCollectionInfo(readConfig.Etcd, tool.CollectionNameInfo{
 		DBName:         readConfig.Database,
 		CollectionName: readConfig.Collection,
@@ -166,8 +192,28 @@ func ReadData(readConfig DataReadConfig, timeout int) map[string]*PKData {
 	w := &sync.WaitGroup{}
 	var dataLock sync.Mutex
 	allData := make(map[string]*PKData)
-	w.Add(len(collectionInfo.GetPhysicalChannelNames()))
-	for _, startPosition := range collectionInfo.GetStartPositions() {
+	channelNum := len(collectionInfo.GetPhysicalChannelNames())
+	w.Add(channelNum)
+	seekPositions := make([]*commonpb.KeyDataPair, 0)
+	if len(readConfig.ChannelMap) > 0 {
+		decodeFunc := tool.DecodeType0
+		if readConfig.DecodeType == 1 {
+			decodeFunc = tool.DecodeType1
+		}
+		for k, v := range readConfig.ChannelMap {
+			seekPosition, err := decodeFunc(k, v)
+			if err != nil {
+				log.Panic("Failed to decode seek position", zap.Error(err))
+			}
+			seekPositions = append(seekPositions, seekPosition)
+		}
+	} else {
+		seekPositions = collectionInfo.GetStartPositions()
+	}
+	if len(seekPositions) != channelNum {
+		log.Panic("Seek position not match channel num")
+	}
+	for _, startPosition := range seekPositions {
 		go func(p *commonpb.KeyDataPair) {
 			defer w.Done()
 			streamData := GetStreamData(readConfig, p, pkField, timeout)
@@ -179,12 +225,8 @@ func ReadData(readConfig DataReadConfig, timeout int) map[string]*PKData {
 					allData[k] = v
 					continue
 				}
-				if v.Insert > data.Insert {
-					allData[k].Insert = v.Insert
-				}
-				if v.Delete > data.Delete {
-					allData[k].Delete = v.Delete
-				}
+				v.Insert = append(v.Insert, data.Insert...)
+				v.Delete = append(v.Delete, data.Delete...)
 			}
 		}(startPosition)
 	}
@@ -205,13 +247,19 @@ func GetStreamData(
 		Pulsar:   readConfig.Pulsar,
 		Kafka:    readConfig.Kafka,
 		PChannel: pchannel,
+		TTStream: true,
 		SeekPosition: &msgstream.MsgPosition{
 			ChannelName: p.GetKey(),
 			MsgID:       p.GetData(),
 		},
 	})
 	if err != nil {
-		log.Panic("Failed to create msg stream", zap.Error(err))
+		log.Panic("Failed to create msg stream",
+			zap.String("pchannel", pchannel),
+			zap.Any("pulsar", readConfig.Pulsar),
+			zap.Any("kafka", readConfig.Kafka),
+			zap.Error(err),
+		)
 	}
 	defer msgStream.Close()
 	latestID, err := msgStream.GetLatestMsgID(pchannel)
@@ -272,9 +320,7 @@ func GetMsgPackHandler(
 						PK: pk,
 					}
 				}
-				if dataMap[pk].Insert < tss[i] {
-					dataMap[pk].Insert = tss[i]
-				}
+				dataMap[pk].Insert = append(dataMap[pk].Insert, tss[i])
 			}
 		},
 		DeleteMsgHandler: func(msg *msgstream.DeleteMsg) {
@@ -285,9 +331,7 @@ func GetMsgPackHandler(
 						PK: pk,
 					}
 				}
-				if dataMap[pk].Delete < tss[i] {
-					dataMap[pk].Delete = tss[i]
-				}
+				dataMap[pk].Delete = append(dataMap[pk].Delete, tss[i])
 			}
 		},
 	}

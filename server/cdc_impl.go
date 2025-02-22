@@ -429,6 +429,12 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		e.collectionNames.data[uKey] = lo.Without(e.collectionNames.data[uKey], newCollectionNames...)
 	}
 
+	defer func() {
+		if err != nil {
+			revertCollectionNames()
+		}
+	}()
+
 	ctx := context.Background()
 	getResp, err := e.metaStoreFactory.GetTaskInfoMetaStore(ctx).Get(ctx, &meta.TaskInfo{}, nil)
 	if err != nil {
@@ -452,48 +458,64 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 		State:                 meta.TaskStateInitial,
 		DisableAutoStart:      req.DisableAutoStart,
 	}
-	for _, collectionInfo := range req.CollectionInfos {
-		positions := make(map[string]*meta.PositionInfo, len(collectionInfo.Positions))
-		collectionID := int64(-1)
-		for vchannel, collectionPosition := range collectionInfo.Positions {
-			channelInfo, err := util.ParseVChannel(vchannel)
-			if err != nil {
-				revertCollectionNames()
-				return nil, servererror.NewClientError(fmt.Sprintf("the vchannel is invalid, %s, err: %s", vchannel, err.Error()))
-			}
-			decodePosition, err := util.Base64DecodeMsgPosition(collectionPosition)
-			if err != nil {
-				return nil, servererror.NewServerError(errors.WithMessage(err, "fail to decode the position data"))
-			}
-			p := &meta.PositionInfo{
-				DataPair: &commonpb.KeyDataPair{
-					Key:  channelInfo.PChannelName,
-					Data: decodePosition.MsgID,
-				},
-			}
-			positions[channelInfo.PChannelName] = p
-			if collectionID == -1 {
-				collectionID = channelInfo.CollectionID
-			}
-			if collectionID != channelInfo.CollectionID {
-				revertCollectionNames()
-				return nil, servererror.NewClientError("the channel position info should be in the same collection")
-			}
-		}
-		collectionName := collectionInfo.Name
-		metaPosition := &meta.TaskCollectionPosition{
-			TaskID:         info.TaskID,
-			CollectionID:   collectionID,
-			CollectionName: collectionName,
-			Positions:      positions,
-		}
-		err = e.metaStoreFactory.GetTaskCollectionPositionMetaStore(ctx).Put(ctx, metaPosition, nil)
-		if err != nil {
-			return nil, servererror.NewServerError(errors.WithMessage(err, "fail to put the task collection position to etcd"))
-		}
 
-		collectionInfo.Positions = make(map[string]string)
+	handleCollectionPositions := func(collectionInfos []model.CollectionInfo) error {
+		for _, collectionInfo := range collectionInfos {
+			positions := make(map[string]*meta.PositionInfo, len(collectionInfo.Positions))
+			collectionID := int64(-1)
+			for vchannel, collectionPosition := range collectionInfo.Positions {
+				channelInfo, err := util.ParseVChannel(vchannel)
+				if err != nil {
+					revertCollectionNames()
+					return servererror.NewClientError(fmt.Sprintf("the vchannel is invalid, %s, err: %s", vchannel, err.Error()))
+				}
+				decodePosition, err := util.Base64DecodeMsgPosition(collectionPosition)
+				if err != nil {
+					return servererror.NewServerError(errors.WithMessage(err, "fail to decode the position data"))
+				}
+				p := &meta.PositionInfo{
+					DataPair: &commonpb.KeyDataPair{
+						Key:  channelInfo.PChannelName,
+						Data: decodePosition.MsgID,
+					},
+				}
+				positions[channelInfo.PChannelName] = p
+				if collectionID == -1 {
+					collectionID = channelInfo.CollectionID
+				}
+				if collectionID != channelInfo.CollectionID {
+					revertCollectionNames()
+					return servererror.NewClientError("the channel position info should be in the same collection")
+				}
+			}
+			collectionName := collectionInfo.Name
+			metaPosition := &meta.TaskCollectionPosition{
+				TaskID:         info.TaskID,
+				CollectionID:   collectionID,
+				CollectionName: collectionName,
+				Positions:      positions,
+			}
+			err = e.metaStoreFactory.GetTaskCollectionPositionMetaStore(ctx).Put(ctx, metaPosition, nil)
+			if err != nil {
+				return servererror.NewServerError(errors.WithMessage(err, "fail to put the task collection position to etcd"))
+			}
+
+			collectionInfo.Positions = make(map[string]string)
+		}
+		return nil
 	}
+
+	if err := handleCollectionPositions(req.CollectionInfos); err != nil {
+		return nil, err
+	}
+
+	for _, infos := range req.DBCollections {
+		if err := handleCollectionPositions(infos); err != nil {
+			return nil, err
+		}
+	}
+
+	// TODO fubang check the same collection when db is different
 
 	if req.RPCChannelInfo.Position != "" {
 		decodePosition, err := util.Base64DecodeMsgPosition(req.RPCChannelInfo.Position)
@@ -524,7 +546,6 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 
 	err = e.metaStoreFactory.GetTaskInfoMetaStore(ctx).Put(ctx, info, nil)
 	if err != nil {
-		revertCollectionNames()
 		return nil, servererror.NewServerError(errors.WithMessage(err, "fail to put the task info to etcd"))
 	}
 	metrics.TaskNumVec.Add(info.TaskID, info.State)

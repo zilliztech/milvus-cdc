@@ -26,3 +26,5 @@ b:
   #  address: localhost:9092
 database: default
 collection: hello_milvus
+timeout: 600
+countMode: true
