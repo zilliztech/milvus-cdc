@@ -22,7 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/pingcap/log"
+	"github.com/milvus-io/milvus/pkg/log"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v2"

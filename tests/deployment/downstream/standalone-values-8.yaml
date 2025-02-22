@@ -4,8 +4,8 @@ log:
   level: debug
 image:
   all:
-    repository: milvusdb/milvus
-    tag: master-20250219-aba39ff9-amd64
+    repository: simfg/milvus-dev
+    tag: master-40110
     pullPolicy: IfNotPresent
 standalone:
   messageQueue: kafka

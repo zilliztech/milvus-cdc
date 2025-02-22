@@ -96,16 +96,18 @@ func MsgStream(ctx context.Context, streamConfig *MsgStreamConfig) (msgstream.Ms
 	} else {
 		return nil, errors.New("fail to get the msg stream, check the mqConfig param")
 	}
+	var err error
+	var stream msgstream.MsgStream
 	if streamConfig.TTStream {
-		stream, err := factory.NewTtMsgStream(ctx)
+		stream, err = factory.NewTtMsgStream(ctx)
 		if err != nil {
 			return nil, err
 		}
-		return stream, nil
-	}
-	stream, err := factory.NewMsgStream(ctx)
-	if err != nil {
-		return nil, err
+	} else {
+		stream, err = factory.NewMsgStream(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	consumeSubName := streamConfig.PChannel + strconv.Itoa(rand.Int())

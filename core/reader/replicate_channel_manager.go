@@ -984,7 +984,10 @@ func (r *replicateChannelHandler) AddCollection(taskID string, sourceInfo *model
 	r.recordLock.Unlock()
 	log.Info("add collection to channel handler",
 		zap.String("channel_name", sourceInfo.VChannel),
-		zap.Int64("collection_id", collectionID), zap.String("collection_name", targetInfo.CollectionName))
+		zap.Int64("collection_id", collectionID),
+		zap.String("collection_name", targetInfo.CollectionName),
+		zap.String("seek_channel", sourceInfo.SeekPosition.GetChannelName()),
+	)
 
 	if targetInfo.Dropped {
 		replicatePool.Submit(func() (struct{}, error) {
@@ -1472,7 +1475,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	GetTSManager().CollectTS(tsManagerChannelKey, beginTS)
 	r.addCollectionLock.RUnlock()
 
-	if r.msgPackCallback != nil {
+	if r.msgPackCallback != nil && !forward {
 		r.msgPackCallback(r.sourcePChannel, pack)
 	}
 	newPack := &msgstream.MsgPack{
