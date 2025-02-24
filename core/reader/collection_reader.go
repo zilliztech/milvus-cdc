@@ -51,7 +51,10 @@ type CollectionInfo struct {
 	positions      map[string]*commonpb.KeyDataPair
 }
 
-type ShouldReadFunc func(*model.DatabaseInfo, *pb.CollectionInfo) bool
+// ShouldReadFunc is a function to determine whether the collection should be read
+// the first bool value is whether the collection should be replicated by the start position
+// the second bool value is whether the collection should be read
+type ShouldReadFunc func(*model.DatabaseInfo, *pb.CollectionInfo) (bool, bool)
 
 var _ api.Reader = (*CollectionReader)(nil)
 
@@ -107,7 +110,8 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 
 			collectionLog.Info("has watched to read collection")
 			dbInfo := reader.metaOp.GetDatabaseInfoForCollection(ctx, info.ID)
-			if !reader.shouldReadFunc(&dbInfo, info) {
+			_, shouldRead := reader.shouldReadFunc(&dbInfo, info)
+			if !shouldRead {
 				collectionLog.Info("the collection should not be read")
 				return false
 			}
@@ -164,7 +168,8 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				},
 			}
 			dbInfo := reader.metaOp.GetDatabaseInfoForCollection(ctx, tmpCollectionInfo.ID)
-			if !reader.shouldReadFunc(&dbInfo, tmpCollectionInfo) {
+			_, shouldRead := reader.shouldReadFunc(&dbInfo, tmpCollectionInfo)
+			if !shouldRead {
 				partitionLog.Info("the partition should not be read", zap.String("name", collectionName))
 				return true
 			}
@@ -235,16 +240,14 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				continue
 			}
 			dbInfo := reader.metaOp.GetDatabaseInfoForCollection(ctx, info.ID)
-			if !reader.shouldReadFunc(&dbInfo, info) {
+			forceStartPosition, shouldRead := reader.shouldReadFunc(&dbInfo, info)
+			if !shouldRead {
 				readerLog.Info("the collection is not in the watch list", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
 				continue
 			}
 			collectionSeekPositionMap := reader.channelSeekPositions[info.ID]
 			seekPositions := make([]*msgpb.MsgPosition, 0)
-			if collectionSeekPositionMap != nil {
-				seekPositions = lo.Values(collectionSeekPositionMap)
-			} else if dbCollections, ok := repeatedCollectionName[info.DbId]; ok && lo.Contains(dbCollections, info.Schema.Name) {
-				log.Warn("server warn: find the repeated collection, the latest collection will use the collection start position.", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
+			appendSeekPositionFromStartPosition := func() {
 				for _, v := range info.StartPositions {
 					seekPositions = append(seekPositions, &msgstream.MsgPosition{
 						ChannelName: v.GetKey(),
@@ -252,6 +255,15 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 						Timestamp:   info.CreateTime,
 					})
 				}
+			}
+			if collectionSeekPositionMap != nil {
+				seekPositions = lo.Values(collectionSeekPositionMap)
+			} else if dbCollections, ok := repeatedCollectionName[info.DbId]; ok && lo.Contains(dbCollections, info.Schema.Name) {
+				log.Warn("server warn: find the repeated collection, the latest collection will use the collection start position.", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
+				appendSeekPositionFromStartPosition()
+			} else if forceStartPosition {
+				log.Info("server info: the collection will use the collection start position.", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
+				appendSeekPositionFromStartPosition()
 			}
 			readerLog.Info("exist collection",
 				zap.String("name", info.Schema.Name),
@@ -298,7 +310,8 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				},
 			}
 			dbInfo := reader.metaOp.GetDatabaseInfoForCollection(ctx, tmpCollectionInfo.ID)
-			if !reader.shouldReadFunc(&dbInfo, tmpCollectionInfo) {
+			_, shouldRead := reader.shouldReadFunc(&dbInfo, tmpCollectionInfo)
+			if !shouldRead {
 				readerLog.Info("the collection is not in the watch list", zap.String("collection_name", collectionName), zap.String("partition_name", info.PartitionName))
 				return true
 			}
