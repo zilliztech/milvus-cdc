@@ -1,0 +1,381 @@
+name: Nightly Test
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * *'
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  milvus-cdc-system-test:
+      runs-on: ubuntu-latest
+      strategy:
+        fail-fast: false
+        matrix:
+          milvus_version: ['master', '2.5']
+      steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          cache-dependency-path: server/go.sum
+          cache: true
+
+      - name: set up python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+          cache: 'pip'
+
+      - name: Build CDC
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          docker build --build-arg GIT_COMMIT_ARG=$(git rev-parse --short HEAD) -t milvus-cdc:latest .
+          docker tag milvus-cdc:latest milvusdb/milvus-cdc:latest
+
+      - name: Creating kind cluster
+        uses: helm/kind-action@v1.2.0
+
+      - name: Print cluster information
+        run: |
+          kubectl config view
+          kubectl cluster-info
+          kubectl get nodes
+          kubectl get pods -o wide -n kube-system
+          helm version
+          kubectl version
+
+      - name: Deploy Source Milvus
+        timeout-minutes: 15
+        shell: bash
+        working-directory: tests/deployment/upstream/
+        run: |
+          pip install requests
+          tag=$(python3 ../../../scripts/get_latest_tag.py -n milvusdb -r milvus --prefix ${{ matrix.milvus_version }} --arch amd64)
+          export MILVUS_IMAGE="milvusdb/milvus:$tag"
+          echo "Using Milvus image: $MILVUS_IMAGE"
+          docker compose config | grep "image: milvusdb/milvus"
+          docker compose up -d
+          bash ../../../scripts/check_healthy.sh
+          echo "Verifying deployed container images:"
+          docker compose ps -a
+          docker compose images
+
+      - name: Deploy Downstream Milvus
+        timeout-minutes: 15
+        shell: bash
+        working-directory: tests/deployment/downstream
+        run: |
+          helm repo add milvus https://zilliztech.github.io/milvus-helm
+          helm repo update
+          # Set image repository and tag in helm values
+          repository="milvusdb/milvus"
+          tag=$(python3 ../../../scripts/get_latest_tag.py -n milvusdb -r milvus --prefix ${{ matrix.milvus_version }} --arch amd64)
+          yq -i ".image.all.repository = \"$repository\"" standalone-values.yaml
+          yq -i ".image.all.tag = \"$tag\"" standalone-values.yaml
+          echo "Updated helm values - repository: $repository, tag: $tag"
+          yq ".image.all" standalone-values.yaml
+          helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values.yaml
+          kubectl get pods
+          kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
+          kubectl port-forward service/cdc-downstream-minio 9010:9000 >/dev/null 2>&1 &
+          sleep 20s
+          nc -vz 127.0.0.1 19500
+
+      - name: Deploy Milvus CDC
+        timeout-minutes: 15
+        working-directory: deployment/docker
+        shell: bash
+        run: |
+          docker compose --verbose up -d
+          sleep 20s
+          docker compose ps
+          docker compose logs || true
+
+      - name: Create CDC task
+        timeout-minutes: 15
+        run: |
+          curl --location '127.0.0.1:8444/cdc' \
+          --header 'Content-Type: application/json' \
+          --data '{
+              "request_type": "create",
+              "request_data": {
+                  "milvus_connect_param": {
+                      "host": "127.0.0.1",
+                      "port": 19500,
+                      "username": "",
+                      "password": "",
+                      "enable_tls": false,
+                      "connect_timeout": 120
+                  },
+                  "extra_info": {
+                      "enable_user_role": true
+                  },
+                  "db_collections": {
+                      "*": [
+                          {
+                            "name": "*"
+                          }
+                      ]
+                  }
+              }
+          }'
+
+      - name: Checkout Milvus Repo
+        uses: actions/checkout@v2
+        with:
+          repository: zhuwenxing/milvus
+          ref: refine_checker
+          path: milvus
+
+      - name: Run test
+        timeout-minutes: 15
+        shell: bash
+        working-directory: milvus/tests/python_client
+        run: |
+          pip install -r requirements.txt --trusted-host https://test.pypi.org
+          cd chaos && pytest testcases/test_concurrent_operation.py --host 127.0.0.1 --log-cli-level=INFO --capture=no --request_duration 10m
+
+      - name: List CDC task
+        timeout-minutes: 15
+        working-directory: deployment/docker
+        shell: bash
+        run: |
+          docker compose logs
+          curl --location '127.0.0.1:8444/cdc' \
+          --header 'Content-Type: application/json' \
+          --data '{
+              "request_type": "list"
+          }'
+
+      - name: Diff upstream and downstream
+        if: ${{ always() }}
+        timeout-minutes: 10
+        shell: bash
+        working-directory: milvus/tests/python_client/chaos/scripts
+        run: |
+          python diff_upstream_downstream.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
+
+
+      - name: Export milvus cdc logs
+        if: ${{ always() }}
+        timeout-minutes: 5
+        working-directory: deployment/docker
+        run: |
+          docker compose ps -a
+          docker stats --no-stream
+          docker compose logs > server.log
+
+      - name: Export upstream milvus logs
+        if: ${{ always() }}
+        timeout-minutes: 5
+        working-directory: tests/deployment/upstream
+        run: |
+          docker compose ps -a
+          docker stats --no-stream
+          bash ../../../scripts/export_log_docker.sh
+      - name: Export downstream milvus logs
+        if: ${{ always() }}
+        timeout-minutes: 5
+        working-directory: scripts
+        run: |
+          kubectl get pods || true
+          bash export_log_k8s.sh default cdc-downstream k8s_logs
+
+      - name: Upload logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-test-logs-${{ matrix.milvus_version }}
+          path: |
+            scripts/k8s_logs
+            tests/deployment/upstream/logs
+            deployment/docker/server.log
+
+  milvus-cdc-function-test:
+      name: CDC Function Test
+      runs-on: ubuntu-latest
+      strategy:
+        fail-fast: false
+        matrix:
+          milvus_version: ['master', '2.5']
+          metastore: [mysql]
+      steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up MySQL
+        if: matrix.metastore == 'mysql'
+        run: |
+          cd deployment/docker
+          docker compose -f docker-compose-mysql.yml up -d
+          # Wait for MySQL to be ready
+          for i in {1..30}; do
+            if docker exec milvus-cdc-mysql mysql --protocol=tcp -h127.0.0.1 -uroot -proot -e "SELECT 1;" &>/dev/null; then
+              echo "MySQL is ready!"
+              docker exec milvus-cdc-mysql mysql --protocol=tcp -h127.0.0.1 -uroot -proot -e "show databases;"
+              break
+            fi
+            echo "Waiting for MySQL to be ready... ($i/30)"
+            sleep 2
+          done
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          cache-dependency-path: server/go.sum
+          cache: true
+
+      - name: set up python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+          cache: 'pip'
+
+      - name: Build CDC
+        timeout-minutes: 15
+        working-directory: server
+        shell: bash
+        run: |
+          make build
+          ls -l
+
+      - name: Creating kind cluster
+        uses: helm/kind-action@v1.2.0
+
+      - name: Print cluster information
+        run: |
+          kubectl config view
+          kubectl cluster-info
+          kubectl get nodes
+          kubectl get pods -o wide -n kube-system
+          helm version
+          kubectl version
+
+      - name: Deploy Source Milvus
+        timeout-minutes: 15
+        shell: bash
+        working-directory: tests/deployment/upstream/
+        run: |
+          # Get latest Milvus image tag
+          pip install requests
+          tag=$(python3 ../../../scripts/get_latest_tag.py -n milvusdb -r milvus --prefix ${{ matrix.milvus_version }} --arch amd64)
+          export MILVUS_IMAGE="milvusdb/milvus:$tag"
+          echo "Using Milvus image: $MILVUS_IMAGE"
+          docker compose config | grep "image: milvusdb/milvus"
+          docker compose up -d
+          bash ../../../scripts/check_healthy.sh
+          echo "Verifying deployed container images:"
+          docker compose ps -a
+          docker compose images
+
+      - name: Deploy Downstream Milvus
+        timeout-minutes: 15
+        shell: bash
+        working-directory: tests/deployment/downstream
+        run: |
+          helm repo add milvus https://zilliztech.github.io/milvus-helm
+          helm repo update
+          # Set image repository and tag in helm values
+          repository="milvusdb/milvus"
+          tag=$(python3 ../../../scripts/get_latest_tag.py -n milvusdb -r milvus --prefix ${{ matrix.milvus_version }} --arch amd64)
+          yq -i ".image.all.repository = \"$repository\"" standalone-values-auth.yaml
+          yq -i ".image.all.tag = \"$tag\"" standalone-values-auth.yaml
+          echo "Updated helm values - repository: $repository, tag: $tag"
+          yq ".image.all" standalone-values-auth.yaml
+          helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values-auth.yaml
+          kubectl get pods
+          kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
+          kubectl port-forward service/cdc-downstream-minio 9010:9000 >/dev/null 2>&1 &
+          sleep 20s
+          nc -vz 127.0.0.1 19500
+
+      - name: Deploy Milvus CDC (${{ matrix.metastore }} metastore)
+        timeout-minutes: 15
+        working-directory: server
+        shell: bash
+        run: |
+          cp ../deployment/docker/cdc.yaml configs/cdc.yaml
+          if [ "${{ matrix.metastore }}" == "mysql" ]; then
+            yq -i '.metaStoreConfig.storeType = "mysql"' configs/cdc.yaml
+          fi
+          ../bin/cdc > server.log 2>&1 &
+          sleep 20s
+
+      - name: Create CDC task
+        timeout-minutes: 15
+        run: |
+          curl --location '127.0.0.1:8444/cdc' \
+          --header 'Content-Type: application/json' \
+          --data '{
+              "request_type": "create",
+              "request_data": {
+                  "milvus_connect_param": {
+                      "uri": "http://127.0.0.1:19500",
+                      "token": "root:Milvus",
+                      "connect_timeout": 120
+                  },
+                  "extra_info": {
+                      "enable_user_role": true
+                  },
+                  "db_collections": {
+                      "*": [
+                          {
+                            "name": "*"
+                          }
+                      ]
+                  }
+              }
+          }'
+
+      - name: Run test
+        timeout-minutes: 15
+        shell: bash
+        working-directory: tests
+        run: |
+          pip install -r requirements.txt --trusted-host https://test.pypi.org
+          pytest testcases/test_cdc_sync_requests.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
+
+      - name: List CDC task
+        if: ${{ always() }}
+        timeout-minutes: 15
+        working-directory: server
+        shell: bash
+        run: |
+          cat server.log | tail -n 100
+          curl --location '127.0.0.1:8444/cdc' \
+          --header 'Content-Type: application/json' \
+          --data '{
+              "request_type": "list"
+          }'
+
+      - name: Export upstream milvus logs
+        if: ${{ always() }}
+        timeout-minutes: 5
+        working-directory: tests/deployment/upstream
+        run: |
+          docker compose ps -a
+          docker stats --no-stream
+          bash ../../../scripts/export_log_docker.sh
+      - name: Export downstream milvus logs
+        if: ${{ always() }}
+        timeout-minutes: 5
+        working-directory: scripts
+        run: |
+          kubectl get pods || true
+          bash export_log_k8s.sh default cdc-downstream k8s_logs
+
+      - name: Upload logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: func-test-logs-${{ matrix.metastore }}-${{ matrix.milvus_version }}
+          path: |
+            scripts/k8s_logs
+            tests/deployment/upstream/logs
+            server/server.log
