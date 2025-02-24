@@ -61,8 +61,9 @@ type DatabaseInfo struct {
 }
 
 type CollectionInfo struct {
-	Name      string            `json:"name" mapstructure:"name"`
-	Positions map[string]string `json:"positions" mapstructure:"positions"` // the key is the vchannel
+	Name             string            `json:"name" mapstructure:"name"`
+	Positions        map[string]string `json:"positions" mapstructure:"positions"` // the key is the vchannel
+	UseStartPosition bool              `json:"use_start_position" mapstructure:"use_start_position"`
 }
 
 type ChannelInfo struct {

@@ -766,7 +766,8 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 
 	collectionReader, err := cdcreader.NewCollectionReader(info.TaskID,
 		replicateEntity.channelManager, replicateEntity.metaOp,
-		channelSeekPosition, GetShouldReadFunc(info),
+		channelSeekPosition,
+		GetShouldReadFunc(info),
 		config.ReaderConfig{
 			Retry: e.config.Retry,
 		})
@@ -1474,17 +1475,18 @@ func (e *MetaCDC) Maintenance(req *request.MaintenanceRequest) (*request.Mainten
 }
 
 func GetShouldReadFunc(taskInfo *meta.TaskInfo) cdcreader.ShouldReadFunc {
-	return func(databaseInfo *coremodel.DatabaseInfo, collectionInfo *pb.CollectionInfo) bool {
+	return func(databaseInfo *coremodel.DatabaseInfo, collectionInfo *pb.CollectionInfo) (bool, bool) {
 		currentCollectionName := collectionInfo.Schema.Name
 		if databaseInfo.Dropped {
 			log.Info("database is dropped", zap.String("database", databaseInfo.Name), zap.String("collection", currentCollectionName))
-			return false
+			return false, false
 		}
 		taskCollectionInfos := GetCollectionInfos(taskInfo, databaseInfo.Name, currentCollectionName)
 		if taskCollectionInfos == nil {
-			return false
+			return false, false
 		}
-		return MatchCollection(taskInfo, taskCollectionInfos, databaseInfo.Name, currentCollectionName)
+		cinfo := GetMatchCollectionInfo(taskInfo, taskCollectionInfos, databaseInfo.Name, currentCollectionName)
+		return cinfo.UseStartPosition, IsValidCollectionInfo(cinfo)
 	}
 }
 
@@ -1513,14 +1515,35 @@ func GetCollectionInfos(taskInfo *meta.TaskInfo, dbName string, collectionName s
 }
 
 func MatchCollection(taskInfo *meta.TaskInfo, taskCollectionInfos []model.CollectionInfo, currentDatabaseName, currentCollectionName string) bool {
-	isAllCollection := taskCollectionInfos[0].Name == cdcreader.AllCollection
+	collectionInfo := GetMatchCollectionInfo(taskInfo, taskCollectionInfos, currentDatabaseName, currentCollectionName)
+	return IsValidCollectionInfo(collectionInfo)
+}
 
-	notStarContains := !isAllCollection && lo.ContainsBy(taskCollectionInfos, func(taskCollectionInfo model.CollectionInfo) bool {
-		return taskCollectionInfo.Name == currentCollectionName
-	})
-	starContains := isAllCollection && !lo.ContainsBy(taskInfo.ExcludeCollections, func(s string) bool {
+func GetMatchCollectionInfo(
+	taskInfo *meta.TaskInfo,
+	taskCollectionInfos []model.CollectionInfo,
+	currentDatabaseName, currentCollectionName string,
+) model.CollectionInfo {
+	var emptyCollectionInfo model.CollectionInfo
+	isAllCollection := taskCollectionInfos[0].Name == cdcreader.AllCollection
+	if !isAllCollection {
+		for _, taskCollectionInfo := range taskCollectionInfos {
+			if taskCollectionInfo.Name == currentCollectionName {
+				return taskCollectionInfo
+			}
+		}
+		return emptyCollectionInfo
+	}
+	starContains := !lo.ContainsBy(taskInfo.ExcludeCollections, func(s string) bool {
 		match, _ := matchCollectionName(s, util.GetFullCollectionName(currentCollectionName, currentDatabaseName))
 		return match
 	})
-	return notStarContains || starContains
+	if starContains {
+		return taskCollectionInfos[0]
+	}
+	return emptyCollectionInfo
+}
+
+func IsValidCollectionInfo(collectionInfo model.CollectionInfo) bool {
+	return collectionInfo.Name != ""
 }
