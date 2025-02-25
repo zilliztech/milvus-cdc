@@ -123,8 +123,8 @@ func TestCollectionReader(t *testing.T) {
 	channelManager.EXPECT().AddPartition(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	channelManager.EXPECT().AddDroppedCollection(mock.Anything).Return().Once()
 
-	reader, err := NewCollectionReader("reader-1", channelManager, etcdOp, nil, func(_ *model.DatabaseInfo, ci *pb.CollectionInfo) bool {
-		return !strings.Contains(ci.Schema.Name, "test")
+	reader, err := NewCollectionReader("reader-1", channelManager, etcdOp, nil, func(_ *model.DatabaseInfo, ci *pb.CollectionInfo) (bool, bool) {
+		return false, !strings.Contains(ci.Schema.Name, "test")
 	}, config.ReaderConfig{
 		Retry: config.RetrySettings{
 			RetryTimes:  1,
