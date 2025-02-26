@@ -28,6 +28,10 @@ func Handle(req *request.MaintenanceRequest) (*request.MaintenanceResponse, erro
 	switch req.Operation {
 	case "set_log_level":
 		return SetLogLevel(req)
+	case "set_force_log_msg":
+		return ForceLogMsg(req)
+	case "reset_log_msg":
+		return ResetLogMsg(req)
 	default:
 		return &request.MaintenanceResponse{
 			State: fmt.Sprintf("unsupported operation: %s", req.Operation),

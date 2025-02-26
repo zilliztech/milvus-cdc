@@ -937,7 +937,6 @@ func (e *MetaCDC) newReplicateEntity(info *meta.TaskInfo) (*ReplicateEntity, err
 	)
 	e.replicateEntityMap.Lock()
 	defer e.replicateEntityMap.Unlock()
-	// TODO fubang should be fix
 	entity, ok := e.replicateEntityMap.data[uKey]
 	if !ok {
 		replicateCtx, cancelReplicateFunc := context.WithCancel(ctx)
@@ -1138,9 +1137,15 @@ func replicateMetric(taskID string, channelName string, msgPack *msgstream.MsgPa
 	for _, msg := range msgPack.Msgs {
 		switch realMsg := msg.(type) {
 		case *msgstream.InsertMsg:
+			if op == metrics.OPTypeRead {
+				maintenance.LogInsertMsg(realMsg)
+			}
 			metrics.ReplicateDataCntVec.WithLabelValues(taskID,
 				strconv.FormatInt(realMsg.GetCollectionID(), 10), realMsg.GetCollectionName(), op, "insert").Add(float64(realMsg.GetNumRows()))
 		case *msgstream.DeleteMsg:
+			if op == metrics.OPTypeRead {
+				maintenance.LogDeleteMsg(realMsg)
+			}
 			metrics.ReplicateDataCntVec.WithLabelValues(taskID,
 				strconv.FormatInt(realMsg.GetCollectionID(), 10), realMsg.GetCollectionName(), op, "delete").Add(float64(realMsg.GetNumRows()))
 		}

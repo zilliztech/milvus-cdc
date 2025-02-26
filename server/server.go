@@ -33,6 +33,7 @@ import (
 	config2 "github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	cdcerror "github.com/zilliztech/milvus-cdc/server/error"
+	"github.com/zilliztech/milvus-cdc/server/maintenance"
 	"github.com/zilliztech/milvus-cdc/server/metrics"
 	modelrequest "github.com/zilliztech/milvus-cdc/server/model/request"
 )
@@ -47,6 +48,7 @@ func (c *CDCServer) Run(config *CDCServerConfig) {
 	config2.InitCommonConfig(func(c *config2.CommonConfig) {
 		c.Retry = config.Retry
 	})
+	maintenance.InitMsgLog()
 
 	c.serverConfig = config
 	c.api = GetCDCAPI(c.serverConfig)
