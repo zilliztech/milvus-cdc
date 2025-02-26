@@ -22,11 +22,11 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/milvus-io/milvus/pkg/log"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v2"
 
+	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/util/paramtable"
 )
 

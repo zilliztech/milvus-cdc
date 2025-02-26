@@ -40,7 +40,7 @@ type DataReadConfig struct {
 	Etcd       config.EtcdServerConfig
 	Pulsar     config.PulsarConfig
 	Kafka      config.KafkaConfig
-	ChannelMap map[string]string
+	ChannelMap map[string]string `yaml:"channelMap"`
 
 	Database   string // root config
 	Collection string

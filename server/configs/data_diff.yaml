@@ -1,5 +1,5 @@
 a:
-  milvusEtcdConfig:
+  etcd:
     address:
       - localhost:2379
     rootPath: by-dev
@@ -12,7 +12,7 @@ a:
   #kafka:
   #  address: localhost:9092
 b:
-  milvusEtcdConfig:
+  etcd:
     address:
       - localhost:2379
     rootPath: by-dev
@@ -27,4 +27,4 @@ b:
 database: default
 collection: hello_milvus
 timeout: 600
-countMode: true
+printDiff: true
