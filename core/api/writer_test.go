@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
 )
 
 func TestDefaultWriter_HandleOpMessagePack(t *testing.T) {
