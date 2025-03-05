@@ -1745,8 +1745,8 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		return nil
 	}
 	GetTSManager().UnsafeUpdatePackTS(tsManagerChannelKey, newPack.BeginTs, func(newTS uint64) (uint64, bool) {
-		generateTS = newTS
 		reset := resetMsgPackTimestamp(newPack, newTS)
+		generateTS = newPack.EndTs
 		return newPack.EndTs, reset
 	})
 
