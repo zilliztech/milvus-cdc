@@ -24,7 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/milvus-io/milvus-sdk-go/v2/entity"
+	"github.com/milvus-io/milvus/client/v2/column"
+	"github.com/milvus-io/milvus/client/v2/entity"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 )
@@ -70,8 +71,8 @@ func TestFormat(t *testing.T) {
 	t.Run("format insert param", func(t *testing.T) {
 		data := &api.InsertParam{
 			CollectionName: "foo",
-			Columns: []entity.Column{
-				entity.NewColumnInt64("age", []int64{10}),
+			Columns: []column.Column{
+				column.NewColumnInt64("age", []int64{10}),
 			},
 		}
 		_, err := kafkaFormatter.Format(data)
@@ -81,7 +82,7 @@ func TestFormat(t *testing.T) {
 	t.Run("format delete param", func(t *testing.T) {
 		data := &api.DeleteParam{
 			CollectionName: "foo",
-			Column:         entity.NewColumnInt64("age", []int64{10}),
+			Column:         column.NewColumnInt64("age", []int64{10}),
 		}
 		_, err := kafkaFormatter.Format(data)
 		assert.NoError(t, err)

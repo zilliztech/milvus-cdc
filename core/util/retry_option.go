@@ -21,7 +21,7 @@ package util
 import (
 	"time"
 
-	"github.com/milvus-io/milvus/pkg/util/retry"
+	"github.com/milvus-io/milvus/pkg/v2/util/retry"
 
 	"github.com/zilliztech/milvus-cdc/core/config"
 )
