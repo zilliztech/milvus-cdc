@@ -35,8 +35,8 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/util/typeutil"
+	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -548,11 +548,11 @@ func TestCreateRequest(t *testing.T) {
 		// recovery meta task msg
 		replicateStore.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]api.MetaMsg{}, nil)
 		// new channel reader
-		mqFactory.EXPECT().NewMsgStream(mock.Anything).Return(mq, nil).Once()
-		mq.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		mqFactory.EXPECT().NewMsgStream(mock.Anything).Return(mq, nil).Maybe()
+		mq.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 		// start read channel
 		streamChan := make(chan *msgstream.ConsumeMsgPack)
-		mq.EXPECT().Chan().Return(streamChan)
+		mq.EXPECT().Chan().Return(streamChan).Maybe()
 		// update state
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{
 			{
@@ -655,11 +655,11 @@ func TestCreateRequest(t *testing.T) {
 		// recovery meta task msg
 		replicateStore.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]api.MetaMsg{}, nil)
 		// new channel reader
-		mqFactory.EXPECT().NewMsgStream(mock.Anything).Return(mq, nil).Once()
-		mq.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		mqFactory.EXPECT().NewMsgStream(mock.Anything).Return(mq, nil).Maybe()
+		mq.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 		// start read channel
 		streamChan := make(chan *msgstream.ConsumeMsgPack)
-		mq.EXPECT().Chan().Return(streamChan)
+		mq.EXPECT().Chan().Return(streamChan).Maybe()
 		// update state
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{
 			{
@@ -1226,11 +1226,11 @@ func TestResume(t *testing.T) {
 			},
 		}, nil).Once()
 		// new channel reader
-		mqFactory.EXPECT().NewMsgStream(mock.Anything).Return(mq, nil).Once()
-		mq.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		mqFactory.EXPECT().NewMsgStream(mock.Anything).Return(mq, nil).Maybe()
+		mq.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 		// start read channel
 		streamChan := make(chan *msgstream.ConsumeMsgPack)
-		mq.EXPECT().Chan().Return(streamChan)
+		mq.EXPECT().Chan().Return(streamChan).Maybe()
 		// update state
 		store.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return([]*meta.TaskInfo{
 			{

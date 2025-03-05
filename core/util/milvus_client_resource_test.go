@@ -32,7 +32,7 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
-	"github.com/milvus-io/milvus/pkg/util/resource"
+	"github.com/milvus-io/milvus/pkg/v2/util/resource"
 
 	mocks "github.com/zilliztech/milvus-cdc/core/servermocks"
 )

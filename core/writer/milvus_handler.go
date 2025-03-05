@@ -20,7 +20,6 @@ package writer
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -28,13 +27,14 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
-	"github.com/milvus-io/milvus-sdk-go/v2/client"
-	"github.com/milvus-io/milvus-sdk-go/v2/entity"
-	"github.com/milvus-io/milvus/pkg/util/crypto"
-	"github.com/milvus-io/milvus/pkg/util/resource"
-	"github.com/milvus-io/milvus/pkg/util/retry"
+	"github.com/milvus-io/milvus/client/v2/entity"
+	"github.com/milvus-io/milvus/client/v2/index"
+	"github.com/milvus-io/milvus/client/v2/milvusclient"
+	"github.com/milvus-io/milvus/pkg/v2/util/crypto"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
+	"github.com/milvus-io/milvus/pkg/v2/util/resource"
+	"github.com/milvus-io/milvus/pkg/v2/util/retry"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -69,7 +69,7 @@ func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*Milvus
 	timeoutContext, cancel := context.WithTimeout(context.Background(), time.Duration(handler.connectTimeout)*time.Second)
 	defer cancel()
 
-	err = handler.milvusOp(timeoutContext, "", func(milvus client.Client) error {
+	err = handler.milvusOp(timeoutContext, "", func(milvus *milvusclient.Client) error {
 		return nil
 	})
 	if err != nil {
@@ -80,11 +80,11 @@ func NewMilvusDataHandler(options ...config.Option[*MilvusDataHandler]) (*Milvus
 	return handler, nil
 }
 
-func (m *MilvusDataHandler) milvusOp(ctx context.Context, database string, f func(milvus client.Client) error) error {
+func (m *MilvusDataHandler) milvusOp(ctx context.Context, database string, f func(milvus *milvusclient.Client) error) error {
 	retryMilvusFunc := func() error {
 		// TODO Retryable and non-retryable errors should be distinguished
 		var err error
-		var c client.Client
+		var c *milvusclient.Client
 		retryErr := retry.Do(ctx, func() error {
 			c, err = util.GetMilvusClientManager().GetMilvusClient(ctx, m.uri, m.token, database, m.dialConfig)
 			if err != nil {
@@ -112,50 +112,83 @@ func (m *MilvusDataHandler) milvusOp(ctx context.Context, database string, f fun
 }
 
 func (m *MilvusDataHandler) CreateCollection(ctx context.Context, param *api.CreateCollectionParam) error {
-	var options []client.CreateCollectionOption
+	createCollectionOption := milvusclient.NewCreateCollectionOption(param.Schema.CollectionName, param.Schema)
+	describeCollectionOption := milvusclient.NewDescribeCollectionOption(param.Schema.CollectionName)
+
 	for _, property := range param.Properties {
-		options = append(options, client.WithCollectionProperty(property.GetKey(), property.GetValue()))
+		createCollectionOption.WithProperty(property.GetKey(), property.GetValue())
 	}
-	options = append(options,
-		client.WithConsistencyLevel(entity.ConsistencyLevel(param.ConsistencyLevel)),
-		client.WithCreateCollectionMsgBase(param.Base),
-	)
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		if _, err := milvus.DescribeCollection(ctx, param.Schema.CollectionName); err == nil {
+	createCollectionOption.WithShardNum(param.ShardsNum)
+	createCollectionOption.WithConsistencyLevel(entity.ConsistencyLevel(param.ConsistencyLevel))
+	createCollectionRequest := createCollectionOption.Request()
+	createCollectionRequest.DbName = ""
+	createCollectionRequest.Base = param.Base
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		if _, err := milvus.DescribeCollection(ctx, describeCollectionOption); err == nil {
 			log.Info("skip to create collection, because it's has existed", zap.String("collection", param.Schema.CollectionName))
 			return nil
 		}
-		return milvus.CreateCollection(ctx, param.Schema, param.ShardsNum, options...)
+		ms := milvus.GetService()
+		resp, err := ms.CreateCollection(ctx, createCollectionRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) DropCollection(ctx context.Context, param *api.DropCollectionParam) error {
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		return milvus.DropCollection(ctx, param.CollectionName, client.WithDropCollectionMsgBase(param.Base))
+	dropCollectionOption := milvusclient.NewDropCollectionOption(param.CollectionName)
+	dropCollectionRequest := dropCollectionOption.Request()
+	dropCollectionRequest.DbName = ""
+	dropCollectionRequest.Base = param.Base
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.DropCollection(ctx, dropCollectionRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
+// TODO no used
 func (m *MilvusDataHandler) Insert(ctx context.Context, param *api.InsertParam) error {
 	partitionName := param.PartitionName
 	if m.ignorePartition {
 		log.Info("ignore partition name in insert request", zap.String("partition", partitionName))
 		partitionName = ""
 	}
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		_, err := milvus.Insert(ctx, param.CollectionName, partitionName, param.Columns...)
+	insertOption := milvusclient.NewColumnBasedInsertOption(param.CollectionName, param.Columns...)
+	insertOption.WithPartition(partitionName)
+	// insertOption.WithInsertMsgBase(param.Base)
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		_, err := milvus.Insert(ctx, insertOption)
 		return err
 	})
 }
 
+// TODO no used
 func (m *MilvusDataHandler) Delete(ctx context.Context, param *api.DeleteParam) error {
 	partitionName := param.PartitionName
 	if m.ignorePartition {
 		log.Info("ignore partition name in delete request", zap.String("partition", partitionName))
 		partitionName = ""
 	}
+	deleteOption := milvusclient.NewDeleteOption(param.CollectionName)
+	deleteOption.WithPartition(partitionName)
+	pkName := param.Column.Name()
+	if data := param.Column.FieldData().GetScalars().GetLongData().GetData(); data != nil {
+		deleteOption.WithInt64IDs(pkName, data)
+	} else if data := param.Column.FieldData().GetScalars().GetStringData().GetData(); data != nil {
+		deleteOption.WithStringIDs(pkName, data)
+	} else {
+		return errors.New("unsupported data type")
+	}
 
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		return milvus.DeleteByPks(ctx, param.CollectionName, partitionName, param.Column)
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		_, err := milvus.Delete(ctx, deleteOption)
+		return err
 	})
 }
 
@@ -164,21 +197,31 @@ func (m *MilvusDataHandler) CreatePartition(ctx context.Context, param *api.Crea
 		log.Warn("ignore create partition", zap.String("collection", param.CollectionName), zap.String("partition", param.PartitionName))
 		return nil
 	}
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		partitions, err := milvus.ShowPartitions(ctx, param.CollectionName)
+	createPartitionParam := milvusclient.NewCreatePartitionOption(param.CollectionName, param.PartitionName)
+	createPartitionRequest := createPartitionParam.Request()
+	createPartitionRequest.DbName = ""
+	createPartitionRequest.Base = param.Base
+	listPartitionParam := milvusclient.NewListPartitionOption(param.CollectionName)
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		partitions, err := milvus.ListPartitions(ctx, listPartitionParam)
 		if err != nil {
 			log.Warn("fail to show partitions", zap.String("collection", param.CollectionName), zap.Error(err))
 			return err
 		}
-		for _, partition := range partitions {
-			if partition.Name == param.PartitionName {
+		for _, partitionName := range partitions {
+			if partitionName == param.PartitionName {
 				log.Info("skip to create partition, because it's has existed",
 					zap.String("collection", param.CollectionName),
 					zap.String("partition", param.PartitionName))
 				return nil
 			}
 		}
-		return milvus.CreatePartition(ctx, param.CollectionName, param.PartitionName, client.WithCreatePartitionMsgBase(param.Base))
+		ms := milvus.GetService()
+		resp, err := ms.CreatePartition(ctx, createPartitionRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
@@ -187,77 +230,138 @@ func (m *MilvusDataHandler) DropPartition(ctx context.Context, param *api.DropPa
 		log.Warn("ignore drop partition", zap.String("collection", param.CollectionName), zap.String("partition", param.PartitionName))
 		return nil
 	}
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		return milvus.DropPartition(ctx, param.CollectionName, param.PartitionName, client.WithDropPartitionMsgBase(param.Base))
+	dropPartitionParam := milvusclient.NewDropPartitionOption(param.CollectionName, param.PartitionName)
+	dropPartitionRequest := dropPartitionParam.Request()
+	dropPartitionRequest.DbName = ""
+	dropPartitionRequest.Base = param.Base
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.DropPartition(ctx, dropPartitionRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) CreateIndex(ctx context.Context, param *api.CreateIndexParam) error {
-	indexEntity := entity.NewGenericIndex(param.GetIndexName(), "", util.ConvertKVPairToMap(param.GetExtraParams()))
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		return milvus.CreateIndex(ctx, param.GetCollectionName(), param.GetFieldName(), indexEntity, true,
-			client.WithIndexName(param.GetIndexName()),
-			client.WithIndexMsgBase(param.GetBase()),
-		)
+	indexParam := index.NewGenericIndex(param.GetIndexName(), util.ConvertKVPairToMap(param.GetExtraParams()))
+	createIndexParam := milvusclient.NewCreateIndexOption(param.CollectionName, param.FieldName, indexParam)
+	createIndexParam = createIndexParam.WithIndexName(param.IndexName)
+	createIndexRequest := createIndexParam.Request()
+	createIndexRequest.DbName = ""
+	createIndexRequest.Base = param.Base
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.CreateIndex(ctx, createIndexRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) DropIndex(ctx context.Context, param *api.DropIndexParam) error {
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		return milvus.DropIndex(ctx, param.CollectionName, param.FieldName,
-			client.WithIndexName(param.IndexName),
-			client.WithIndexMsgBase(param.GetBase()),
-		)
+	dropIndexParam := milvusclient.NewDropIndexOption(param.CollectionName, param.IndexName)
+	dropIndexRequest := dropIndexParam.Request()
+	dropIndexRequest.DbName = ""
+	dropIndexRequest.Base = param.Base
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.DropIndex(ctx, dropIndexRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) AlterIndex(ctx context.Context, param *api.AlterIndexParam) error {
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		extraParams := util.ConvertKVPairToMap(param.GetExtraParams())
-		mmapEnable, _ := strconv.ParseBool(extraParams[api.IndexKeyMmap])
-		return milvus.AlterIndex(ctx, param.CollectionName, param.IndexName,
-			client.WithMmap(mmapEnable),
-			client.WithIndexMsgBase(param.GetBase()),
-		)
+	alterIndexRequest := param.AlterIndexRequest
+	alterIndexRequest.DbName = ""
+	alterIndexRequest.Base = param.Base
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.AlterIndex(ctx, alterIndexRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) LoadCollection(ctx context.Context, param *api.LoadCollectionParam) error {
-	// TODO resource group
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		return milvus.LoadCollection(ctx, param.CollectionName, true,
-			client.WithReplicaNumber(param.ReplicaNumber),
-			client.WithLoadCollectionMsgBase(param.GetBase()),
-		)
+	loadCollectionRequest := param.LoadCollectionRequest
+	loadCollectionRequest.DbName = ""
+	loadCollectionRequest.Base = param.Base
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.LoadCollection(ctx, loadCollectionRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) ReleaseCollection(ctx context.Context, param *api.ReleaseCollectionParam) error {
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		return milvus.ReleaseCollection(ctx, param.CollectionName,
-			client.WithReleaseCollectionMsgBase(param.GetBase()),
-		)
+	releaseCollectionParam := milvusclient.NewReleaseCollectionOption(param.CollectionName)
+	releaseCollectionRequest := releaseCollectionParam.Request()
+	releaseCollectionRequest.DbName = ""
+	releaseCollectionRequest.Base = param.Base
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.ReleaseCollection(ctx, releaseCollectionRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) LoadPartitions(ctx context.Context, param *api.LoadPartitionsParam) error {
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		return milvus.LoadPartitions(ctx, param.CollectionName, param.PartitionNames, true,
-			client.WithLoadPartitionsMsgBase(param.GetBase()))
+	loadPartitionsParam := milvusclient.NewLoadPartitionsOption(param.CollectionName, param.PartitionNames...)
+	loadPartitionsRequest := loadPartitionsParam.Request()
+	loadPartitionsRequest.DbName = ""
+	loadPartitionsRequest.Base = param.Base
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.LoadPartitions(ctx, loadPartitionsRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) ReleasePartitions(ctx context.Context, param *api.ReleasePartitionsParam) error {
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		return milvus.ReleasePartitions(ctx, param.CollectionName, param.PartitionNames,
-			client.WithReleasePartitionMsgBase(param.GetBase()))
+	releasePartitonsParam := milvusclient.NewReleasePartitionsOptions(param.CollectionName, param.PartitionNames...)
+	releasePartitionsRequest := releasePartitonsParam.Request()
+	releasePartitionsRequest.DbName = ""
+	releasePartitionsRequest.Base = param.Base
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.ReleasePartitions(ctx, releasePartitionsRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) Flush(ctx context.Context, param *api.FlushParam) error {
 	for _, s := range param.GetCollectionNames() {
-		if err := m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-			return milvus.Flush(ctx, s, true, client.WithFlushMsgBase(param.GetBase()))
+		flushParam := milvusclient.NewFlushOption(s)
+		flushRequest := flushParam.Request()
+		flushRequest.DbName = ""
+		flushRequest.Base = param.Base
+		if err := m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+			ms := milvus.GetService()
+			resp, err := ms.Flush(ctx, flushRequest)
+			if err = merr.CheckRPCCall(resp, err); err != nil {
+				return err
+			}
+			return nil
 		}); err != nil {
 			return err
 		}
@@ -266,37 +370,55 @@ func (m *MilvusDataHandler) Flush(ctx context.Context, param *api.FlushParam) er
 }
 
 func (m *MilvusDataHandler) CreateDatabase(ctx context.Context, param *api.CreateDatabaseParam) error {
-	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		databases, err := milvus.ListDatabases(ctx)
+	listDatabaseParam := milvusclient.NewListDatabaseOption()
+	createDatabaseParam := milvusclient.NewCreateDatabaseOption(param.DbName)
+	createDatabaseRequest := createDatabaseParam.Request()
+	createDatabaseRequest.Base = param.Base
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		databases, err := milvus.ListDatabase(ctx, listDatabaseParam)
 		if err != nil {
 			return err
 		}
-		for _, database := range databases {
-			if database.Name == param.DbName {
+		for _, databaseName := range databases {
+			if databaseName == param.DbName {
 				log.Info("skip to create database, because it's has existed", zap.String("database", param.DbName))
 				return nil
 			}
 		}
 
-		return milvus.CreateDatabase(ctx, param.DbName,
-			client.WithCreateDatabaseMsgBase(param.GetBase()),
-		)
+		ms := milvus.GetService()
+		resp, err := ms.CreateDatabase(ctx, createDatabaseRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) DropDatabase(ctx context.Context, param *api.DropDatabaseParam) error {
-	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		return milvus.DropDatabase(ctx, param.DbName,
-			client.WithDropDatabaseMsgBase(param.GetBase()),
-		)
+	dropDatabaseParam := milvusclient.NewDropDatabaseOption(param.DbName)
+	dropDatabaseRequest := dropDatabaseParam.Request()
+	dropDatabaseRequest.Base = param.Base
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.DropDatabase(ctx, dropDatabaseRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) AlterDatabase(ctx context.Context, param *api.AlterDatabaseParam) error {
-	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		return milvus.AlterDatabase(ctx, param.DbName,
-			api.GetSimpleAttributions(param.GetProperties())...,
-		)
+	alterDatabaseRequest := param.AlterDatabaseRequest
+	alterDatabaseRequest.Base = param.Base
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.AlterDatabase(ctx, alterDatabaseRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
@@ -305,14 +427,30 @@ func (m *MilvusDataHandler) CreateUser(ctx context.Context, param *api.CreateUse
 	if err != nil {
 		return err
 	}
-	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		return milvus.CreateCredential(ctx, param.Username, pwd)
+	createUserParam := milvusclient.NewCreateUserOption(param.Username, pwd)
+	createUserRequest := createUserParam.Request()
+	createUserRequest.Base = param.Base
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.CreateCredential(ctx, createUserRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) DeleteUser(ctx context.Context, param *api.DeleteUserParam) error {
-	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		return milvus.DeleteCredential(ctx, param.Username)
+	dropUserParam := milvusclient.NewDropUserOption(param.Username)
+	dropUserRequest := dropUserParam.Request()
+	dropUserRequest.Base = param.Base
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.DeleteCredential(ctx, dropUserRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
@@ -325,8 +463,16 @@ func (m *MilvusDataHandler) UpdateUser(ctx context.Context, param *api.UpdateUse
 	if err != nil {
 		return err
 	}
-	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		return milvus.UpdateCredential(ctx, param.Username, oldPwd, newPwd)
+	updatePasswordParam := milvusclient.NewUpdatePasswordOption(param.Username, oldPwd, newPwd)
+	updatePasswordRequest := updatePasswordParam.Request()
+	updatePasswordRequest.Base = param.Base
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.UpdateCredential(ctx, updatePasswordRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
@@ -335,105 +481,107 @@ func DecodePwd(pwd string) (string, error) {
 }
 
 func (m *MilvusDataHandler) CreateRole(ctx context.Context, param *api.CreateRoleParam) error {
-	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		return milvus.CreateRole(ctx, param.GetEntity().GetName())
+	createRoleParam := milvusclient.NewCreateRoleOption(param.GetEntity().GetName())
+	createRoleRequest := createRoleParam.Request()
+	createRoleRequest.Base = param.GetBase()
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.CreateRole(ctx, createRoleRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) DropRole(ctx context.Context, param *api.DropRoleParam) error {
-	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		return milvus.DropRole(ctx, param.GetRoleName())
+	dropRoleParam := milvusclient.NewDropRoleOption(param.GetRoleName())
+	dropRoleRequest := dropRoleParam.Request()
+	dropRoleRequest.Base = param.GetBase()
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.DropRole(ctx, dropRoleRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) OperateUserRole(ctx context.Context, param *api.OperateUserRoleParam) error {
-	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		switch param.Type {
-		case milvuspb.OperateUserRoleType_AddUserToRole:
-			return milvus.AddUserRole(ctx, param.Username, param.RoleName)
-		case milvuspb.OperateUserRoleType_RemoveUserFromRole:
-			return milvus.RemoveUserRole(ctx, param.Username, param.RoleName)
-		default:
-			log.Warn("unknown operate user role type", zap.String("type", param.Type.String()))
-			return nil
+	operateUserRoleRequest := param.OperateUserRoleRequest
+	operateUserRoleRequest.Base = param.Base
+
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.OperateUserRole(ctx, operateUserRoleRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
 		}
+		return nil
 	})
 }
 
 func (m *MilvusDataHandler) OperatePrivilege(ctx context.Context, param *api.OperatePrivilegeParam) error {
-	objectType, err := m.GetObjectType(param.GetEntity().GetObject().GetName())
-	if err != nil {
-		return err
-	}
+	operatePrivilegeRequest := param.OperatePrivilegeRequest
+	operatePrivilegeRequest.Base = param.Base
 
-	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		switch param.Type {
-		case milvuspb.OperatePrivilegeType_Grant:
-			return milvus.Grant(ctx, param.GetEntity().GetRole().GetName(),
-				objectType,
-				param.GetEntity().GetObjectName(),
-				param.GetEntity().GetGrantor().GetPrivilege().GetName(),
-				entity.WithOperatePrivilegeDatabase(param.GetEntity().GetDbName()))
-		case milvuspb.OperatePrivilegeType_Revoke:
-			return milvus.Revoke(ctx, param.GetEntity().GetRole().GetName(),
-				objectType,
-				param.GetEntity().GetObjectName(),
-				param.GetEntity().GetGrantor().GetPrivilege().GetName(),
-				entity.WithOperatePrivilegeDatabase(param.GetEntity().GetDbName()))
-		default:
-			log.Warn("unknown operate privilege type", zap.String("type", param.Type.String()))
-			return nil
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.OperatePrivilege(ctx, operatePrivilegeRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
 		}
+		return nil
 	})
-}
-
-func (m *MilvusDataHandler) GetObjectType(o string) (entity.PriviledgeObjectType, error) {
-	objectType, ok := commonpb.ObjectType_value[o]
-	if !ok {
-		return entity.PriviledgeObjectType(-1), errors.Newf("invalid object type, %s", o)
-	}
-	return entity.PriviledgeObjectType(objectType), nil
 }
 
 func (m *MilvusDataHandler) ReplicateMessage(ctx context.Context, param *api.ReplicateMessageParam) error {
 	var (
-		resp  *entity.MessageInfo
-		err   error
-		opErr error
+		req = &milvuspb.ReplicateMessageRequest{
+			ChannelName:    param.ChannelName,
+			BeginTs:        param.BeginTs,
+			EndTs:          param.EndTs,
+			Msgs:           param.MsgsBytes,
+			StartPositions: param.StartPositions,
+			EndPositions:   param.EndPositions,
+			Base:           param.Base,
+		}
+		resp *milvuspb.ReplicateMessageResponse
+		err  error
 	)
-	opErr = m.milvusOp(ctx, "", func(milvus client.Client) error {
-		resp, err = milvus.ReplicateMessage(ctx, param.ChannelName,
-			param.BeginTs, param.EndTs,
-			param.MsgsBytes,
-			param.StartPositions, param.EndPositions,
-			client.WithReplicateMessageMsgBase(param.Base))
-		return err
+	err = m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err = ms.ReplicateMessage(ctx, req)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
 	})
 	if err != nil {
 		return err
-	}
-	if opErr != nil {
-		return opErr
 	}
 	param.TargetMsgPosition = resp.Position
 	return nil
 }
 
 func (m *MilvusDataHandler) DescribeCollection(ctx context.Context, param *api.DescribeCollectionParam) error {
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		_, err := milvus.DescribeCollection(ctx, param.Name)
+	describeCollectionParam := milvusclient.NewDescribeCollectionOption(param.Name)
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		_, err := milvus.DescribeCollection(ctx, describeCollectionParam)
 		return err
 	})
 }
 
 func (m *MilvusDataHandler) DescribeDatabase(ctx context.Context, param *api.DescribeDatabaseParam) error {
-	return m.milvusOp(ctx, "", func(milvus client.Client) error {
-		databases, err := milvus.ListDatabases(ctx)
+	listDatabaseParam := milvusclient.NewListDatabaseOption()
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		databases, err := milvus.ListDatabase(ctx, listDatabaseParam)
 		if err != nil {
 			return err
 		}
-		for _, database := range databases {
-			if database.Name == param.Name {
+		for _, databaseName := range databases {
+			if databaseName == param.Name {
 				return nil
 			}
 		}
@@ -442,13 +590,14 @@ func (m *MilvusDataHandler) DescribeDatabase(ctx context.Context, param *api.Des
 }
 
 func (m *MilvusDataHandler) DescribePartition(ctx context.Context, param *api.DescribePartitionParam) error {
-	return m.milvusOp(ctx, param.Database, func(milvus client.Client) error {
-		partitions, err := milvus.ShowPartitions(ctx, param.CollectionName)
+	listPartitionsParam := milvusclient.NewListPartitionOption(param.CollectionName)
+	return m.milvusOp(ctx, param.Database, func(milvus *milvusclient.Client) error {
+		partitions, err := milvus.ListPartitions(ctx, listPartitionsParam)
 		if err != nil {
 			return err
 		}
-		for _, partition := range partitions {
-			if partition.Name == param.PartitionName {
+		for _, partitionName := range partitions {
+			if partitionName == param.PartitionName {
 				return nil
 			}
 		}

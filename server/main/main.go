@@ -26,7 +26,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/yaml"
 
-	pkglog "github.com/milvus-io/milvus/pkg/log"
+	pkglog "github.com/milvus-io/milvus/pkg/v2/log"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/util"

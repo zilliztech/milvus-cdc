@@ -21,8 +21,8 @@ package model
 import (
 	"sync"
 
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/util/retry"
+	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/v2/util/retry"
 )
 
 type SourceCollectionInfo struct {
