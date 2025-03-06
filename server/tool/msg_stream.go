@@ -21,16 +21,19 @@ package tool
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"strconv"
 
 	"github.com/samber/lo"
+	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus/pkg/mq/common"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/util/requestutil"
 
 	"github.com/zilliztech/milvus-cdc/core/config"
+	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/reader"
 )
 
@@ -181,4 +184,31 @@ func GetDeletePKs(msg *msgstream.DeleteMsg) ([]string, []uint64) {
 	}
 	tss := msg.GetTimestamps()
 	return pks, tss
+}
+
+func GetDryRunMsgPackView() func(msgPack *msgstream.MsgPack) {
+	return func(msgPack *msgstream.MsgPack) {
+		var msgTss []string
+		for _, msg := range msgPack.Msgs {
+			switch m := msg.(type) {
+			case *msgstream.InsertMsg:
+				msgTss = append(msgTss,
+					fmt.Sprintf("%s:%d,%d,%d", "insert-msg", m.Position().GetTimestamp(), m.BeginTimestamp, m.EndTimestamp))
+			case *msgstream.DeleteMsg:
+				msgTss = append(msgTss,
+					fmt.Sprintf("%s:%d,%d,%d", "delete-msg", m.Position().GetTimestamp(), m.BeginTimestamp, m.EndTimestamp))
+			case *msgstream.TimeTickMsg:
+				msgTss = append(msgTss,
+					fmt.Sprintf("%s:%d,%d", "tt-msg", m.Position().GetTimestamp(), m.BeginTimestamp))
+			}
+		}
+		log.Info("print pack",
+			zap.Any("begin_ts", msgPack.BeginTs),
+			zap.Uint64("end_ts", msgPack.EndTs),
+			zap.Any("star_position", msgPack.StartPositions[0].GetTimestamp()),
+			zap.Any("end_position", msgPack.EndPositions[0].GetTimestamp()),
+			zap.Any("len_msg_tss", len(msgTss)),
+			zap.Any("msg_tss", msgTss),
+		)
+	}
 }

@@ -296,7 +296,13 @@ func GetStreamData(
 				log.Panic("less or equal err", zap.Error(err))
 			}
 			tool.HandlePack(msgPack, handler)
-			rateLog.Info("receive data...", zap.String("pchannel", pchannel), zap.Uint64("ts", end.GetTimestamp()))
+			rateLog.Info("receive data...",
+				zap.String("pchannel", pchannel),
+				zap.Any("begin_ts", msgPack.BeginTs),
+				zap.Uint64("end_ts", msgPack.EndTs),
+				zap.Any("star_position", msgPack.StartPositions[0].GetTimestamp()),
+				zap.Any("end_position", msgPack.EndPositions[0].GetTimestamp()),
+			)
 			if ok {
 				log.Info("Get all data", zap.String("pchannel", pchannel))
 				return dataMap
@@ -322,6 +328,11 @@ func GetMsgPackHandler(
 				}
 				dataMap[pk].Insert = append(dataMap[pk].Insert, tss[i])
 			}
+			log.Info("Insert msg",
+				zap.Uint64("ts", msg.BeginTimestamp),
+				zap.Any("pks", pks),
+				zap.Any("tss", tss),
+			)
 		},
 		DeleteMsgHandler: func(msg *msgstream.DeleteMsg) {
 			pks, tss := tool.GetDeletePKs(msg)

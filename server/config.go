@@ -37,6 +37,7 @@ type CDCServerConfig struct {
 	LogLevel       string
 	DetectDeadLock bool
 	ReplicateID    string
+	DryRun         bool
 }
 
 type CDCMetaStoreConfig struct {

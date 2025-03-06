@@ -1734,7 +1734,10 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	GetTSManager().LockTargetChannel(tsManagerChannelKey)
 	defer GetTSManager().UnLockTargetChannel(tsManagerChannelKey)
 
-	if !needTsMsg && len(newPack.Msgs) == 0 && !GetTSManager().UnsafeShouldSendTSMsg(tsManagerChannelKey) {
+	resetLastTs := needTsMsg || len(newPack.Msgs) != 0
+	needTsMsg = needTsMsg || len(newPack.Msgs) != 0 || GetTSManager().UnsafeShouldSendTSMsg(tsManagerChannelKey)
+
+	if !needTsMsg {
 		return api.EmptyMsgPack
 	}
 
@@ -1750,11 +1753,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		return newPack.EndTs, reset
 	})
 
-	resetLastTs := needTsMsg
-	needTsMsg = needTsMsg || len(newPack.Msgs) == 0
-	if !needTsMsg {
-		return api.GetReplicateMsg("", sourceCollectionName, sourceCollectionID, newPack, "")
-	}
 	timeTickResult := &msgpb.TimeTickMsg{
 		Base: commonpbutil.NewMsgBase(
 			commonpbutil.WithMsgType(commonpb.MsgType_TimeTick),
@@ -1773,6 +1771,34 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		TimeTickMsg: timeTickResult,
 	}
 	newPack.Msgs = append(newPack.Msgs, timeTickMsg)
+	lastSendTs, ok := GetTSManager().UnsafeGetLastSendTS(tsManagerChannelKey)
+	if ok && lastSendTs == 0 {
+		beginTs := newPack.BeginTs - 1
+		beginMsgPosition := &msgpb.MsgPosition{
+			ChannelName: newPack.StartPositions[0].ChannelName,
+			MsgID:       newPack.StartPositions[0].MsgID,
+			MsgGroup:    newPack.StartPositions[0].MsgGroup,
+			Timestamp:   beginTs,
+		}
+		beginTsMsgPb := &msgpb.TimeTickMsg{
+			Base: commonpbutil.NewMsgBase(
+				commonpbutil.WithMsgType(commonpb.MsgType_TimeTick),
+				commonpbutil.WithMsgID(0),
+				commonpbutil.WithTimeStamp(beginTs),
+				commonpbutil.WithSourceID(-1),
+			),
+		}
+		beginTimeTickMsg := &msgstream.TimeTickMsg{
+			BaseMsg: msgstream.BaseMsg{
+				BeginTimestamp: beginTs,
+				EndTimestamp:   beginTs,
+				HashValues:     []uint32{0},
+				MsgPosition:    beginMsgPosition,
+			},
+			TimeTickMsg: beginTsMsgPb,
+		}
+		newPack.Msgs = append([]msgstream.TsMsg{beginTimeTickMsg}, newPack.Msgs...)
+	}
 
 	GetTSManager().UnsafeUpdateTSInfo(tsManagerChannelKey, generateTS, resetLastTs)
 	msgTime, _ := tsoutil.ParseHybridTs(generateTS)
