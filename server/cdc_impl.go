@@ -56,6 +56,7 @@ import (
 	"github.com/zilliztech/milvus-cdc/server/model/meta"
 	"github.com/zilliztech/milvus-cdc/server/model/request"
 	"github.com/zilliztech/milvus-cdc/server/store"
+	"github.com/zilliztech/milvus-cdc/server/tool"
 )
 
 type ReplicateEntity struct {
@@ -966,6 +967,9 @@ func (e *MetaCDC) startReplicateAPIEvent(replicateCtx context.Context, entity *R
 				log.Warn("event chan, the replicate context has closed")
 				return
 			case replicateAPIEvent, ok := <-entity.channelManager.GetEventChan():
+				if e.config.DryRun {
+					continue
+				}
 				taskID := replicateAPIEvent.TaskID
 				if !ok {
 					log.Warn("the replicate api event channel has closed", zap.String("task_id", taskID))
@@ -1046,12 +1050,20 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, entity *Rep
 			log.Warn("not found the message channel", zap.String("channel", channelName))
 			return
 		}
+		var packView func(*msgstream.MsgPack)
+		if e.config.DryRun {
+			packView = tool.GetDryRunMsgPackView()
+		}
 		for {
 			select {
 			case <-replicateCtx.Done():
 				log.Warn("msg chan, the replicate context has closed")
 				return
 			case replicateMsg, ok := <-msgChan:
+				if e.config.DryRun {
+					packView(replicateMsg.MsgPack)
+					continue
+				}
 				taskID := replicateMsg.TaskID
 				if !ok {
 					log.Warn("the data channel has closed", zap.String("task_id", taskID))
@@ -1162,6 +1174,9 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 	// isTmpCollection := collectionName == model.TmpCollectionName
 
 	dataHandleFunc := func(funcCtx context.Context, pack *msgstream.MsgPack) bool {
+		if e.config.DryRun {
+			return true
+		}
 		if !e.isRunningTask(info.TaskID) {
 			taskLog.Warn("not running task", zap.Any("pack", pack))
 			return false

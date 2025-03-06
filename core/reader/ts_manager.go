@@ -345,6 +345,9 @@ func (m *tsManager) UnsafeUpdateTSInfo(channelName string, sendTS uint64, resetL
 		return
 	}
 	ts.lts = sendTS
+	if ts.cts < sendTS {
+		ts.cts = sendTS
+	}
 	ts.sts = time.Now()
 	if resetLastTime {
 		ts.sts = ts.sts.Add(-ts.period)
@@ -357,6 +360,14 @@ func (m *tsManager) UnsafeGetMaxTS(channelName string) (uint64, bool) {
 		return 0, false
 	}
 	return ts.cts, true
+}
+
+func (m *tsManager) UnsafeGetLastSendTS(channelName string) (uint64, bool) {
+	ts, ok := m.channelTS2.Get(channelName)
+	if !ok {
+		return 0, false
+	}
+	return ts.lts, true
 }
 
 func FormatChanKey(replicateID, channelName string) string {

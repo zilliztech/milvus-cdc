@@ -56,6 +56,9 @@ func (c *CDCServer) Run(config *CDCServerConfig) {
 	cdcHandler := c.getCDCHandler()
 	http.Handle("/cdc", cdcHandler)
 	log.Info("start server...")
+	if config.DryRun {
+		log.Info("dry run mode")
+	}
 	err := http.ListenAndServe(c.serverConfig.Address, nil)
 	log.Panic("cdc server down", zap.Error(err))
 }

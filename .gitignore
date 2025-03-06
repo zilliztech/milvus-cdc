@@ -18,3 +18,5 @@ bin/
 *.csv
 *.duckdb
 *.duckdb.wal
+*.http
+**/.bw_config/*
