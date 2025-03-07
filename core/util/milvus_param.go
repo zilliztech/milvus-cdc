@@ -32,4 +32,5 @@ func InitMilvusPkgParam() {
 	_ = innerParam.Save(innerParam.MQCfg.MergeCheckInterval.Key, "2")
 	_ = innerParam.Save(innerParam.MQCfg.TargetBufSize.Key, "4")
 	_ = innerParam.Save(innerParam.MQCfg.MaxDispatcherNumPerPchannel.Key, "100")
+	_ = innerParam.Save(innerParam.MQCfg.EnablePursuitMode.Key, "false")
 }

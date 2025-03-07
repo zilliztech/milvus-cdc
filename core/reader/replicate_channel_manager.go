@@ -1455,7 +1455,9 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		for _, msg := range pack.Msgs {
 			if isSupportedMsgType(msg.Type()) {
 				hasValidMsg = true
-				miniTS = msg.BeginTs()
+				if miniTS > msg.BeginTs() {
+					miniTS = msg.BeginTs()
+				}
 			}
 		}
 
