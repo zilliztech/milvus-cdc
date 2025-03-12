@@ -378,17 +378,17 @@ func (_c *ChannelManager_SetCtx_Call) RunAndReturn(run func(context.Context)) *C
 	return _c
 }
 
-// StartReadCollection provides a mock function with given fields: ctx, db, info, seekPositions
-func (_m *ChannelManager) StartReadCollection(ctx context.Context, db *model.DatabaseInfo, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
-	ret := _m.Called(ctx, db, info, seekPositions)
+// StartReadCollection provides a mock function with given fields: ctx, db, info, seekPositions, channelStartTsMap
+func (_m *ChannelManager) StartReadCollection(ctx context.Context, db *model.DatabaseInfo, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition, channelStartTsMap map[string]uint64) error {
+	ret := _m.Called(ctx, db, info, seekPositions, channelStartTsMap)
 
 	if len(ret) == 0 {
 		panic("no return value specified for StartReadCollection")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *model.DatabaseInfo, *pb.CollectionInfo, []*msgpb.MsgPosition) error); ok {
-		r0 = rf(ctx, db, info, seekPositions)
+	if rf, ok := ret.Get(0).(func(context.Context, *model.DatabaseInfo, *pb.CollectionInfo, []*msgpb.MsgPosition, map[string]uint64) error); ok {
+		r0 = rf(ctx, db, info, seekPositions, channelStartTsMap)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -406,13 +406,14 @@ type ChannelManager_StartReadCollection_Call struct {
 //   - db *model.DatabaseInfo
 //   - info *pb.CollectionInfo
 //   - seekPositions []*msgpb.MsgPosition
-func (_e *ChannelManager_Expecter) StartReadCollection(ctx interface{}, db interface{}, info interface{}, seekPositions interface{}) *ChannelManager_StartReadCollection_Call {
-	return &ChannelManager_StartReadCollection_Call{Call: _e.mock.On("StartReadCollection", ctx, db, info, seekPositions)}
+//   - channelStartTsMap map[string]uint64
+func (_e *ChannelManager_Expecter) StartReadCollection(ctx interface{}, db interface{}, info interface{}, seekPositions interface{}, channelStartTsMap interface{}) *ChannelManager_StartReadCollection_Call {
+	return &ChannelManager_StartReadCollection_Call{Call: _e.mock.On("StartReadCollection", ctx, db, info, seekPositions, channelStartTsMap)}
 }
 
-func (_c *ChannelManager_StartReadCollection_Call) Run(run func(ctx context.Context, db *model.DatabaseInfo, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition)) *ChannelManager_StartReadCollection_Call {
+func (_c *ChannelManager_StartReadCollection_Call) Run(run func(ctx context.Context, db *model.DatabaseInfo, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition, channelStartTsMap map[string]uint64)) *ChannelManager_StartReadCollection_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*model.DatabaseInfo), args[2].(*pb.CollectionInfo), args[3].([]*msgpb.MsgPosition))
+		run(args[0].(context.Context), args[1].(*model.DatabaseInfo), args[2].(*pb.CollectionInfo), args[3].([]*msgpb.MsgPosition), args[4].(map[string]uint64))
 	})
 	return _c
 }
@@ -422,7 +423,7 @@ func (_c *ChannelManager_StartReadCollection_Call) Return(_a0 error) *ChannelMan
 	return _c
 }
 
-func (_c *ChannelManager_StartReadCollection_Call) RunAndReturn(run func(context.Context, *model.DatabaseInfo, *pb.CollectionInfo, []*msgpb.MsgPosition) error) *ChannelManager_StartReadCollection_Call {
+func (_c *ChannelManager_StartReadCollection_Call) RunAndReturn(run func(context.Context, *model.DatabaseInfo, *pb.CollectionInfo, []*msgpb.MsgPosition, map[string]uint64) error) *ChannelManager_StartReadCollection_Call {
 	_c.Call.Return(run)
 	return _c
 }

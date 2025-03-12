@@ -30,6 +30,7 @@ type SourceCollectionInfo struct {
 	VChannel     string
 	CollectionID int64
 	SeekPosition *msgstream.MsgPosition
+	StartTs      uint64
 	ShardNum     int
 }
 

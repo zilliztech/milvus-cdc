@@ -65,6 +65,7 @@ type CollectionReader struct {
 	channelManager         api.ChannelManager
 	metaOp                 api.MetaOp
 	channelSeekPositions   map[int64]map[string]*msgpb.MsgPosition
+	channelStartTs         map[int64]map[string]uint64
 	replicateCollectionMap util.Map[int64, *pb.CollectionInfo]
 	replicateChannelMap    util.Map[string, struct{}]
 	errChan                chan error
@@ -78,6 +79,7 @@ type CollectionReader struct {
 func NewCollectionReader(id string,
 	channelManager api.ChannelManager, metaOp api.MetaOp,
 	seekPosition map[int64]map[string]*msgpb.MsgPosition,
+	channelStartTs map[int64]map[string]uint64,
 	shouldReadFunc ShouldReadFunc,
 	readerConfig config.ReaderConfig,
 ) (api.Reader, error) {
@@ -86,6 +88,7 @@ func NewCollectionReader(id string,
 		channelManager:       channelManager,
 		metaOp:               metaOp,
 		channelSeekPositions: seekPosition,
+		channelStartTs:       channelStartTs,
 		shouldReadFunc:       shouldReadFunc,
 		errChan:              make(chan error),
 		retryOptions:         util.GetRetryOptions(readerConfig.Retry),
@@ -123,7 +126,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 					Timestamp:   info.CreateTime,
 				})
 			}
-			if err := reader.channelManager.StartReadCollection(ctx, &dbInfo, info, startPositions); err != nil {
+			if err := reader.channelManager.StartReadCollection(ctx, &dbInfo, info, startPositions, nil); err != nil {
 				collectionLog.Warn("fail to start to replicate the collection data in the watch process", zap.Any("info", info), zap.Error(err))
 				reader.sendError(err)
 			}
@@ -246,6 +249,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 				continue
 			}
 			collectionSeekPositionMap := reader.channelSeekPositions[info.ID]
+			var channelStartTsMap map[string]uint64
 			seekPositions := make([]*msgpb.MsgPosition, 0)
 			appendSeekPositionFromStartPosition := func() {
 				for _, v := range info.StartPositions {
@@ -258,6 +262,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 			}
 			if collectionSeekPositionMap != nil {
 				seekPositions = lo.Values(collectionSeekPositionMap)
+				channelStartTsMap = reader.channelStartTs[info.ID]
 			} else if dbCollections, ok := repeatedCollectionName[info.DbId]; ok && lo.Contains(dbCollections, info.Schema.Name) {
 				log.Warn("server warn: find the repeated collection, the latest collection will use the collection start position.", zap.String("name", info.Schema.Name), zap.Int64("collection_id", info.ID))
 				appendSeekPositionFromStartPosition()
@@ -273,7 +278,7 @@ func (reader *CollectionReader) StartRead(ctx context.Context) {
 					return v.GetChannelName()
 				})),
 			)
-			if err := reader.channelManager.StartReadCollection(ctx, &dbInfo, info, seekPositions); err != nil {
+			if err := reader.channelManager.StartReadCollection(ctx, &dbInfo, info, seekPositions, channelStartTsMap); err != nil {
 				readerLog.Warn("fail to start to replicate the collection data", zap.Any("collection", info), zap.Error(err))
 				reader.sendError(err)
 			}

@@ -233,7 +233,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 	t.Run("context cancel", func(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		cancelFunc()
-		err = manager.StartReadCollection(ctx, &model.DatabaseInfo{}, &pb.CollectionInfo{}, nil)
+		err = manager.StartReadCollection(ctx, &model.DatabaseInfo{}, &pb.CollectionInfo{}, nil, nil)
 		assert.Error(t, err)
 	})
 
@@ -257,7 +257,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 			Schema: &schemapb.CollectionSchema{
 				Name: "test",
 			},
-		}, nil)
+		}, nil, nil)
 		assert.Error(t, err)
 	})
 
@@ -341,7 +341,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 				},
 				PhysicalChannelNames: []string{"collection-partition-p1"},
 				VirtualChannelNames:  []string{"collection-partition-p1_v0"},
-			}, nil)
+			}, nil, nil)
 			assert.NoError(t, err)
 			channel := <-realManager.GetChannelChan()
 			assert.Equal(t, "collection-partition-p2", channel)
@@ -420,7 +420,7 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 	t.Run("context cancel", func(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		cancelFunc()
-		err = manager.StartReadCollection(ctx, &model.DatabaseInfo{}, &pb.CollectionInfo{}, nil)
+		err = manager.StartReadCollection(ctx, &model.DatabaseInfo{}, &pb.CollectionInfo{}, nil, nil)
 		assert.Error(t, err)
 	})
 
@@ -496,7 +496,7 @@ func TestStartReadCollectionForKafka(t *testing.T) {
 				},
 				PhysicalChannelNames: []string{"collection-partition-p1"},
 				VirtualChannelNames:  []string{"collection-partition-p1_v0"},
-			}, nil)
+			}, nil, nil)
 			assert.NoError(t, err)
 			event := <-realManager.GetEventChan()
 			assert.Equal(t, api.ReplicateCreateCollection, event.EventType)

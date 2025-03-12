@@ -97,8 +97,9 @@ func (t *TaskInfo) MapNames(db, collection string) (string, string) {
 }
 
 type PositionInfo struct {
-	Time     int64
-	DataPair *commonpb.KeyDataPair
+	StartTime int64
+	Time      int64
+	DataPair  *commonpb.KeyDataPair
 }
 
 type TaskCollectionPosition struct {
