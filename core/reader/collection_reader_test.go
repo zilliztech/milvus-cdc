@@ -119,11 +119,11 @@ func TestCollectionReader(t *testing.T) {
 
 	channelManager := mocks.NewChannelManager(t)
 	// existed collection and partition
-	channelManager.EXPECT().StartReadCollection(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock err")).Once()
+	channelManager.EXPECT().StartReadCollection(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock err")).Once()
 	channelManager.EXPECT().AddPartition(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	channelManager.EXPECT().AddDroppedCollection(mock.Anything).Return().Once()
 
-	reader, err := NewCollectionReader("reader-1", channelManager, etcdOp, nil, func(_ *model.DatabaseInfo, ci *pb.CollectionInfo) (bool, bool) {
+	reader, err := NewCollectionReader("reader-1", channelManager, etcdOp, nil, nil, func(_ *model.DatabaseInfo, ci *pb.CollectionInfo) (bool, bool) {
 		return false, !strings.Contains(ci.Schema.Name, "test")
 	}, config.ReaderConfig{
 		Retry: config.RetrySettings{
@@ -143,7 +143,7 @@ func TestCollectionReader(t *testing.T) {
 	}()
 	reader.StartRead(context.Background())
 	// put collection and partition
-	channelManager.EXPECT().StartReadCollection(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	channelManager.EXPECT().StartReadCollection(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	channelManager.EXPECT().AddPartition(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 
 	{

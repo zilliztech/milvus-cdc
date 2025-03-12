@@ -474,7 +474,12 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 				if err != nil {
 					return servererror.NewServerError(errors.WithMessage(err, "fail to decode the position data"))
 				}
+				var msgTime int64
+				if decodePosition.GetTimestamp() != 0 {
+					msgTime, _ = tsoutil.ParseHybridTs(decodePosition.GetTimestamp())
+				}
 				p := &meta.PositionInfo{
+					StartTime: msgTime,
 					DataPair: &commonpb.KeyDataPair{
 						Key:  channelInfo.PChannelName,
 						Data: decodePosition.MsgID,
@@ -748,13 +753,17 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 	}
 
 	channelSeekPosition := make(map[int64]map[string]*msgpb.MsgPosition)
+	channelStartTs := make(map[int64]map[string]uint64)
 	for _, taskPosition := range taskPositions {
 		collectionSeekPosition := make(map[string]*msgpb.MsgPosition)
+		collectionStartsTs := make(map[string]uint64)
 		// the positionChannel is pchannel name
 		for positionChannel, positionInfo := range taskPosition.Positions {
 			positionTs := uint64(0)
 			if positionInfo.Time > 0 {
 				positionTs = tsoutil.ComposeTS(positionInfo.Time+1, 0)
+			} else if positionInfo.StartTime > 0 {
+				collectionStartsTs[positionChannel] = tsoutil.ComposeTS(positionInfo.StartTime+1, 0)
 			}
 			collectionSeekPosition[positionChannel] = &msgpb.MsgPosition{
 				ChannelName: positionChannel,
@@ -763,11 +772,13 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 			}
 		}
 		channelSeekPosition[taskPosition.CollectionID] = collectionSeekPosition
+		channelStartTs[taskPosition.CollectionID] = collectionStartsTs
 	}
 
 	collectionReader, err := cdcreader.NewCollectionReader(info.TaskID,
 		replicateEntity.channelManager, replicateEntity.metaOp,
 		channelSeekPosition,
+		channelStartTs,
 		GetShouldReadFunc(info),
 		config.ReaderConfig{
 			Retry: e.config.Retry,

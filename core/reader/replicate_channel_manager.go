@@ -296,7 +296,7 @@ func (r *replicateChannelManager) sendCreateCollectionEvent(ctx context.Context,
 	return nil
 }
 
-func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *model.DatabaseInfo, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition) error {
+func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *model.DatabaseInfo, info *pb.CollectionInfo, seekPositions []*msgpb.MsgPosition, channelStartTsMap map[string]uint64) error {
 	r.addCollectionLock.Lock()
 	*r.addCollectionCnt++
 	r.addCollectionLock.Unlock()
@@ -335,6 +335,12 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *m
 			}
 		}
 		return nil
+	}
+	getStartTs := func(channelName string) uint64 {
+		if ts, ok := channelStartTsMap[channelName]; ok {
+			return ts
+		}
+		return 0
 	}
 	taskID := util.GetTaskIDFromCtx(ctx)
 	r.collectionLock.Lock()
@@ -401,6 +407,7 @@ func (r *replicateChannelManager) StartReadCollection(ctx context.Context, db *m
 			VChannel:     sourceVChannel,
 			CollectionID: info.ID,
 			SeekPosition: getSeekPosition(sourcePChannel),
+			StartTs:      getStartTs(sourcePChannel),
 		}, &model.TargetCollectionInfo{
 			DatabaseName:         targetInfo.DatabaseName,
 			CollectionID:         targetInfo.CollectionID,
@@ -947,7 +954,7 @@ func (r *replicateChannelHandler) AddCollection(taskID string, sourceInfo *model
 		return
 	case <-r.startReadChan:
 	}
-	r.collectionSourceSeekPosition(sourceInfo.SeekPosition)
+	r.collectionSourceSeekPosition(sourceInfo.SeekPosition, sourceInfo.StartTs)
 	collectionID := sourceInfo.CollectionID
 	streamChan, closeStreamFunc, err := r.streamCreator.GetStreamChan(r.replicateCtx, sourceInfo.VChannel, sourceInfo.SeekPosition)
 	if err != nil {
@@ -1259,11 +1266,15 @@ func (r *replicateChannelHandler) innerHandleReplicateMsg(forward bool, msg *api
 	GetTSManager().SendTargetMsg(r.getTSManagerChannelKey(r.targetPChannel), p)
 }
 
-func (r *replicateChannelHandler) collectionSourceSeekPosition(sourceSeekPosition *msgstream.MsgPosition) {
+func (r *replicateChannelHandler) collectionSourceSeekPosition(
+	sourceSeekPosition *msgstream.MsgPosition,
+	startTs uint64,
+) {
 	if sourceSeekPosition == nil {
 		return
 	}
 	GetTSManager().CollectTS(r.getTSManagerChannelKey(r.targetPChannel), sourceSeekPosition.GetTimestamp())
+	GetTSManager().CollectTS(r.getTSManagerChannelKey(r.targetPChannel), startTs)
 }
 
 func (r *replicateChannelHandler) startReadChannel() {
@@ -1277,7 +1288,7 @@ func (r *replicateChannelHandler) startReadChannel() {
 		zap.String("target_channel", r.targetPChannel),
 	)
 	close(r.startReadChan)
-	r.collectionSourceSeekPosition(r.sourceSeekPosition)
+	r.collectionSourceSeekPosition(r.sourceSeekPosition, 0)
 	go func() {
 		for {
 			select {
