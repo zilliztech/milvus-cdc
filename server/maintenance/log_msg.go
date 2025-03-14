@@ -8,8 +8,8 @@ import (
 
 	"go.uber.org/zap"
 
-	pkglog "github.com/milvus-io/milvus/pkg/log"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	pkglog "github.com/milvus-io/milvus/pkg/v2/log"
+	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/server/model/request"
