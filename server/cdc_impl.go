@@ -414,6 +414,22 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	if err = e.validCreateRequest(req); err != nil {
 		return nil, err
 	}
+
+	taskID := req.TaskID
+	if taskID != "" {
+		e.cdcTasks.Lock()
+		info := e.cdcTasks.data[taskID]
+		if info != nil {
+			e.cdcTasks.Unlock()
+			log.Info("the task id is exist, return the task id", zap.String("task_id", taskID))
+			return &request.CreateResponse{TaskID: info.TaskID}, nil
+		}
+		e.cdcTasks.Unlock()
+	}
+	if taskID == "" {
+		taskID = util.GetUUID()
+	}
+
 	uKey := getTaskUniqueIDFromReq(req)
 	newCollectionNames := GetCollectionNamesFromReq(req)
 	mapCollectionNames := GetCollectionMappingFromReq(req)
@@ -446,7 +462,7 @@ func (e *MetaCDC) Create(req *request.CreateRequest) (resp *request.CreateRespon
 	}
 
 	info := &meta.TaskInfo{
-		TaskID:                util.GetUUID(),
+		TaskID:                taskID,
 		MilvusConnectParam:    req.MilvusConnectParam,
 		KafkaConnectParam:     req.KafkaConnectParam,
 		CollectionInfos:       req.CollectionInfos,

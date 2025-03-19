@@ -31,6 +31,7 @@ type CreateRequest struct {
 	BufferConfig       model.BufferConfig                `json:"buffer_config" mapstructure:"buffer_config"`
 	NameMapping        []model.NameMapping               `json:"name_mapping" mapstructure:"name_mapping"`
 	DisableAutoStart   bool                              `json:"disable_auto_start" mapstructure:"disable_auto_start"`
+	TaskID             string                            `json:"task_id" mapstructure:"task_id"`
 	// Deprecated
 	Positions map[string]string `json:"positions" mapstructure:"positions"`
 }

@@ -671,7 +671,7 @@ func TestCreateRequest(t *testing.T) {
 
 		metaCDC.metaStoreFactory = factory
 		{
-			_, err := metaCDC.Create(&request.CreateRequest{
+			createResp, err := metaCDC.Create(&request.CreateRequest{
 				KafkaConnectParam: model.KafkaConnectParam{
 					Address: kafkaAddress,
 					Topic:   "test",
@@ -696,6 +696,34 @@ func TestCreateRequest(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
+
+			recreate, err := metaCDC.Create(&request.CreateRequest{
+				TaskID: createResp.TaskID,
+				KafkaConnectParam: model.KafkaConnectParam{
+					Address: kafkaAddress,
+					Topic:   "test",
+				},
+				BufferConfig: model.BufferConfig{
+					Period: 10,
+					Size:   10,
+				},
+				CollectionInfos: []model.CollectionInfo{
+					{
+						Name: "hello_milvus",
+						Positions: map[string]string{
+							"rootcoord-dml-channel_1_123v0": util.Base64MsgPosition(&msgstream.MsgPosition{
+								ChannelName: "rootcoord-dml-channel_1_123v0",
+								MsgID:       []byte("123v0"),
+							}),
+						},
+					},
+				},
+				RPCChannelInfo: model.ChannelInfo{
+					Name: "foo",
+				},
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, createResp.TaskID, recreate.TaskID)
 		}
 	})
 }
