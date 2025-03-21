@@ -33,8 +33,9 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
-	"github.com/milvus-io/milvus-sdk-go/v2/entity"
-	"github.com/milvus-io/milvus-sdk-go/v2/merr"
+	"github.com/milvus-io/milvus/client/v2/column"
+	"github.com/milvus-io/milvus/client/v2/entity"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -225,36 +226,36 @@ func TestDataHandler(t *testing.T) {
 		}, nil).Once()
 		err := dataHandler.Insert(ctx, &api.InsertParam{
 			CollectionName: "foo",
-			Columns: []entity.Column{
-				entity.NewColumnInt64("age", []int64{10}),
+			Columns: []column.Column{
+				column.NewColumnInt64("age", []int64{10}),
 			},
 		})
 		assert.NoError(t, err)
 	})
 
 	t.Run("delete", func(t *testing.T) {
-		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
-			Status: &commonpb.Status{},
-			Value:  true,
-		}, nil).Once()
-		milvusService.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(&milvuspb.DescribeCollectionResponse{
-			Status: &commonpb.Status{},
-			Schema: &schemapb.CollectionSchema{
-				Name: "foo",
-				Fields: []*schemapb.FieldSchema{
-					{
-						FieldID:      100,
-						Name:         "age",
-						IsPrimaryKey: true,
-						DataType:     schemapb.DataType_Int64,
-					},
-				},
-			},
-		}, nil).Once()
+		// milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+		// 	Status: &commonpb.Status{},
+		// 	Value:  true,
+		// }, nil).Once()
+		// milvusService.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(&milvuspb.DescribeCollectionResponse{
+		// 	Status: &commonpb.Status{},
+		// 	Schema: &schemapb.CollectionSchema{
+		// 		Name: "foo",
+		// 		Fields: []*schemapb.FieldSchema{
+		// 			{
+		// 				FieldID:      100,
+		// 				Name:         "age",
+		// 				IsPrimaryKey: true,
+		// 				DataType:     schemapb.DataType_Int64,
+		// 			},
+		// 		},
+		// 	},
+		// }, nil).Once()
 		milvusService.EXPECT().Delete(mock.Anything, mock.Anything).Return(&milvuspb.MutationResult{Status: &commonpb.Status{}}, nil).Once()
 		err := dataHandler.Delete(ctx, &api.DeleteParam{
 			CollectionName: "foo",
-			Column:         entity.NewColumnInt64("age", []int64{10}),
+			Column:         column.NewColumnInt64("age", []int64{10}),
 		})
 		assert.NoError(t, err)
 	})
@@ -354,30 +355,30 @@ func TestDataHandler(t *testing.T) {
 	})
 
 	t.Run("create index", func(t *testing.T) {
-		milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
-			Status: &commonpb.Status{},
-			Value:  true,
-		}, nil).Once()
-		milvusService.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(&milvuspb.DescribeCollectionResponse{
-			Status: &commonpb.Status{},
-			Schema: &schemapb.CollectionSchema{
-				Name: "foo",
-				Fields: []*schemapb.FieldSchema{
-					{
-						FieldID:      100,
-						Name:         "age",
-						IsPrimaryKey: true,
-						DataType:     schemapb.DataType_Int64,
-					},
-					{
-						FieldID:      101,
-						Name:         "name",
-						IsPrimaryKey: false,
-						DataType:     schemapb.DataType_FloatVector,
-					},
-				},
-			},
-		}, nil).Once()
+		// milvusService.EXPECT().HasCollection(mock.Anything, mock.Anything).Return(&milvuspb.BoolResponse{
+		// 	Status: &commonpb.Status{},
+		// 	Value:  true,
+		// }, nil).Once().Maybe()
+		// milvusService.EXPECT().DescribeCollection(mock.Anything, mock.Anything).Return(&milvuspb.DescribeCollectionResponse{
+		// 	Status: &commonpb.Status{},
+		// 	Schema: &schemapb.CollectionSchema{
+		// 		Name: "foo",
+		// 		Fields: []*schemapb.FieldSchema{
+		// 			{
+		// 				FieldID:      100,
+		// 				Name:         "age",
+		// 				IsPrimaryKey: true,
+		// 				DataType:     schemapb.DataType_Int64,
+		// 			},
+		// 			{
+		// 				FieldID:      101,
+		// 				Name:         "name",
+		// 				IsPrimaryKey: false,
+		// 				DataType:     schemapb.DataType_FloatVector,
+		// 			},
+		// 		},
+		// 	},
+		// }, nil).Once().Maybe()
 		milvusService.EXPECT().CreateIndex(mock.Anything, mock.Anything).Return(&commonpb.Status{}, nil).Once()
 		err := dataHandler.CreateIndex(ctx, &api.CreateIndexParam{
 			CreateIndexRequest: &milvuspb.CreateIndexRequest{

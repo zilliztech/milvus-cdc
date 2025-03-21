@@ -22,7 +22,8 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus-sdk-go/v2/entity"
+	"github.com/milvus-io/milvus/client/v2/column"
+	"github.com/milvus-io/milvus/client/v2/entity"
 )
 
 type MsgBaseParam struct {
@@ -53,7 +54,7 @@ type InsertParam struct {
 	ReplicateParam
 	CollectionName string
 	PartitionName  string
-	Columns        []entity.Column
+	Columns        []column.Column
 }
 
 type DeleteParam struct {
@@ -61,7 +62,7 @@ type DeleteParam struct {
 	ReplicateParam
 	CollectionName string
 	PartitionName  string
-	Column         entity.Column
+	Column         column.Column
 }
 
 type CreatePartitionParam struct {
