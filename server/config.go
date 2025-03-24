@@ -21,6 +21,7 @@ package server
 import (
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/server/model"
+	"github.com/zilliztech/milvus-cdc/server/msgpacker"
 )
 
 type CDCServerConfig struct {
@@ -38,6 +39,7 @@ type CDCServerConfig struct {
 	DetectDeadLock bool
 	ReplicateID    string
 	DryRun         bool
+	Packer         msgpacker.PackerConfig
 }
 
 type CDCMetaStoreConfig struct {

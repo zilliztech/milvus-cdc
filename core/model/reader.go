@@ -60,7 +60,7 @@ type TargetCollectionInfo struct {
 
 type HandlerOpts struct {
 	MessageBufferSize int
-	TTInterval        int
+	TTInterval        int // default: 500ms
 	// Deprecate Factory which only be used in the unit test case
 	Factory      msgstream.Factory
 	RetryOptions []retry.Option
