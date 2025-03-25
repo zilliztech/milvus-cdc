@@ -31,6 +31,16 @@ import (
 	"github.com/zilliztech/milvus-cdc/server/store"
 )
 
+type UpdatePositionInfo struct {
+	collectionID   int64
+	collectionName string
+	pChannelName   string
+	taskID         string
+	position       *meta.PositionInfo
+	opPosition     *meta.PositionInfo
+	targetPosition *meta.PositionInfo
+}
+
 type WriteCallback struct {
 	metaStoreFactory api.MetaStoreFactory
 	rootPath         string
