@@ -309,6 +309,17 @@ func (m *tsManager) InitTSInfo(replicateID string, channelName string, p time.Du
 	ts.period = p
 }
 
+func (m *tsManager) ClearTSInfo(replicateID string, channelName string) {
+	channelKey := FormatChanKey(replicateID, channelName)
+	m.channelTSLocks.Lock(channelKey)
+	defer m.channelTSLocks.Unlock(channelKey)
+	m.channelTS2.Remove(channelKey)
+	m.channelTSLocks.Lock(replicateID)
+	m.targetChannelChans.Remove(replicateID)
+	m.channelTSLocks.Unlock(replicateID)
+	m.channelTS.Delete(channelKey)
+}
+
 // UnsafeShouldSendTSMsg should call the LockTargetChannel and UnLockTargetChannel before call this function
 func (m *tsManager) UnsafeShouldSendTSMsg(channelName string) bool {
 	ts, ok := m.channelTS2.Get(channelName)
