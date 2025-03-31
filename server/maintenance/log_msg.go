@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	pkglog "github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
 
@@ -82,10 +83,10 @@ func LogInsertMsg(insertMsg *msgstream.InsertMsg) {
 			continue
 		}
 		if data := fieldData.GetScalars().GetLongData(); data != nil {
-			fieldInfos[fieldData.GetFieldName()] = data
+			fieldInfos[fieldData.GetFieldName()] = GetPartElements(data.GetData())
 		}
 		if data := fieldData.GetScalars().GetStringData(); data != nil {
-			fieldInfos[fieldData.GetFieldName()] = data
+			fieldInfos[fieldData.GetFieldName()] = GetPartElements(data.GetData())
 		}
 	}
 	logger.log.Info("log insert msg",
@@ -93,8 +94,26 @@ func LogInsertMsg(insertMsg *msgstream.InsertMsg) {
 		zap.String("collection", insertMsg.GetCollectionName()),
 		zap.String("partition", insertMsg.GetPartitionName()),
 		zap.String("shard", insertMsg.GetShardName()),
+		zap.Uint64("ts", insertMsg.GetBase().Timestamp),
+		zap.Uint64("numRows", insertMsg.GetNumRows()),
 		zap.Any("partFields", fieldInfos),
 	)
+}
+
+func GetPartElements[T any](arr []T) []T {
+	if len(arr) < 10 {
+		return arr
+	}
+	return arr[:10]
+}
+
+func GetIDs(ids *schemapb.IDs) any {
+	if a := ids.GetIntId(); a != nil {
+		return GetPartElements(a.GetData())
+	} else if b := ids.GetStrId(); b != nil {
+		return GetPartElements(b.GetData())
+	}
+	return nil
 }
 
 func LogDeleteMsg(deleteMsg *msgstream.DeleteMsg) {
@@ -112,7 +131,9 @@ func LogDeleteMsg(deleteMsg *msgstream.DeleteMsg) {
 		zap.String("collection", deleteMsg.GetCollectionName()),
 		zap.String("partition", deleteMsg.GetPartitionName()),
 		zap.String("shard", deleteMsg.GetShardName()),
-		zap.Any("primaryKeys", deleteMsg.GetPrimaryKeys().GetIdField()),
+		zap.Uint64("ts", deleteMsg.GetBase().Timestamp),
+		zap.Int64("numRows", deleteMsg.GetNumRows()),
+		zap.Any("primaryKeys", GetIDs(deleteMsg.GetPrimaryKeys())),
 	)
 }
 

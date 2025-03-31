@@ -20,6 +20,7 @@ package util
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus/pkg/mq/msgstream"
@@ -71,4 +72,46 @@ func IsUserRoleMessage(msgPack *msgstream.MsgPack) bool {
 		msgType == commonpb.MsgType_DropRole ||
 		msgType == commonpb.MsgType_OperateUserRole ||
 		msgType == commonpb.MsgType_OperatePrivilege
+}
+
+func base64MsgPositions(positions []*msgstream.MsgPosition) []string {
+	base64Positions := make([]string, len(positions))
+	for i, position := range positions {
+		base64Positions[i] = Base64MsgPosition(position)
+	}
+	return base64Positions
+}
+
+func msgDetails(msg *msgstream.MsgPack) []string {
+	if len(msg.Msgs) == 0 {
+		return []string{}
+	}
+	msgDetails := make([]string, len(msg.Msgs))
+	for i, m := range msg.Msgs {
+		msgDetail := make(map[string]any)
+		msgDetail["msg_type"] = m.Type().String()
+		msgDetail["msg_id"] = m.ID()
+		switch m.Type() {
+		case commonpb.MsgType_Insert:
+			insertMsg := m.(*msgstream.InsertMsg)
+			msgDetail["row_num"] = insertMsg.GetNumRows()
+		case commonpb.MsgType_Delete:
+			deleteMsg := m.(*msgstream.DeleteMsg)
+			msgDetail["row_num"] = deleteMsg.GetNumRows()
+		default:
+		}
+		msgDetails[i] = fmt.Sprintf("%v", msgDetail)
+	}
+	return msgDetails
+}
+
+func MsgPackInfoForLog(msgPack *msgstream.MsgPack) map[string]any {
+	packInfo := make(map[string]any)
+	packInfo["start_ts"] = msgPack.BeginTs
+	packInfo["end_ts"] = msgPack.EndTs
+	packInfo["msg_count"] = len(msgPack.Msgs)
+	packInfo["start_positions"] = base64MsgPositions(msgPack.StartPositions)
+	packInfo["end_positions"] = base64MsgPositions(msgPack.EndPositions)
+	packInfo["msg_details"] = msgDetails(msgPack)
+	return packInfo
 }
