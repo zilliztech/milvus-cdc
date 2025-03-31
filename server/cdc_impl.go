@@ -1162,14 +1162,14 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, entity *Rep
 		defer func() {
 			err := packer.ClearMsgs(replicateMsgsFunc)
 			if err != nil {
-				log.Warn("fail to clear the message pack", zap.Error(err))
+				log.Warn("fail to clear the message pack", zap.String("channel", channelName), zap.Error(err))
 			}
 		}()
 
 		for {
 			select {
 			case <-replicateCtx.Done():
-				log.Warn("msg chan, the replicate context has closed")
+				log.Warn("msg chan, the replicate context has closed", zap.String("channel", channelName))
 				return
 			case replicateMsg, ok := <-msgChan:
 				if e.config.DryRun {
@@ -1350,10 +1350,7 @@ func (e *MetaCDC) pauseTaskWithReason(taskID, reason string, currentStates []met
 	metrics.TaskStateVec.WithLabelValues(cdcTask.TaskID).Set(float64(cdcTask.State))
 	e.cdcTasks.Unlock()
 
-	var uKey string
-	milvusURI := GetMilvusURI(cdcTask.MilvusConnectParam)
-	kafkaAddress := GetKafkaAddress(cdcTask.KafkaConnectParam)
-	uKey = milvusURI + kafkaAddress
+	uKey := getTaskUniqueIDFromInfo(cdcTask)
 	e.replicateEntityMap.Lock()
 	if replicateEntity, ok := e.replicateEntityMap.data[uKey]; ok {
 		if quitFunc, ok := replicateEntity.taskQuitFuncs.GetAndRemove(taskID); ok {

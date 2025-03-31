@@ -1293,7 +1293,11 @@ func (r *replicateChannelHandler) startReadChannel() {
 		for {
 			select {
 			case <-r.replicateCtx.Done():
-				log.Warn("replicate channel handler closed")
+				log.Warn("replicate channel handler closed",
+					zap.String("replicate_id", r.replicateID),
+					zap.String("target_channel", r.targetPChannel),
+				)
+				GetTSManager().ClearTSInfo(r.replicateID, r.targetPChannel)
 				return
 			case replicateMsg := <-r.forwardPackChan:
 				r.innerHandleReplicateMsg(true, replicateMsg)
