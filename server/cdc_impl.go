@@ -1097,10 +1097,11 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, entity *Rep
 				if cdcreader.IsVirtualChannel(targetPChannel) {
 					targetPChannel = funcutil.ToPhysicalChannel(targetPChannel)
 				}
-				position, targetPosition, err := entity.writerObj.HandleReplicateMessage(replicateCtx, targetPChannel, msgPack)
+				// context use the TODO context, because the replicateCtx may be closed and should make sure the replicate action can be executed
+				position, targetPosition, err := entity.writerObj.HandleReplicateMessage(context.Background(), targetPChannel, msgPack)
 				if err != nil {
 					log.Warn("fail to handle the replicate message",
-						zap.Any("pack", msgPack),
+						zap.Any("pack", util.MsgPackInfoForLog(msgPack)),
 						zap.String("task_id", taskID),
 						zap.Error(err),
 					)
