@@ -200,6 +200,8 @@ class TestCDCCreate(TestBase):
         log.info(f"num_entities in upstream: {num_entities_upstream}")
         count_by_query_upstream = checker.get_count_by_query()
         log.info(f"count_by_query in upstream: {count_by_query_upstream}")
+        count_by_query_json_path_upstream = checker.get_count_by_query(expr="json['number']>=0", output_fields=["json"])
+        log.info(f"count_by_query_json_path in upstream: {count_by_query_json_path_upstream}")
 
         # check entities in downstream
         connections.disconnect("default")
@@ -207,25 +209,46 @@ class TestCDCCreate(TestBase):
         col = Collection(name=c_name)
         col.create_index(field_name="float_vector",
                          index_params={"index_type": "IVF_FLAT", "metric_type": "L2", "params": {"nlist": 128}})
+        # add json path index for json field
+        json_path_index_params_double = {"index_type": "INVERTED", "params": {"json_cast_type": "double",
+                                                                              "json_path": "json['number']"}}
+        col.create_index(field_name="json", index_params=json_path_index_params_double)
+        json_path_index_params_varchar = {"index_type": "INVERTED", "params": {"json_cast_type": "VARCHAR",
+                                                                               "json_path": "json['varchar']"}}
+        col.create_index(field_name="json", index_params=json_path_index_params_varchar)
+        json_path_index_params_bool = {"index_type": "INVERTED", "params": {"json_cast_type": "Bool",
+                                                                            "json_path": "json['bool']"}}
+        col.create_index(field_name="json", index_params=json_path_index_params_bool)
+        json_path_index_params_not_exist = {"index_type": "INVERTED", "params": {"json_cast_type": "Double",
+                                                                                 "json_path": "json['not_exist']"}}
+        col.create_index(field_name="json", index_params=json_path_index_params_not_exist)
         col.load()
         # wait for the collection to be synced
         timeout = 120
         count_by_query_downstream = len(col.query(expr="int64 >= 0", output_fields=["int64"]))
+        count_by_query_json_path_downstream = len(col.query(expr="json['number']>=0", output_fields=["json"]))
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             count_by_query_downstream = len(col.query(expr="int64 >= 0", output_fields=["int64"]))
+            count_by_query_json_path_downstream = len(col.query(expr="json['number']>=0", output_fields=["json"]))
             # log.info(f"count_by_query_downstream: {len(count_by_query_downstream)}")
             log.info(
                 f"count_by_query_downstream {count_by_query_downstream},"
                 f"count_by_query_upstream {count_by_query_upstream}")
-            if count_by_query_downstream == count_by_query_upstream:
+            log.info(
+                f"count_by_query_json_path_downstream {count_by_query_json_path_downstream},"
+                f"count_by_query_json_path_upstream {count_by_query_json_path_upstream}")
+            if (count_by_query_downstream == count_by_query_upstream) and \
+                    (count_by_query_json_path_downstream == count_by_query_json_path_upstream):
                 log.info(f"collection {c_name} has been synced")
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
                 raise Exception(f"Timeout waiting for collection {c_name} to be synced")
         log.info(f"count_by_query in downstream: {count_by_query_downstream}")
+        log.info(f"count_by_query_json_path in downstream: {count_by_query_json_path_downstream}")
         assert count_by_query_upstream == count_by_query_downstream
+        assert count_by_query_json_path_upstream == count_by_query_json_path_downstream
         # flush collection in downstream
         col.flush()
         num_entities_downstream = col.num_entities

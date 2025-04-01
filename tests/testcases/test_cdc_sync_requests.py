@@ -144,6 +144,7 @@ class TestCDCSyncRequest(TestBase):
                 [i for i in range(nb)],
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
+                [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
                 [[random.random() for _ in range(128)] for _ in range(nb)]
             ]
             c.insert(data)
@@ -196,12 +197,25 @@ class TestCDCSyncRequest(TestBase):
                 [i for i in range(nb)],
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
+                [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
                 [[random.random() for _ in range(128)] for _ in range(nb)]
             ]
             c.insert(data)
         c.flush()
         index_params = {"index_type": "IVF_FLAT", "params": {"nlist": 128}, "metric_type": "L2"}
         c.create_index("float_vector", index_params)
+        # add json path index for json field
+        json_path_index_params_double = {"index_type": "INVERTED", "params": {"json_cast_type": "double",
+                                                                              "json_path": "json['number']"}}
+        c.create_index(field_name="json", index_params=json_path_index_params_double)
+        json_path_index_params_varchar = {"index_type": "INVERTED", "params": {"json_cast_type": "VARCHAR",
+                                                                               "json_path": "json['varchar']"}}
+        c.create_index(field_name="json", index_params=json_path_index_params_varchar)
+        json_path_index_params_bool = {"index_type": "INVERTED", "params": {"json_cast_type": "Bool",
+                                                                            "json_path": "json['bool']"}}
+        c.create_index(field_name="json", index_params=json_path_index_params_bool)
+        json_path_index_params_not_exist = {"index_type": "INVERTED", "params": {"json_cast_type": "Double",
+                                                                                 "json_path": "json['not_exist']"}}
         c.load()
         # get number of entities in upstream
         log.info(f"number of entities in upstream: {c.num_entities}")
@@ -210,12 +224,15 @@ class TestCDCSyncRequest(TestBase):
                 [i for i in range(nb)],
                 [np.float32(i) for i in range(nb)],
                 ["hello" for i in range(nb)],
+                [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb, 2*nb)],
                 [[random.random() for _ in range(128)] for _ in range(nb)]
             ]
         c.upsert(data)
         # check data has been upserted in upstream
         time.sleep(5)
         res = c.query('varchar == "hello"', timeout=10)
+        assert len(res) == nb
+        res = c.query("json['number'] >= nb", timeout=10)
         assert len(res) == nb
         # check collections in downstream
         connections.disconnect("default")
@@ -233,6 +250,14 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"collection state in downstream: {str(c_state)}")
                 continue
             res = c_downstream.query('varchar == "hello"', timeout=10)
+            # get the number of entities in downstream
+            if len(res) != nb:
+                log.info(f"sync progress:{len(res) / nb * 100:.2f}%")
+            # collections in subset of downstream
+            if len(res) == nb:
+                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                break
+            res = c_downstream.query("json['number'] >= nb", timeout=10)
             # get the number of entities in downstream
             if len(res) != nb:
                 log.info(f"sync progress:{len(res) / nb * 100:.2f}%")
@@ -261,6 +286,7 @@ class TestCDCSyncRequest(TestBase):
                 [i for i in range(nb)],
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
+                [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
                 [[random.random() for _ in range(128)] for _ in range(nb)]
             ]
             c.insert(data)
@@ -409,6 +435,7 @@ class TestCDCSyncRequest(TestBase):
                 [i for i in range(nb)],
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
+                [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
                 [[random.random() for _ in range(128)] for _ in range(nb)]
             ]
             c.insert(data)
@@ -450,6 +477,7 @@ class TestCDCSyncRequest(TestBase):
                 [i for i in range(nb)],
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
+                [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
                 [[random.random() for _ in range(128)] for _ in range(nb)]
             ]
             c.insert(data)
@@ -511,6 +539,7 @@ class TestCDCSyncRequest(TestBase):
                 [i for i in range(nb)],
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
+                [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
                 [[random.random() for _ in range(128)] for _ in range(nb)]
             ]
             c.insert(data)
@@ -586,6 +615,7 @@ class TestCDCSyncRequest(TestBase):
                 [i for i in range(nb)],
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
+                [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
                 [[random.random() for _ in range(128)] for _ in range(nb)]
             ]
             c.insert(data)
@@ -813,6 +843,7 @@ class TestCDCSyncRequest(TestBase):
                 "int64": [i for i in range(nb)],
                 "float": [np.float32(i) for i in range(nb)],
                 "varchar": [str(i) for i in range(nb)],
+                "json": [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
                 "float_vector": [[random.random() for _ in range(128)] for _ in range(nb)]
             }
         )

@@ -20,6 +20,7 @@ default_fields = [
     FieldSchema(name="int64", dtype=DataType.INT64, is_primary=True),
     FieldSchema(name="float", dtype=DataType.FLOAT),
     FieldSchema(name="varchar", dtype=DataType.VARCHAR, max_length=65535),
+    FieldSchema(name="json", dtype=DataType.JSON),
     FieldSchema(name="float_vector", dtype=DataType.FLOAT_VECTOR, dim=dim)
 ]
 default_schema = CollectionSchema(fields=default_fields, description="test collection")
@@ -143,6 +144,19 @@ class Checker:
         self.output_fields = output_fields
         if len(self.collection.indexes) == 0:
             self.collection.create_index(field_name="float_vector", index_params={"index_type": "IVF_FLAT", "metric_type": "L2", "params": {"nlist": 128}})
+            # add json path index for json field
+            json_path_index_params_double = {"index_type": "INVERTED", "params": {"json_cast_type": "double",
+                                                                                  "json_path": "json['number']"}}
+            self.collection.create_index(field_name="json", index_params=json_path_index_params_double)
+            json_path_index_params_varchar = {"index_type": "INVERTED", "params": {"json_cast_type": "VARCHAR",
+                                                                                   "json_path": "json['varchar']"}}
+            self.collection.create_index(field_name="json", index_params=json_path_index_params_varchar)
+            json_path_index_params_bool = {"index_type": "INVERTED", "params": {"json_cast_type": "Bool",
+                                                                                "json_path": "json['bool']"}}
+            self.collection.create_index(field_name="json", index_params=json_path_index_params_bool)
+            json_path_index_params_not_exist = {"index_type": "INVERTED", "params": {"json_cast_type": "Double",
+                                                                                     "json_path": "json['not_exist']"}}
+            self.collection.create_index(field_name="json", index_params=json_path_index_params_not_exist)
         self.collection.load()
         if p_name:
             res = self.collection.query(expr=expr, output_fields=self.output_fields, partition_names=[p_name])
@@ -304,6 +318,7 @@ class InsertEntitiesCollectionChecker(Checker):
                         [i for i in range(self.total()*nb, self.total()*nb+nb)],
                         [np.float32(i) for i in range(nb)],
                         [str(i) for i in range(nb)],
+                        [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
                         [[random.random() for _ in range(dim)] for _ in range(nb)]                      
                     ]
                     t0 = time.time()
