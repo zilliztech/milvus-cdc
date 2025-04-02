@@ -29,8 +29,8 @@ import (
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 
-	"github.com/milvus-io/milvus-sdk-go/v2/client"
-	"github.com/milvus-io/milvus/pkg/util/resource"
+	"github.com/milvus-io/milvus/client/v2/milvusclient"
+	"github.com/milvus-io/milvus/pkg/v2/util/resource"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
 )
@@ -68,7 +68,7 @@ func (m *MilvusClientResourceManager) newMilvusClient(ctx context.Context, addre
 			return nil, err
 		}
 		enableTLS := strings.Contains(address, "https://")
-		c, err := client.NewClient(ctx, client.Config{
+		c, err := milvusclient.New(ctx, &milvusclient.ClientConfig{
 			Address:       address,
 			APIKey:        token,
 			EnableTLSAuth: enableTLS,
@@ -81,14 +81,14 @@ func (m *MilvusClientResourceManager) newMilvusClient(ctx context.Context, addre
 		}
 
 		res := resource.NewSimpleResource(c, MilvusClientResourceTyp, fmt.Sprintf("%s:%s", address, database), MilvusClientExpireTime, func() {
-			_ = c.Close()
+			_ = c.Close(ctx)
 		})
 
 		return res, nil
 	}
 }
 
-func (m *MilvusClientResourceManager) GetMilvusClient(ctx context.Context, address, token, database string, dialConfig DialConfig) (client.Client, error) {
+func (m *MilvusClientResourceManager) GetMilvusClient(ctx context.Context, address, token, database string, dialConfig DialConfig) (*milvusclient.Client, error) {
 	if database == "" {
 		database = DefaultDbName
 	}
@@ -100,7 +100,7 @@ func (m *MilvusClientResourceManager) GetMilvusClient(ctx context.Context, addre
 		ctxLog.Error("fail to get milvus client", zap.Error(err))
 		return nil, err
 	}
-	if obj, ok := res.Get().(client.Client); ok && obj != nil {
+	if obj, ok := res.Get().(*milvusclient.Client); ok && obj != nil {
 		return obj, nil
 	}
 	ctxLog.Warn("invalid resource object", zap.Any("obj", reflect.TypeOf(res.Get())))

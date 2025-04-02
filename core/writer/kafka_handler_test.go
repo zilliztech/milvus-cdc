@@ -28,7 +28,8 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus-sdk-go/v2/entity"
+	"github.com/milvus-io/milvus/client/v2/column"
+	"github.com/milvus-io/milvus/client/v2/entity"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 )
@@ -108,8 +109,8 @@ func TestKafkaDataHandler(t *testing.T) {
 	t.Run("insert", func(t *testing.T) {
 		insertParam := &api.InsertParam{
 			CollectionName: "foo",
-			Columns: []entity.Column{
-				entity.NewColumnInt64("age", []int64{10}),
+			Columns: []column.Column{
+				column.NewColumnInt64("age", []int64{10}),
 			},
 		}
 
@@ -120,7 +121,7 @@ func TestKafkaDataHandler(t *testing.T) {
 	t.Run("delete", func(t *testing.T) {
 		deleteParam := &api.DeleteParam{
 			CollectionName: "foo",
-			Column:         entity.NewColumnInt64("age", []int64{10}),
+			Column:         column.NewColumnInt64("age", []int64{10}),
 		}
 
 		err := handler.Delete(ctx, deleteParam)
