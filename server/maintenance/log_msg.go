@@ -59,9 +59,16 @@ func checkLogger() bool {
 		return false
 	}
 	if logger.current >= logger.target {
+		logger.log.Info("log msg count reached target",
+			zap.Int("current", logger.current),
+			zap.Int("target", logger.target),
+		)
 		return false
 	}
 	if time.Since(logger.startTime) > logger.duration {
+		logger.log.Info("log msg duration reached target",
+			zap.Time("startTime", logger.startTime),
+		)
 		return false
 	}
 	return true

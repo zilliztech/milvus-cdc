@@ -1080,7 +1080,7 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, entity *Rep
 		}
 		var packView func(*msgstream.MsgPack)
 		if e.config.DryRun {
-			packView = tool.GetDryRunMsgPackView()
+			packView = tool.GetDryRunMsgPackView(channelName)
 		}
 		packer := msgpacker.NewPacker(e.config.Packer)
 
