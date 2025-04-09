@@ -1479,12 +1479,18 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		switch {
 		case !hasValidMsg && pack.EndTs != 0:
 			beginTS = pack.EndTs
+			pack.BeginTs = beginTS
+			log.Info("begin timestamp is 0, use end timestamp",
+				zap.Uint64("end_ts", pack.EndTs), zap.Any("hasValidMsg", hasValidMsg))
 		case miniTS != pack.EndTs:
 			beginTS = miniTS - 1
 			pack.BeginTs = beginTS
+			log.Info("begin timestamp is 0, use mini timestamp",
+				zap.Uint64("mini_ts", miniTS), zap.Uint64("pack_end_ts", pack.EndTs))
 		case len(pack.StartPositions) > 1:
 			beginTS = pack.StartPositions[0].Timestamp
 			pack.BeginTs = beginTS
+			log.Info("begin timestamp is 0, use start position", zap.Uint64("begin_ts", beginTS))
 		default:
 			log.Warn("begin timestamp is 0", zap.Uint64("end_ts", pack.EndTs), zap.Any("hasValidMsg", hasValidMsg))
 		}
@@ -1790,7 +1796,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	newPack.Msgs = append(newPack.Msgs, timeTickMsg)
 	lastSendTs, ok := GetTSManager().UnsafeGetLastSendTS(tsManagerChannelKey)
 	if ok && lastSendTs == 0 {
-		beginTs := newPack.BeginTs - 1
+		beginTs := newPack.BeginTs
 		beginMsgPosition := &msgpb.MsgPosition{
 			ChannelName: newPack.StartPositions[0].ChannelName,
 			MsgID:       newPack.StartPositions[0].MsgID,

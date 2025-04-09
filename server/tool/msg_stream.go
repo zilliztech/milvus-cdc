@@ -186,7 +186,7 @@ func GetDeletePKs(msg *msgstream.DeleteMsg) ([]string, []uint64) {
 	return pks, tss
 }
 
-func GetDryRunMsgPackView() func(msgPack *msgstream.MsgPack) {
+func GetDryRunMsgPackView(channelName string) func(msgPack *msgstream.MsgPack) {
 	return func(msgPack *msgstream.MsgPack) {
 		var msgTss []string
 		for _, msg := range msgPack.Msgs {
@@ -203,6 +203,7 @@ func GetDryRunMsgPackView() func(msgPack *msgstream.MsgPack) {
 			}
 		}
 		log.Info("print pack",
+			zap.String("channel_name", channelName),
 			zap.Any("begin_ts", msgPack.BeginTs),
 			zap.Uint64("end_ts", msgPack.EndTs),
 			zap.Any("star_position", msgPack.StartPositions[0].GetTimestamp()),
