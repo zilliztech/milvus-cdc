@@ -20,7 +20,6 @@ package reader
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -173,15 +172,12 @@ func (c *ChannelReader) decodeSeekPosition(seekPosition string) error {
 	if seekPosition == "" {
 		return nil
 	}
-	decodeBytes, err := base64.StdEncoding.DecodeString(seekPosition)
+	decodePosition, err := util.Base64DecodeMsgPosition(seekPosition)
 	if err != nil {
 		log.Warn("fail to decode the seek position", zap.Error(err))
 		return err
 	}
-	c.seekPosition = &msgpb.MsgPosition{
-		ChannelName: c.channelName,
-		MsgID:       decodeBytes,
-	}
+	c.seekPosition = decodePosition
 	return nil
 }
 

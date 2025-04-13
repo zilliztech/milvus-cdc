@@ -20,7 +20,6 @@ package reader
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"sync"
 	"testing"
@@ -131,7 +130,11 @@ func TestNewChannelReader(t *testing.T) {
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 			stream.EXPECT().Close().Return().Once()
 			stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(errors.New("error")).Once()
-			_, err := NewChannelReaderWithFactory("test", base64.StdEncoding.EncodeToString([]byte("foo")), config.MQConfig{
+			msgPosition := &msgstream.MsgPosition{
+				ChannelName: "test",
+				MsgID:       []byte("100"),
+			}
+			_, err := NewChannelReaderWithFactory("test", util.Base64MsgPosition(msgPosition), config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
 				},
@@ -145,7 +148,11 @@ func TestNewChannelReader(t *testing.T) {
 			stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 			packChan := make(chan *msgstream.ConsumeMsgPack, 1)
 			stream.EXPECT().Chan().Return(packChan)
-			_, err := NewChannelReaderWithFactory("test", base64.StdEncoding.EncodeToString([]byte("foo")), config.MQConfig{
+			msgPosition := &msgstream.MsgPosition{
+				ChannelName: "test",
+				MsgID:       []byte("100"),
+			}
+			_, err := NewChannelReaderWithFactory("test", util.Base64MsgPosition(msgPosition), config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
 				},
