@@ -134,6 +134,18 @@ class TestCdcResume(TestBase):
         num_entities_upstream_second = checker.get_num_entities()
         log.info(f"num_entities_upstream_second: {num_entities_upstream_second}")
         assert num_entities_upstream_second > num_entities_upstream
+        timeout = 30
+        t0 = time.time()
+        while True and time.time() - t0 < timeout:
+            count_by_query_upstream_second = checker.get_count_by_query()
+            num_entities_upstream_second = checker.get_num_entities()
+            if count_by_query_upstream_second == num_entities_upstream_second:
+                break
+            time.sleep(1)
+            if time.time() - t0 > timeout:
+                log.info(f"upstream query: {count_by_query_upstream_second}, upstream num entity: {num_entities_upstream_second}")
+                raise Exception(f"Timeout waiting for collection {collection_name} to be synced")
+        log.info(f"after pause insert task, upstream query: {count_by_query_upstream_second}, upstream num entity: {num_entities_upstream_second}")
 
         # connect to downstream
         connections.disconnect("default")
