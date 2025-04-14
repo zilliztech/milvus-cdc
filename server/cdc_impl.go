@@ -817,7 +817,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 	if rpcRequestPosition == "" && channelSeekPosition[model.ReplicateCollectionID] != nil {
 		replicateSeekPosition := channelSeekPosition[model.ReplicateCollectionID][rpcRequestChannelName]
 		if replicateSeekPosition != nil {
-			rpcRequestPosition = base64.StdEncoding.EncodeToString(replicateSeekPosition.MsgID)
+			rpcRequestPosition = util.Base64MsgPosition(replicateSeekPosition)
 		}
 	}
 	channelReader, err := e.getChannelReader(info, replicateEntity, rpcRequestChannelName, rpcRequestPosition)
