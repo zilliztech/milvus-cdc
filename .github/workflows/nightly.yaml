@@ -139,7 +139,7 @@ jobs:
         shell: bash
         working-directory: milvus/tests/python_client
         run: |
-          pip install -r requirements.txt --trusted-host https://test.pypi.org
+          pip install -r requirements.txt
           cd chaos && pytest testcases/test_concurrent_operation.py --host 127.0.0.1 --log-cli-level=INFO --capture=no --request_duration 10m
 
       - name: List CDC task
@@ -338,7 +338,7 @@ jobs:
         shell: bash
         working-directory: tests
         run: |
-          pip install -r requirements.txt --trusted-host https://test.pypi.org
+          pip install -r requirements.txt
           pytest testcases/test_cdc_sync_requests.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
 
       - name: List CDC task
