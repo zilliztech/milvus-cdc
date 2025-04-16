@@ -78,3 +78,19 @@ func (w *WriteCallback) UpdateTaskCollectionPosition(collectionID int64, collect
 	}
 	return nil
 }
+
+func (w *WriteCallback) DeleteTaskCollectionPosition(collectionID int64) error {
+	w.log.Info("delete task collection position",
+		zap.Int64("collection_id", collectionID))
+	err := store.DeleteTaskCollectionPosition(
+		w.metaStoreFactory.GetTaskCollectionPositionMetaStore(context.Background()),
+		w.taskID,
+		collectionID)
+	if err != nil {
+		w.log.Warn("fail to delete the collection position",
+			zap.Int64("collection_id", collectionID),
+			zap.Error(err))
+		return err
+	}
+	return nil
+}

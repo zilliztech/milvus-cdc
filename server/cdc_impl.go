@@ -1046,6 +1046,20 @@ func (e *MetaCDC) startReplicateAPIEvent(replicateCtx context.Context, entity *R
 					_ = e.pauseTaskWithReason(taskID, "fail to handle the replicate event, err: "+err.Error(), []meta.TaskState{})
 					return
 				}
+				if replicateAPIEvent.EventType == api.ReplicateDropCollection {
+					writeCallback := NewWriteCallback(e.metaStoreFactory, e.rootPath, taskID)
+					collectionID := replicateAPIEvent.CollectionInfo.ID
+					err := writeCallback.DeleteTaskCollectionPosition(collectionID)
+					if err != nil {
+						log.Warn("fail to delete the collection position",
+							zap.String("name", replicateAPIEvent.CollectionInfo.Schema.Name),
+							zap.Int64("id", collectionID),
+							zap.String("task_id", taskID),
+							zap.Error(err))
+						_ = e.pauseTaskWithReason(taskID, "fail to delete collection position, err:"+err.Error(), []meta.TaskState{})
+						return
+					}
+				}
 				metrics.APIExecuteCountVec.WithLabelValues(taskID, replicateAPIEvent.EventType.String()).Inc()
 			}
 		}
