@@ -1049,9 +1049,9 @@ func (e *MetaCDC) startReplicateAPIEvent(replicateCtx context.Context, entity *R
 				if replicateAPIEvent.EventType == api.ReplicateDropCollection {
 					writeCallback := NewWriteCallback(e.metaStoreFactory, e.rootPath, taskID)
 					collectionID := replicateAPIEvent.CollectionInfo.ID
-					err := writeCallback.DeleteTaskCollectionPosition(collectionID)
+					err := writeCallback.UpdateDropStateCollectionPosition(collectionID)
 					if err != nil {
-						log.Warn("fail to delete the collection position",
+						log.Warn("fail to update the collection position",
 							zap.String("name", replicateAPIEvent.CollectionInfo.Schema.Name),
 							zap.Int64("id", collectionID),
 							zap.String("task_id", taskID),
@@ -1507,39 +1507,51 @@ func (e *MetaCDC) GetPosition(req *request.GetPositionRequest) (*request.GetPosi
 	resp := &request.GetPositionResponse{}
 	for _, position := range positions {
 		for s, info := range position.Positions {
+			if info.Dropped {
+				continue
+			}
 			msgID, err := EncodeMetaPosition(info)
 			if err != nil {
 				return nil, servererror.NewServerError(err)
 			}
 			resp.Positions = append(resp.Positions, request.Position{
-				ChannelName: s,
-				Time:        info.Time,
-				TT:          tsoutil.ComposeTS(info.Time+1, 0),
-				MsgID:       msgID,
+				CollectionID: position.CollectionID,
+				ChannelName:  s,
+				Time:         info.Time,
+				TT:           tsoutil.ComposeTS(info.Time+1, 0),
+				MsgID:        msgID,
 			})
 		}
 		for s, info := range position.OpPositions {
+			if info.Dropped {
+				continue
+			}
 			msgID, err := EncodeMetaPosition(info)
 			if err != nil {
 				return nil, servererror.NewServerError(err)
 			}
 			resp.OpPositions = append(resp.OpPositions, request.Position{
-				ChannelName: s,
-				Time:        info.Time,
-				TT:          tsoutil.ComposeTS(info.Time+1, 0),
-				MsgID:       msgID,
+				CollectionID: position.CollectionID,
+				ChannelName:  s,
+				Time:         info.Time,
+				TT:           tsoutil.ComposeTS(info.Time+1, 0),
+				MsgID:        msgID,
 			})
 		}
 		for s, info := range position.TargetPositions {
+			if info.Dropped {
+				continue
+			}
 			msgID, err := EncodeMetaPosition(info)
 			if err != nil {
 				return nil, servererror.NewServerError(err)
 			}
 			resp.TargetPositions = append(resp.TargetPositions, request.Position{
-				ChannelName: s,
-				Time:        info.Time,
-				TT:          tsoutil.ComposeTS(info.Time+1, 0),
-				MsgID:       msgID,
+				CollectionID: position.CollectionID,
+				ChannelName:  s,
+				Time:         info.Time,
+				TT:           tsoutil.ComposeTS(info.Time+1, 0),
+				MsgID:        msgID,
 			})
 		}
 	}
