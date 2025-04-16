@@ -16,7 +16,7 @@ jobs:
   milvus-cdc-system-test:
       runs-on: ubuntu-latest
       steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v4
         with:
@@ -25,9 +25,9 @@ jobs:
           cache: true
 
       - name: set up python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.8'
+          python-version: '3.10'
           cache: 'pip'
 
       - name: Build CDC
@@ -112,7 +112,7 @@ jobs:
           }'
 
       - name: Checkout Milvus Repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: zhuwenxing/milvus
           ref: refine_checker
@@ -124,6 +124,7 @@ jobs:
         working-directory: milvus/tests/python_client
         run: |
           pip install -r requirements.txt --trusted-host https://test.pypi.org
+          pip install numpy==1.26.4
           cd chaos && pytest testcases/test_concurrent_operation.py --host 127.0.0.1 --log-cli-level=INFO --capture=no --request_duration 10m
 
       - name: List CDC task
@@ -190,7 +191,7 @@ jobs:
         matrix:
           metastore: [etcd, mysql]
       steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Set up MySQL
         if: matrix.metastore == 'mysql'
@@ -215,9 +216,9 @@ jobs:
           cache: true
 
       - name: set up python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.8'
+          python-version: '3.10'
           cache: 'pip'
 
       - name: Build CDC
@@ -351,7 +352,7 @@ jobs:
   milvus-cdc-function-test-4-16:
       runs-on: ubuntu-latest
       steps:
-        - uses: actions/checkout@v2
+        - uses: actions/checkout@v4
 
         - uses: actions/setup-go@v4
           with:
@@ -360,9 +361,9 @@ jobs:
             cache: true
 
         - name: set up python
-          uses: actions/setup-python@v2
+          uses: actions/setup-python@v5
           with:
-            python-version: '3.8'
+            python-version: '3.10'
             cache: 'pip'
 
         - name: Build CDC
@@ -494,7 +495,7 @@ jobs:
   milvus-cdc-function-test-16-8:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v4
         with:
@@ -503,9 +504,9 @@ jobs:
           cache: true
 
       - name: set up python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.8'
+          python-version: '3.10'
           cache: 'pip'
 
       - name: Build CDC
@@ -636,7 +637,7 @@ jobs:
   milvus-cdc-function-test-with-db:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v4
         with:
@@ -645,9 +646,9 @@ jobs:
           cache: true
 
       - name: set up python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.8'
+          python-version: '3.10'
           cache: 'pip'
 
       - name: Build CDC
