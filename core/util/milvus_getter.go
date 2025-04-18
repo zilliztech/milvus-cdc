@@ -41,3 +41,15 @@ func GetCollectionIDFromRequest(req any) (int64, bool) {
 	}
 	return getter.GetCollectionID(), true
 }
+
+type IndexNameGetter interface {
+	GetIndexName() string
+}
+
+func GetIndexNameFromRequest(req any) (string, bool) {
+	getter, ok := req.(IndexNameGetter)
+	if !ok {
+		return "", false
+	}
+	return getter.GetIndexName(), true
+}
