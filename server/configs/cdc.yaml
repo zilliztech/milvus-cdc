@@ -45,3 +45,4 @@ sourceConfig:
 maxNameLength: 256
 logLevel: info
 detectDeadLock: false
+batchMode: true

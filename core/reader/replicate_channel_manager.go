@@ -1481,18 +1481,25 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			beginTS = pack.EndTs
 			pack.BeginTs = beginTS
 			log.Info("begin timestamp is 0, use end timestamp",
+				zap.String("target_channel", r.targetPChannel),
 				zap.Uint64("end_ts", pack.EndTs), zap.Any("hasValidMsg", hasValidMsg))
 		case miniTS != pack.EndTs:
 			beginTS = miniTS - 1
 			pack.BeginTs = beginTS
 			log.Info("begin timestamp is 0, use mini timestamp",
+				zap.String("target_channel", r.targetPChannel),
 				zap.Uint64("mini_ts", miniTS), zap.Uint64("pack_end_ts", pack.EndTs))
 		case len(pack.StartPositions) > 1:
 			beginTS = pack.StartPositions[0].Timestamp
 			pack.BeginTs = beginTS
-			log.Info("begin timestamp is 0, use start position", zap.Uint64("begin_ts", beginTS))
+			log.Info("begin timestamp is 0, use start position",
+				zap.String("target_channel", r.targetPChannel),
+				zap.Uint64("begin_ts", beginTS))
 		default:
-			log.Warn("begin timestamp is 0", zap.Uint64("end_ts", pack.EndTs), zap.Any("hasValidMsg", hasValidMsg))
+			log.Warn("begin timestamp is 0",
+				zap.String("target_channel", r.targetPChannel),
+				zap.Uint64("end_ts", pack.EndTs),
+				zap.Any("hasValidMsg", hasValidMsg))
 		}
 	}
 	GetTSManager().CollectTS(tsManagerChannelKey, beginTS)
@@ -1563,6 +1570,10 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			continue
 		}
 		sourceCollectionName = info.CollectionName
+		logFields := []zap.Field{
+			zap.String("msg", msg.Type().String()),
+			zap.String("collection_name", info.CollectionName),
+		}
 		var dataLen int
 		switch realMsg := msg.(type) {
 		case *msgstream.InsertMsg:
@@ -1578,6 +1589,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 					zap.Int64("partition_id", partitionID), zap.String("partition_name", realMsg.PartitionName))
 				continue
 			}
+			logFields = append(logFields, zap.String("shard_name", realMsg.ShardName))
 			realMsg.ShardName = info.VChannel
 			// nolint
 			dataLen = int(realMsg.GetNumRows())
@@ -1601,6 +1613,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 					continue
 				}
 			}
+			logFields = append(logFields, zap.String("shard_name", realMsg.ShardName))
 			realMsg.ShardName = info.VChannel
 			dataLen = int(realMsg.GetNumRows())
 		case *msgstream.DropCollectionMsg:
@@ -1710,10 +1723,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			MsgGroup:    originPosition.GetMsgGroup(),
 			Timestamp:   msg.EndTs(),
 		})
-		logFields := []zap.Field{
-			zap.String("msg", msg.Type().String()),
-			zap.String("collection_name", info.CollectionName),
-		}
 		if dataLen != 0 {
 			logFields = append(logFields, zap.Int("data_len", dataLen))
 		}
