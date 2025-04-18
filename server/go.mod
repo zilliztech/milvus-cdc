@@ -152,7 +152,8 @@ replace (
 	github.com/confluentinc/confluent-kafka-go => github.com/confluentinc/confluent-kafka-go/v2 v2.3.0
 	github.com/milvus-io/milvus/client/v2 => github.com/SimFG/milvus/client/v2 v2.0.0-20250314101636-acb2c2d9198c
 	// github.com/milvus-io/milvus-proto/go-api/v2 => github.com/SimFG/milvus-proto/go-api/v2 v2.0.0-20250109072021-b66909fa356b // cdc-import-v2
-	github.com/milvus-io/milvus/pkg/v2 => github.com/SimFG/milvus/pkg/v2 v2.0.0-20250429075811-a770ab84d23e // master
+	github.com/milvus-io/milvus/pkg/v2 => github.com/SimFG/milvus/pkg/v2 v2.0.0-20250506025626-4d248b3b50a4 // master
+	// github.com/milvus-io/milvus/pkg => github.com/SimFG/milvus/pkg v0.0.0-20250418071437-222102ef9111 // cdc-pkg
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => ./../rocksdb
 	github.com/zilliztech/milvus-cdc/core => ../core
