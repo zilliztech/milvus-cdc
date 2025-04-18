@@ -67,7 +67,7 @@ var (
 )
 
 func createTopic(topic string) error {
-	util.InitMilvusPkgParam()
+	util.InitMilvusPkgParam(false)
 	c := cdcreader.NewDefaultFactoryCreator()
 	f := c.NewPmsFactory(pulsarConfig)
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -487,7 +487,7 @@ func TestValidCreateRequest(t *testing.T) {
 }
 
 func TestCreateRequest(t *testing.T) {
-	util.InitMilvusPkgParam()
+	util.InitMilvusPkgParam(false)
 	t.Run("success when milvus", func(t *testing.T) {
 		metaCDC := &MetaCDC{
 			config: &CDCServerConfig{

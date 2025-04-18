@@ -18,9 +18,13 @@
 
 package util
 
-import "github.com/milvus-io/milvus/pkg/util/paramtable"
+import (
+	"strconv"
 
-func InitMilvusPkgParam() {
+	"github.com/milvus-io/milvus/pkg/util/paramtable"
+)
+
+func InitMilvusPkgParam(batchMode bool) {
 	baseTable := paramtable.NewBaseTable(
 		paramtable.SkipRemote(true),
 		paramtable.Interval(0),
@@ -32,5 +36,6 @@ func InitMilvusPkgParam() {
 	_ = innerParam.Save(innerParam.MQCfg.MergeCheckInterval.Key, "2")
 	_ = innerParam.Save(innerParam.MQCfg.TargetBufSize.Key, "4")
 	_ = innerParam.Save(innerParam.MQCfg.MaxDispatcherNumPerPchannel.Key, "100")
-	_ = innerParam.Save(innerParam.MQCfg.EnablePursuitMode.Key, "false")
+	_ = innerParam.Save(innerParam.MQCfg.EnablePursuitMode.Key, strconv.FormatBool(batchMode))
+	_ = innerParam.Save(innerParam.MQCfg.PursuitBufferTime.Key, "2")
 }

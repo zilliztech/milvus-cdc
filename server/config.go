@@ -40,6 +40,7 @@ type CDCServerConfig struct {
 	ReplicateID    string
 	DryRun         bool
 	Packer         msgpacker.PackerConfig
+	BatchMode      bool
 }
 
 type CDCMetaStoreConfig struct {

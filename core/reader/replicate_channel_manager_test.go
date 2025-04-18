@@ -205,7 +205,7 @@ func TestChannelUtils(t *testing.T) {
 }
 
 func TestStartReadCollectionForMilvus(t *testing.T) {
-	util.InitMilvusPkgParam()
+	util.InitMilvusPkgParam(false)
 
 	factoryCreator := mocks.NewFactoryCreator(t)
 	factory := msgstream.NewMockFactory(t)
@@ -394,7 +394,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 }
 
 func TestStartReadCollectionForKafka(t *testing.T) {
-	util.InitMilvusPkgParam()
+	util.InitMilvusPkgParam(false)
 
 	factoryCreator := mocks.NewFactoryCreator(t)
 	factory := msgstream.NewMockFactory(t)
@@ -574,7 +574,7 @@ func newReplicateChannelHandler(ctx context.Context,
 }
 
 func TestReplicateChannelHandler(t *testing.T) {
-	util.InitMilvusPkgParam()
+	util.InitMilvusPkgParam(false)
 
 	t.Run("fail to new msg stream", func(t *testing.T) {
 		factory := msgstream.NewMockFactory(t)
