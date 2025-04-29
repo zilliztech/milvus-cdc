@@ -30,8 +30,8 @@ class TestCdcDelete(TestBase):
             "milvus_connect_param": {
                 "host": downstream_host,
                 "port": int(downstream_port),
-                "username": "",
-                "password": "",
+                "username": "root",
+                "password": "Milvus",
                 "enable_tls": False,
                 "ignore_partition": False,
                 "connect_timeout": 10
@@ -48,14 +48,14 @@ class TestCdcDelete(TestBase):
         log.info(f"create task response: {rsp}")
         task_id = rsp['task_id']
         # create collection and insert entities into it in upstream
-        connections.connect(host=upstream_host, port=upstream_port)
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
         checker = InsertEntitiesCollectionChecker(host=upstream_host, port=upstream_port, c_name=collection_name)
         checker.run()
         time.sleep(20)
         # pause the insert task
-        log.info(f"start to pause the insert task")
+        log.info("start to pause the insert task")
         checker.pause()
-        log.info(f"pause the insert task successfully")
+        log.info("pause the insert task successfully")
         # check the collection in upstream
         num_entities_upstream = checker.get_num_entities()
         log.info(f"num_entities_upstream: {num_entities_upstream}")

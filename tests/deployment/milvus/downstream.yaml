@@ -1,0 +1,22 @@
+
+common:
+  ttMsgEnabled: false
+  security:
+    authorizationEnabled: true
+mq:
+  type: pulsar
+etcd:
+  rootPath: cdc-test-downstream
+msgChannel:
+  chanNamePrefix:
+    cluster: cdc-test-downstream
+minio:
+  rootPath: cdc-test-downstream
+  bucketName: cdc-test-downstream
+
+log:
+  file:
+    rootPath: ./logs/cdc-test-downstream
+
+rootCoord:
+  dmlChannelNum: 16
