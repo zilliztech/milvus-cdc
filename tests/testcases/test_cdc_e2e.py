@@ -30,8 +30,8 @@ class TestE2E(TestBase):
             "milvus_connect_param": {
                 "host": downstream_host,
                 "port": int(downstream_port),
-                "username": "",
-                "password": "",
+                "username": "root",
+                "password": "Milvus",
                 "enable_tls": False,
                 "ignore_partition": False,
                 "connect_timeout": 10
@@ -52,14 +52,14 @@ class TestE2E(TestBase):
         assert result
         log.info(f"get task {task_id} response: {rsp}")
         # check create collection and  insert entities to collection
-        connections.connect(host=upstream_host, port=upstream_port)
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
         checker = InsertEntitiesCollectionChecker(host=upstream_host, port=upstream_port, c_name=collection_name)
         checker.run()
         time.sleep(60)
         # pause the insert task
-        log.info(f"start to pause the insert task")
+        log.info("start to pause the insert task")
         checker.pause()
-        log.info(f"pause the insert task successfully")
+        log.info("pause the insert task successfully")
         # check the collection in upstream
         num_entities_upstream = checker.get_num_entities()
         log.info(f"num_entities_upstream: {num_entities_upstream}")
@@ -68,7 +68,7 @@ class TestE2E(TestBase):
         # check the collection in downstream
         connections.disconnect("default")
         log.info(f"start to connect to downstream {downstream_host} {downstream_port}")
-        connections.connect(host=downstream_host, port=downstream_port)
+        connections.connect(host=downstream_host, port=downstream_port, token="root:Milvus")
         collection = Collection(name=collection_name)
         collection.create_index(field_name="float_vector",
                                 index_params={"index_type": "IVF_FLAT", "metric_type": "L2", "params": {"nlist": 128}})
@@ -98,8 +98,8 @@ class TestE2E(TestBase):
         # delete the entities in upstream
         connections.disconnect("default")
         log.info(f"start to connect to upstream {upstream_host} {upstream_port}")
-        connections.connect(host=upstream_host, port=upstream_port)
-        log.info(f"start to delete the entities in upstream")
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
+        log.info("start to delete the entities in upstream")
         delete_expr = f"int64 in {[i for i in range(0, 3000)]}"
         checker.collection.delete(delete_expr)
         res = None
@@ -111,15 +111,15 @@ class TestE2E(TestBase):
                 log.info(f"res: {len(res)}")
             time.sleep(1)
             if time.time() - t0 > timeout:
-                raise Exception(f"Timeout waiting for delete entities in upstream")
+                raise Exception("Timeout waiting for delete entities in upstream")
         log.info(f"res: {res}")
         count_by_query_upstream = len(res)
         assert count_by_query_upstream == 0
-        log.info(f"delete the entities in upstream successfully")
+        log.info("delete the entities in upstream successfully")
         # check the collection in downstream
         connections.disconnect("default")
         log.info(f"start to connect to downstream {downstream_host} {downstream_port}")
-        connections.connect(host=downstream_host, port=downstream_port)
+        connections.connect(host=downstream_host, port=downstream_port, token="root:Milvus")
         collection = Collection(name=collection_name)
         collection.load()
         # wait for the collection to be synced
@@ -141,8 +141,8 @@ class TestE2E(TestBase):
         # drop the collection in upstream
         connections.disconnect("default")
         log.info(f"start to connect to upstream {upstream_host} {upstream_port}")
-        connections.connect(host=upstream_host, port=upstream_port)
-        log.info(f"start to drop the collection in upstream")
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
+        log.info("start to drop the collection in upstream")
         checker.collection.drop()
         t0 = time.time()
         while True and time.time() - t0 < timeout:
@@ -156,7 +156,7 @@ class TestE2E(TestBase):
         # check the collection in downstream
         connections.disconnect("default")
         log.info(f"start to connect to downstream {downstream_host} {downstream_port}")
-        connections.connect(host=downstream_host, port=downstream_port)
+        connections.connect(host=downstream_host, port=downstream_port, token="root:Milvus")
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             log.info(f"all collections in downstream: {list_collections()}")
@@ -198,7 +198,7 @@ class TestE2E(TestBase):
         log.info(f"get task {task_id} response: {rsp}")
         # check create partition and insert entities to partition
         connections.disconnect("default")
-        connections.connect(host=upstream_host, port=upstream_port)
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
         p_name = "p1"
         checker = InsertEntitiesPartitionChecker(host=upstream_host, port=upstream_port, c_name=collection_name,
                                                  p_name=p_name)
@@ -216,7 +216,7 @@ class TestE2E(TestBase):
 
         # check the collection in downstream
         connections.disconnect("default")
-        connections.connect(host=downstream_host, port=downstream_port)
+        connections.connect(host=downstream_host, port=downstream_port, token="root:Milvus")
         collection = Collection(name=collection_name)
         # create index and load collection
         collection.create_index(field_name="float_vector",
@@ -247,8 +247,8 @@ class TestE2E(TestBase):
         # delete the entities of partition in upstream
         connections.disconnect("default")
         log.info(f"start to connect to upstream {upstream_host} {upstream_port}")
-        connections.connect(host=upstream_host, port=upstream_port)
-        log.info(f"start to delete the entities in upstream")
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
+        log.info("start to delete the entities in upstream")
         delete_expr = f"int64 in {[i for i in range(0, 3000)]}"
         checker.collection.delete(delete_expr, partition_name=p_name)
         res = None
@@ -261,15 +261,15 @@ class TestE2E(TestBase):
                 log.info(f"res: {len(res)}")
             time.sleep(1)
             if time.time() - t0 > timeout:
-                raise Exception(f"Timeout waiting for delete entities in upstream")
+                raise Exception("Timeout waiting for delete entities in upstream")
         log.info(f"res: {res}")
         count_by_query_upstream = len(res)
         assert count_by_query_upstream == 0
-        log.info(f"delete the entities in upstream successfully")
+        log.info("delete the entities in upstream successfully")
         # check the collection in downstream
         connections.disconnect("default")
         log.info(f"start to connect to downstream {downstream_host} {downstream_port}")
-        connections.connect(host=downstream_host, port=downstream_port)
+        connections.connect(host=downstream_host, port=downstream_port, token="root:Milvus")
         collection = Collection(name=collection_name)
         collection.load()
         # wait for the collection to be synced
@@ -292,9 +292,9 @@ class TestE2E(TestBase):
         # drop the partition in upstream
         connections.disconnect("default")
         log.info(f"start to connect to upstream {upstream_host} {upstream_port}")
-        connections.connect(host=upstream_host, port=upstream_port)
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
         checker.collection.release()
-        log.info(f"start to drop the partition in upstream")
+        log.info("start to drop the partition in upstream")
         p = Partition(checker.collection, p_name)
         p.drop()
         # check the partition is dropped in upstream
@@ -307,11 +307,11 @@ class TestE2E(TestBase):
             log.info(f"partition: {p_name} still exists")
             if time.time() - t0 > timeout:
                 log.error(f"Timeout waiting for partition {p_name} to be dropped")
-        log.info(f"drop the partition in upstream successfully")
+        log.info("drop the partition in upstream successfully")
         # check the partition in downstream
         connections.disconnect("default")
         log.info(f"start to connect to downstream {downstream_host} {downstream_port}")
-        connections.connect(host=downstream_host, port=downstream_port)
+        connections.connect(host=downstream_host, port=downstream_port, token="root:Milvus")
         collection = Collection(name=collection_name)
         collection.release()
         t0 = time.time()
