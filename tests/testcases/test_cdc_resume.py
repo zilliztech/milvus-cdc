@@ -59,7 +59,7 @@ class TestCdcResume(TestBase):
         """
         # create collection and insert entities into it in upstream
         connections.disconnect("default")
-        connections.connect(host=upstream_host, port=upstream_port)
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
         checker = InsertEntitiesCollectionChecker(host=upstream_host, port=upstream_port, c_name=collection_name)
         checker.run()
         time.sleep(20)
@@ -122,7 +122,7 @@ class TestCdcResume(TestBase):
         # connect to upstream
         connections.disconnect("default")
         log.info(f"start to connect to upstream {upstream_host} {upstream_port}")
-        connections.connect(host=upstream_host, port=upstream_port)
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
         # insert entities into the collection
         checker.resume()
         time.sleep(20)
