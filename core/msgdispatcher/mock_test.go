@@ -31,6 +31,8 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
+
+	"github.com/zilliztech/milvus-cdc/core/config"
 )
 
 const (
@@ -47,7 +49,27 @@ func TestMain(m *testing.M) {
 }
 
 func newMockFactory() msgstream.Factory {
-	return msgstream.NewPmsFactory(&Params.ServiceParam)
+	// return msgstream.NewPmsFactory(&Params.ServiceParam)
+	return msgstream.NewPmsFactory(
+		&paramtable.ServiceParam{
+			PulsarCfg: paramtable.PulsarConfig{
+				Address:             config.NewParamItem("pulsar://localhost:6650"),
+				WebAddress:          config.NewParamItem("localhost:80"),
+				WebPort:             config.NewParamItem("80"),
+				MaxMessageSize:      config.NewParamItem("5242880"),
+				AuthPlugin:          config.NewParamItem(""),
+				AuthParams:          config.NewParamItem("{}"),
+				Tenant:              config.NewParamItem("public"),
+				Namespace:           config.NewParamItem("default"),
+				RequestTimeout:      config.NewParamItem("60"),
+				EnableClientMetrics: config.NewParamItem("false"),
+			},
+			MQCfg: paramtable.MQConfig{
+				ReceiveBufSize: config.NewParamItem("4"),
+				MQBufSize:      config.NewParamItem("4"),
+			},
+		},
+	)
 }
 
 func newMockProducer(factory msgstream.Factory, pchannel string) (msgstream.MsgStream, error) {
