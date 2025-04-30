@@ -41,7 +41,7 @@ var Params = paramtable.Get()
 
 func TestMain(m *testing.M) {
 	paramtable.Init()
-	Params.Save(Params.ServiceParam.MQCfg.EnablePursuitMode.Key, "false")
+	_ = Params.Save(Params.ServiceParam.MQCfg.EnablePursuitMode.Key, "false")
 	exitCode := m.Run()
 	os.Exit(exitCode)
 }
@@ -66,7 +66,7 @@ func getSeekPositions(factory msgstream.Factory, pchannel string, maxNum int) ([
 		return nil, err
 	}
 	defer stream.Close()
-	stream.AsConsumer(context.TODO(), []string{pchannel}, fmt.Sprintf("%d", rand.Int()), common.SubscriptionPositionEarliest)
+	_ = stream.AsConsumer(context.TODO(), []string{pchannel}, fmt.Sprintf("%d", rand.Int()), common.SubscriptionPositionEarliest)
 	positions := make([]*msgstream.MsgPosition, 0)
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -214,7 +214,7 @@ func defaultInsertRepackFunc(
 	// after assigning segment id to msg, tsMsgs was already re-bucketed
 	pack := make(map[int32]*msgstream.MsgPack)
 	for idx, msg := range tsMsgs {
-		if len(hashKeys[idx]) <= 0 {
+		if len(hashKeys[idx]) == 0 {
 			return nil, fmt.Errorf("no hash key for %dth message", idx)
 		}
 		key := hashKeys[idx][0]

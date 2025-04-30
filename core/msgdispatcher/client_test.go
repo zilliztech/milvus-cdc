@@ -88,8 +88,8 @@ func TestClientMainDispatcherLeak(t *testing.T) {
 	assert.NotNil(t, client)
 	pchannel := "mock_vchannel_0"
 
-	vchannel1 := fmt.Sprintf("%s_abc_v0", pchannel) //"mock_vchannel_0_abc_v0"
-	vchannel2 := fmt.Sprintf("%s_abc_v1", pchannel) //"mock_vchannel_0_abc_v0"
+	vchannel1 := fmt.Sprintf("%s_abc_v0", pchannel)
+	vchannel2 := fmt.Sprintf("%s_abc_v1", pchannel)
 	_, err := client.Register(context.Background(), NewStreamConfig(vchannel1, nil, common.SubscriptionPositionUnknown))
 	assert.NoError(t, err)
 

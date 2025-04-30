@@ -120,7 +120,7 @@ func TestManager(t *testing.T) {
 		c.(*dispatcherManager).mu.RUnlock()
 
 		checkIntervalK := paramtable.Get().MQCfg.MergeCheckInterval.Key
-		paramtable.Get().Save(checkIntervalK, "0.01")
+		_ = paramtable.Get().Save(checkIntervalK, "0.01")
 		defer paramtable.Get().Reset(checkIntervalK)
 		go c.Run()
 		assert.Eventually(t, func() bool {
@@ -402,16 +402,16 @@ func (suite *SimulationSuite) TestSplit() {
 	)
 	suite.vchannels = make(map[string]*vchannelHelper, vchannelNum)
 	maxTolerantLagK := paramtable.Get().MQCfg.MaxTolerantLag.Key
-	paramtable.Get().Save(maxTolerantLagK, "0.5")
+	_ = paramtable.Get().Save(maxTolerantLagK, "0.5")
 	defer paramtable.Get().Reset(maxTolerantLagK)
 
 	targetBufSizeK := paramtable.Get().MQCfg.TargetBufSize.Key
 	defer paramtable.Get().Reset(targetBufSizeK)
 
 	for i := 0; i < vchannelNum; i++ {
-		paramtable.Get().Save(targetBufSizeK, "65536")
+		_ = paramtable.Get().Save(targetBufSizeK, "65536")
 		if i >= vchannelNum-splitNum {
-			paramtable.Get().Save(targetBufSizeK, "10")
+			_ = paramtable.Get().Save(targetBufSizeK, "10")
 		}
 		vchannel := fmt.Sprintf("%s_vchannelv%d", suite.pchannel, i)
 		_, err := suite.manager.Add(context.Background(), NewStreamConfig(vchannel, nil, common.SubscriptionPositionEarliest))
