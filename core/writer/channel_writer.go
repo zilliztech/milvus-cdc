@@ -29,10 +29,10 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
-	"github.com/milvus-io/milvus-sdk-go/v2/entity"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/util/requestutil"
-	"github.com/milvus-io/milvus/pkg/util/retry"
+	"github.com/milvus-io/milvus/client/v2/entity"
+	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/v2/util/requestutil"
+	"github.com/milvus-io/milvus/pkg/v2/util/retry"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -115,24 +115,25 @@ func (c *ChannelWriter) initAPIEventFuncs() {
 
 func (c *ChannelWriter) initOPMessageFuncs() {
 	c.opMessageFuncs = map[commonpb.MsgType]opMessageFunc{
-		commonpb.MsgType_CreateDatabase:    c.createDatabase,
-		commonpb.MsgType_DropDatabase:      c.dropDatabase,
-		commonpb.MsgType_AlterDatabase:     c.alterDatabase,
-		commonpb.MsgType_Flush:             c.flush,
-		commonpb.MsgType_CreateIndex:       c.createIndex,
-		commonpb.MsgType_DropIndex:         c.dropIndex,
-		commonpb.MsgType_AlterIndex:        c.alterIndex,
-		commonpb.MsgType_LoadCollection:    c.loadCollection,
-		commonpb.MsgType_ReleaseCollection: c.releaseCollection,
-		commonpb.MsgType_LoadPartitions:    c.loadPartitions,
-		commonpb.MsgType_ReleasePartitions: c.releasePartitions,
-		commonpb.MsgType_CreateCredential:  c.createCredential,
-		commonpb.MsgType_DeleteCredential:  c.deleteCredential,
-		commonpb.MsgType_UpdateCredential:  c.updateCredential,
-		commonpb.MsgType_CreateRole:        c.createRole,
-		commonpb.MsgType_DropRole:          c.dropRole,
-		commonpb.MsgType_OperateUserRole:   c.operateUserRole,
-		commonpb.MsgType_OperatePrivilege:  c.operatePrivilege,
+		commonpb.MsgType_CreateDatabase:     c.createDatabase,
+		commonpb.MsgType_DropDatabase:       c.dropDatabase,
+		commonpb.MsgType_AlterDatabase:      c.alterDatabase,
+		commonpb.MsgType_Flush:              c.flush,
+		commonpb.MsgType_CreateIndex:        c.createIndex,
+		commonpb.MsgType_DropIndex:          c.dropIndex,
+		commonpb.MsgType_AlterIndex:         c.alterIndex,
+		commonpb.MsgType_LoadCollection:     c.loadCollection,
+		commonpb.MsgType_ReleaseCollection:  c.releaseCollection,
+		commonpb.MsgType_LoadPartitions:     c.loadPartitions,
+		commonpb.MsgType_ReleasePartitions:  c.releasePartitions,
+		commonpb.MsgType_CreateCredential:   c.createCredential,
+		commonpb.MsgType_DeleteCredential:   c.deleteCredential,
+		commonpb.MsgType_UpdateCredential:   c.updateCredential,
+		commonpb.MsgType_CreateRole:         c.createRole,
+		commonpb.MsgType_DropRole:           c.dropRole,
+		commonpb.MsgType_OperateUserRole:    c.operateUserRole,
+		commonpb.MsgType_OperatePrivilege:   c.operatePrivilege,
+		commonpb.MsgType_OperatePrivilegeV2: c.operatePrivilegeV2,
 	}
 }
 
@@ -352,6 +353,10 @@ func (c *ChannelWriter) HandleOpMessagePack(ctx context.Context, msgPack *msgstr
 		dbName, _ := requestutil.GetDbNameFromRequest(msg)
 		if dbName != "" {
 			logFields = append(logFields, zap.Any("database", dbName))
+		}
+		indexName, _ := util.GetIndexNameFromRequest(msg)
+		if indexName != "" {
+			logFields = append(logFields, zap.Any("index", indexName))
 		}
 
 		log.Info("receive msg", logFields...)
@@ -1134,6 +1139,19 @@ func (c *ChannelWriter) operatePrivilege(ctx context.Context, msgBase *commonpb.
 	UpdateMsgBase(operatePrivilegeMsg.Base, msgBase)
 	err := c.dataHandler.OperatePrivilege(ctx, &api.OperatePrivilegeParam{
 		OperatePrivilegeRequest: operatePrivilegeMsg.OperatePrivilegeRequest,
+	})
+	if err != nil {
+		log.Warn("failed to operate privilege", zap.Any("msg", operatePrivilegeMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelWriter) operatePrivilegeV2(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	operatePrivilegeMsg := msg.(*msgstream.OperatePrivilegeV2Msg)
+	UpdateMsgBase(operatePrivilegeMsg.Base, msgBase)
+	err := c.dataHandler.OperatePrivilegeV2(ctx, &api.OperatePrivilegeV2Param{
+		OperatePrivilegeV2Request: operatePrivilegeMsg.OperatePrivilegeV2Request,
 	})
 	if err != nil {
 		log.Warn("failed to operate privilege", zap.Any("msg", operatePrivilegeMsg), zap.Error(err))

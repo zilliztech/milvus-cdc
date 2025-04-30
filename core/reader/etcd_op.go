@@ -33,11 +33,11 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
-	"github.com/milvus-io/milvus/pkg/common"
-	"github.com/milvus-io/milvus/pkg/util/conc"
-	"github.com/milvus-io/milvus/pkg/util/retry"
-	"github.com/milvus-io/milvus/pkg/util/tsoutil"
-	"github.com/milvus-io/milvus/pkg/util/typeutil"
+	"github.com/milvus-io/milvus/pkg/v2/common"
+	"github.com/milvus-io/milvus/pkg/v2/util/conc"
+	"github.com/milvus-io/milvus/pkg/v2/util/retry"
+	"github.com/milvus-io/milvus/pkg/v2/util/tsoutil"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -763,6 +763,10 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 	getResp, err := e.etcdClient.Get(ctx, e.tsPrefix())
 	if err != nil {
 		log.Panic("fail to get the ts data", zap.String("prefix", e.tsPrefix()), zap.Error(err))
+		return res
+	}
+	if len(getResp.Kvs) == 0 {
+		log.Info("not found the ts data", zap.String("prefix", e.tsPrefix()))
 		return res
 	}
 	if len(getResp.Kvs) != 1 {

@@ -33,17 +33,17 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus/pkg/mq/msgdispatcher"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/util/funcutil"
-	"github.com/milvus-io/milvus/pkg/util/tsoutil"
-	"github.com/milvus-io/milvus/pkg/util/typeutil"
+	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/v2/util/funcutil"
+	"github.com/milvus-io/milvus/pkg/v2/util/tsoutil"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	meta2 "github.com/zilliztech/milvus-cdc/core/meta"
 	coremodel "github.com/zilliztech/milvus-cdc/core/model"
+	"github.com/zilliztech/milvus-cdc/core/msgdispatcher"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	cdcreader "github.com/zilliztech/milvus-cdc/core/reader"
 	"github.com/zilliztech/milvus-cdc/core/util"
@@ -996,6 +996,7 @@ func (e *MetaCDC) startReplicateAPIEvent(replicateCtx context.Context, entity *R
 				return
 			case replicateAPIEvent, ok := <-entity.channelManager.GetEventChan():
 				if e.config.DryRun {
+					log.Info("dry run, replicate api event", zap.Any("event", replicateAPIEvent))
 					continue
 				}
 				taskID := replicateAPIEvent.TaskID
@@ -1258,6 +1259,7 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 
 	dataHandleFunc := func(funcCtx context.Context, pack *msgstream.MsgPack) bool {
 		if e.config.DryRun {
+			log.Info("dry run mode, replicate channel message", zap.Any("pack", pack))
 			return true
 		}
 		if !e.isRunningTask(info.TaskID) {

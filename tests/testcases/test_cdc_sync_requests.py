@@ -171,7 +171,7 @@ class TestCDCSyncRequest(TestBase):
             if c_downstream.num_entities == nb*epoch:
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(1)
+            time.sleep(10)
             try:
                 c_downstream.flush(timeout=5)
             except Exception as e:

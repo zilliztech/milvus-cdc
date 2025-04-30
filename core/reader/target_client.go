@@ -27,9 +27,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/milvus-io/milvus-sdk-go/v2/client"
-	"github.com/milvus-io/milvus-sdk-go/v2/entity"
-	"github.com/milvus-io/milvus/pkg/util/resource"
+	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
+	"github.com/milvus-io/milvus/client/v2/milvusclient"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
+	"github.com/milvus-io/milvus/pkg/v2/util/resource"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/log"
@@ -40,7 +41,7 @@ import (
 var _ api.TargetAPI = (*TargetClient)(nil)
 
 type TargetClient struct {
-	client       client.Client
+	client       milvusclient.Client
 	config       TargetConfig
 	nameMappings util.Map[string, string]
 }
@@ -59,7 +60,7 @@ func NewTarget(ctx context.Context, config TargetConfig) (api.TargetAPI, error) 
 	return targetClient, nil
 }
 
-func (t *TargetClient) milvusOp(ctx context.Context, database string, f func(milvus client.Client) error) error {
+func (t *TargetClient) milvusOp(ctx context.Context, database string, f func(milvus *milvusclient.Client) error) error {
 	c, err := util.GetMilvusClientManager().GetMilvusClient(ctx, t.config.URI, t.config.Token, database, t.config.DialConfig)
 	if err != nil {
 		log.Warn("fail to get milvus client", zap.Error(err))
@@ -83,8 +84,9 @@ func (t *TargetClient) GetCollectionInfo(ctx context.Context, collectionName, da
 
 	collectionInfo := &model.CollectionInfo{}
 	dbName, colName := t.mapDBAndCollectionName(databaseName, collectionName)
-	err = t.milvusOp(ctx, dbName, func(milvus client.Client) error {
-		collection, err := milvus.DescribeCollection(ctx, colName)
+	describeCollectionParam := milvusclient.NewDescribeCollectionOption(colName)
+	err = t.milvusOp(ctx, dbName, func(milvus *milvusclient.Client) error {
+		collection, err := milvus.DescribeCollection(ctx, describeCollectionParam)
 		if err != nil {
 			return err
 		}
@@ -111,20 +113,25 @@ func (t *TargetClient) GetCollectionInfo(ctx context.Context, collectionName, da
 
 func (t *TargetClient) GetPartitionInfo(ctx context.Context, collectionName, databaseName string) (*model.CollectionInfo, error) {
 	var err error
+	var partitions *milvuspb.ShowPartitionsResponse
+	collectionInfo := &model.CollectionInfo{}
+
 	databaseName, err = t.GetDatabaseName(ctx, collectionName, databaseName)
 	if err != nil {
 		log.Warn("fail to get database name", zap.Error(err))
 		return nil, err
 	}
-	collectionInfo := &model.CollectionInfo{}
-	var partition []*entity.Partition
 	dbName, colName := t.mapDBAndCollectionName(databaseName, collectionName)
-	err = t.milvusOp(ctx, dbName, func(milvus client.Client) error {
-		partition, err = milvus.ShowPartitions(ctx, colName)
-		if err != nil {
+	showPartitionRequest := &milvuspb.ShowPartitionsRequest{
+		CollectionName: colName,
+	}
+	err = t.milvusOp(ctx, dbName, func(milvus *milvusclient.Client) error {
+		m := milvus.GetService()
+		partitions, err = m.ShowPartitions(ctx, showPartitionRequest)
+		if err = merr.CheckRPCCall(partitions, err); err != nil {
 			return err
 		}
-		if len(partition) == 0 {
+		if len(partitions.GetPartitionNames()) == 0 {
 			log.Warn("failed to show partitions", zap.Error(err))
 			return errors.New("fail to show the partitions")
 		}
@@ -135,9 +142,9 @@ func (t *TargetClient) GetPartitionInfo(ctx context.Context, collectionName, dat
 		return nil, err
 	}
 
-	partitionInfo := make(map[string]int64, len(partition))
-	for _, e := range partition {
-		partitionInfo[e.Name] = e.ID
+	partitionInfo := make(map[string]int64, len(partitions.GetPartitionNames()))
+	for i, e := range partitions.GetPartitionNames() {
+		partitionInfo[e] = partitions.GetPartitionIDs()[i]
 	}
 	collectionInfo.Partitions = partitionInfo
 	return collectionInfo, nil
@@ -149,11 +156,12 @@ func (t *TargetClient) GetDatabaseName(ctx context.Context, collectionName, data
 	}
 	dbLog := log.With(zap.String("collection", collectionName), zap.String("database", databaseName))
 
-	var databaseNames []entity.Database
+	var databaseNames []string
 	var err error
 
-	err = t.milvusOp(ctx, "", func(milvus client.Client) error {
-		databaseNames, err = milvus.ListDatabases(ctx)
+	listDatabaseParam := milvusclient.NewListDatabaseOption()
+	err = t.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		databaseNames, err = milvus.ListDatabase(ctx, listDatabaseParam)
 		return err
 	})
 	if err != nil {
@@ -162,9 +170,10 @@ func (t *TargetClient) GetDatabaseName(ctx context.Context, collectionName, data
 	}
 
 	for _, dbName := range databaseNames {
-		var collections []*entity.Collection
-		err = t.milvusOp(ctx, dbName.Name, func(dbMilvus client.Client) error {
-			collections, err = dbMilvus.ListCollections(ctx)
+		var collections []string
+		listCollectionOption := milvusclient.NewListCollectionOption()
+		err = t.milvusOp(ctx, dbName, func(dbMilvus *milvusclient.Client) error {
+			collections, err = dbMilvus.ListCollections(ctx, listCollectionOption)
 			return err
 		})
 		if err != nil {
@@ -172,9 +181,9 @@ func (t *TargetClient) GetDatabaseName(ctx context.Context, collectionName, data
 			return "", err
 		}
 
-		for _, collection := range collections {
-			if collection.Name == collectionName {
-				return dbName.Name, nil
+		for _, cname := range collections {
+			if cname == collectionName {
+				return dbName, nil
 			}
 		}
 	}

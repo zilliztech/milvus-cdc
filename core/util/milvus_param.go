@@ -18,7 +18,7 @@
 
 package util
 
-import "github.com/milvus-io/milvus/pkg/util/paramtable"
+import "github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 
 func InitMilvusPkgParam() {
 	baseTable := paramtable.NewBaseTable(
@@ -31,6 +31,5 @@ func InitMilvusPkgParam() {
 	_ = innerParam.Save(innerParam.MQCfg.MaxTolerantLag.Key, "5")
 	_ = innerParam.Save(innerParam.MQCfg.MergeCheckInterval.Key, "2")
 	_ = innerParam.Save(innerParam.MQCfg.TargetBufSize.Key, "4")
-	_ = innerParam.Save(innerParam.MQCfg.MaxDispatcherNumPerPchannel.Key, "100")
 	_ = innerParam.Save(innerParam.MQCfg.EnablePursuitMode.Key, "false")
 }
