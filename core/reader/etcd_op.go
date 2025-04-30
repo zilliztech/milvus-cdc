@@ -765,6 +765,10 @@ func (e *EtcdOp) GetAllDroppedObj() map[string]map[string]uint64 {
 		log.Panic("fail to get the ts data", zap.String("prefix", e.tsPrefix()), zap.Error(err))
 		return res
 	}
+	if len(getResp.Kvs) == 0 {
+		log.Info("not found the ts data", zap.String("prefix", e.tsPrefix()))
+		return res
+	}
 	if len(getResp.Kvs) != 1 {
 		log.Panic("fail to get the ts data", zap.String("prefix", e.tsPrefix()), zap.Int("len", len(getResp.Kvs)))
 		return res

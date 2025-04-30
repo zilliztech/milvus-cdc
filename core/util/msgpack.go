@@ -71,7 +71,8 @@ func IsUserRoleMessage(msgPack *msgstream.MsgPack) bool {
 		msgType == commonpb.MsgType_CreateRole ||
 		msgType == commonpb.MsgType_DropRole ||
 		msgType == commonpb.MsgType_OperateUserRole ||
-		msgType == commonpb.MsgType_OperatePrivilege
+		msgType == commonpb.MsgType_OperatePrivilege ||
+		msgType == commonpb.MsgType_OperatePrivilegeV2
 }
 
 func base64MsgPositions(positions []*msgstream.MsgPosition) []string {

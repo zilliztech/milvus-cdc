@@ -171,6 +171,11 @@ type OperatePrivilegeParam struct {
 	*milvuspb.OperatePrivilegeRequest
 }
 
+type OperatePrivilegeV2Param struct {
+	ReplicateParam
+	*milvuspb.OperatePrivilegeV2Request
+}
+
 type ReplicateMessageParam struct {
 	MsgBaseParam
 	ReplicateParam

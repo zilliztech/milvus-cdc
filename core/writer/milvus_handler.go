@@ -536,6 +536,20 @@ func (m *MilvusDataHandler) OperatePrivilege(ctx context.Context, param *api.Ope
 	})
 }
 
+func (m *MilvusDataHandler) OperatePrivilegeV2(ctx context.Context, param *api.OperatePrivilegeV2Param) error {
+	operatePrivilegeV2Request := param.OperatePrivilegeV2Request
+	operatePrivilegeV2Request.Base = param.Base
+
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.OperatePrivilegeV2(ctx, operatePrivilegeV2Request)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 func (m *MilvusDataHandler) ReplicateMessage(ctx context.Context, param *api.ReplicateMessageParam) error {
 	var (
 		req = &milvuspb.ReplicateMessageRequest{
