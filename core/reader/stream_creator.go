@@ -28,12 +28,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus/pkg/v2/mq/common"
-	"github.com/milvus-io/milvus/pkg/v2/mq/msgdispatcher"
 	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/v2/util/funcutil"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
+	"github.com/zilliztech/milvus-cdc/core/msgdispatcher"
 )
 
 type StreamCreator interface {
