@@ -49,7 +49,7 @@ services:
 
   rootcoord:
     container_name: milvus-rootcoord
-    image: ${MILVUS_IMAGE:-simfg/milvus-dev:master-40110}
+    image: ${MILVUS_IMAGE:milvusdb/milvus:v2.5.11}
     command: ["milvus", "run", "rootcoord"]
     environment:
       ETCD_ENDPOINTS: etcd:2379
@@ -64,7 +64,7 @@ services:
 
   proxy:
     container_name: milvus-proxy
-    image: ${MILVUS_IMAGE:-simfg/milvus-dev:master-40110}
+    image: ${MILVUS_IMAGE:milvusdb/milvus:v2.5.11}
     command: ["milvus", "run", "proxy"]
     environment:
       ETCD_ENDPOINTS: etcd:2379
@@ -75,7 +75,7 @@ services:
 
   querycoord:
     container_name: milvus-querycoord
-    image: ${MILVUS_IMAGE:-simfg/milvus-dev:master-40110}
+    image: ${MILVUS_IMAGE:milvusdb/milvus:v2.5.11}
     command: ["milvus", "run", "querycoord"]
     environment:
       ETCD_ENDPOINTS: etcd:2379
@@ -89,7 +89,7 @@ services:
 
   querynode:
     container_name: milvus-querynode
-    image: ${MILVUS_IMAGE:-simfg/milvus-dev:master-40110}
+    image: ${MILVUS_IMAGE:milvusdb/milvus:v2.5.11}
     command: ["milvus", "run", "querynode"]
     environment:
       ETCD_ENDPOINTS: etcd:2379
@@ -100,7 +100,7 @@ services:
 
   indexcoord:
     container_name: milvus-indexcoord
-    image: ${MILVUS_IMAGE:-simfg/milvus-dev:master-40110}
+    image: ${MILVUS_IMAGE:milvusdb/milvus:v2.5.11}
     command: ["milvus", "run", "indexcoord"]
     environment:
       ETCD_ENDPOINTS: etcd:2379
@@ -114,7 +114,7 @@ services:
 
   indexnode:
     container_name: milvus-indexnode
-    image: ${MILVUS_IMAGE:-simfg/milvus-dev:master-40110}
+    image: ${MILVUS_IMAGE:milvusdb/milvus:v2.5.11}
     command: ["milvus", "run", "indexnode"]
     environment:
       ETCD_ENDPOINTS: etcd:2379
@@ -126,7 +126,7 @@ services:
 
   datacoord:
     container_name: milvus-datacoord
-    image: ${MILVUS_IMAGE:-simfg/milvus-dev:master-40110}
+    image: ${MILVUS_IMAGE:milvusdb/milvus:v2.5.11}
     command: ["milvus", "run", "datacoord"]
     environment:
       ETCD_ENDPOINTS: etcd:2379
@@ -140,7 +140,7 @@ services:
 
   datanode:
     container_name: milvus-datanode
-    image: ${MILVUS_IMAGE:-simfg/milvus-dev:master-40110}
+    image: ${MILVUS_IMAGE:milvusdb/milvus:v2.5.11}
     command: ["milvus", "run", "datanode"]
     environment:
       ETCD_ENDPOINTS: etcd:2379
