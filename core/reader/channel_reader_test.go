@@ -186,6 +186,7 @@ func TestNewChannelReader(t *testing.T) {
 				},
 			}, nil, creator)
 			assert.NoError(t, err)
+			time.Sleep(500 * time.Millisecond)
 		}
 		{
 			creator.EXPECT().NewKmsFactory(mock.Anything).Return(factory).Once()
@@ -195,6 +196,7 @@ func TestNewChannelReader(t *testing.T) {
 				},
 			}, nil, creator)
 			assert.NoError(t, err)
+			time.Sleep(500 * time.Millisecond)
 		}
 	})
 }
