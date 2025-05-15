@@ -13,13 +13,13 @@ jobs:
   build-linux-binary:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - run: git fetch --force --tags
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.24.1'
           cache-dependency-path: server/go.sum
           cache: true
 
@@ -33,7 +33,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       - name: Upload
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: milvus-cdc-linux
           path: |
@@ -43,7 +43,7 @@ jobs:
   build-darwin-binary:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v4
@@ -62,7 +62,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       - name: Upload
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: milvus-cdc-darwin
           path: |
@@ -72,7 +72,7 @@ jobs:
     needs: [build-linux-binary, build-darwin-binary]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - run: git fetch --force --tags
@@ -86,12 +86,12 @@ jobs:
           mkdir -p ./milvus-cdc-build/linux
           mkdir -p ./milvus-cdc-build/darwin
       - name: Download linux binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: milvus-cdc-linux
           path: ./milvus-cdc-build/linux
       - name: Download darwin binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: milvus-cdc-darwin
           path: ./milvus-cdc-build/darwin

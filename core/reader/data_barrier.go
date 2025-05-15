@@ -19,7 +19,7 @@
 package reader
 
 import (
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
 
 	"github.com/zilliztech/milvus-cdc/core/model"
 )

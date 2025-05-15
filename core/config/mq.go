@@ -19,8 +19,8 @@
 package config
 
 import (
-	"github.com/milvus-io/milvus/pkg/config"
-	"github.com/milvus-io/milvus/pkg/util/paramtable"
+	"github.com/milvus-io/milvus/pkg/v2/config"
+	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 )
 
 var configManager = config.NewManager()

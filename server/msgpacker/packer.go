@@ -29,6 +29,18 @@ type Packer struct {
 }
 
 func NewPacker(packerConfig PackerConfig) *Packer {
+	if packerConfig.TimerInterval <= 0 {
+		packerConfig.TimerInterval = DefaultTimerInterval
+	}
+	if packerConfig.MaxCount <= 0 {
+		packerConfig.MaxCount = DefaultMaxCount
+	}
+	if packerConfig.MaxMsgSize <= 0 {
+		packerConfig.MaxMsgSize = DefaultMaxMsgSize
+	}
+	if packerConfig.MemoryLimit <= 0 {
+		packerConfig.MemoryLimit = DefaultMemoryLimit
+	}
 	checkers := []PackerChecker{
 		NewTimerChecker(time.Duration(packerConfig.TimerInterval) * time.Millisecond),
 		NewMsgCountChecker(packerConfig.MaxCount),

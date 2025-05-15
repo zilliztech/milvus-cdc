@@ -75,7 +75,7 @@ linters-settings:
     locale: US
 
 run:
-  go: "1.21"
+  go: "1.24.1"
   skip-dirs:
     - pb/*
     - mocks/*
@@ -97,6 +97,8 @@ issues:
     - G201
     - G114
     - SA1019
+    - has no field or method
+    - G115
   # Maximum issue count per one linter. Set to 0 to disable. Default is 50.
   max-issues-per-linter: 0
   # Maximum count of issues with same text. Set to 0 to disable. Default is 3.

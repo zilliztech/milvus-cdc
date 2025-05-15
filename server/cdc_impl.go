@@ -33,17 +33,17 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus/pkg/mq/msgdispatcher"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/util/funcutil"
-	"github.com/milvus-io/milvus/pkg/util/tsoutil"
-	"github.com/milvus-io/milvus/pkg/util/typeutil"
+	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/v2/util/funcutil"
+	"github.com/milvus-io/milvus/pkg/v2/util/tsoutil"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	meta2 "github.com/zilliztech/milvus-cdc/core/meta"
 	coremodel "github.com/zilliztech/milvus-cdc/core/model"
+	"github.com/zilliztech/milvus-cdc/core/msgdispatcher"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	cdcreader "github.com/zilliztech/milvus-cdc/core/reader"
 	"github.com/zilliztech/milvus-cdc/core/util"
@@ -817,7 +817,7 @@ func (e *MetaCDC) startInternal(info *meta.TaskInfo, ignoreUpdateState bool) err
 	if rpcRequestPosition == "" && channelSeekPosition[model.ReplicateCollectionID] != nil {
 		replicateSeekPosition := channelSeekPosition[model.ReplicateCollectionID][rpcRequestChannelName]
 		if replicateSeekPosition != nil {
-			rpcRequestPosition = base64.StdEncoding.EncodeToString(replicateSeekPosition.MsgID)
+			rpcRequestPosition = util.Base64MsgPosition(replicateSeekPosition)
 		}
 	}
 	channelReader, err := e.getChannelReader(info, replicateEntity, rpcRequestChannelName, rpcRequestPosition)
@@ -996,6 +996,7 @@ func (e *MetaCDC) startReplicateAPIEvent(replicateCtx context.Context, entity *R
 				return
 			case replicateAPIEvent, ok := <-entity.channelManager.GetEventChan():
 				if e.config.DryRun {
+					log.Info("dry run, replicate api event", zap.Any("event", replicateAPIEvent))
 					continue
 				}
 				taskID := replicateAPIEvent.TaskID
@@ -1046,6 +1047,20 @@ func (e *MetaCDC) startReplicateAPIEvent(replicateCtx context.Context, entity *R
 					_ = e.pauseTaskWithReason(taskID, "fail to handle the replicate event, err: "+err.Error(), []meta.TaskState{})
 					return
 				}
+				if replicateAPIEvent.EventType == api.ReplicateDropCollection {
+					writeCallback := NewWriteCallback(e.metaStoreFactory, e.rootPath, taskID)
+					collectionID := replicateAPIEvent.CollectionInfo.ID
+					err := writeCallback.UpdateDropStateCollectionPosition(collectionID)
+					if err != nil {
+						log.Warn("fail to update the collection position",
+							zap.String("name", replicateAPIEvent.CollectionInfo.Schema.Name),
+							zap.Int64("id", collectionID),
+							zap.String("task_id", taskID),
+							zap.Error(err))
+						_ = e.pauseTaskWithReason(taskID, "fail to delete collection position, err:"+err.Error(), []meta.TaskState{})
+						return
+					}
+				}
 				metrics.APIExecuteCountVec.WithLabelValues(taskID, replicateAPIEvent.EventType.String()).Inc()
 			}
 		}
@@ -1080,7 +1095,7 @@ func (e *MetaCDC) startReplicateDMLMsg(replicateCtx context.Context, entity *Rep
 		}
 		var packView func(*msgstream.MsgPack)
 		if e.config.DryRun {
-			packView = tool.GetDryRunMsgPackView()
+			packView = tool.GetDryRunMsgPackView(channelName)
 		}
 		packer := msgpacker.NewPacker(e.config.Packer)
 
@@ -1244,6 +1259,7 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 
 	dataHandleFunc := func(funcCtx context.Context, pack *msgstream.MsgPack) bool {
 		if e.config.DryRun {
+			log.Info("dry run mode, replicate channel message", zap.Any("pack", pack))
 			return true
 		}
 		if !e.isRunningTask(info.TaskID) {
@@ -1493,39 +1509,51 @@ func (e *MetaCDC) GetPosition(req *request.GetPositionRequest) (*request.GetPosi
 	resp := &request.GetPositionResponse{}
 	for _, position := range positions {
 		for s, info := range position.Positions {
+			if info.Dropped {
+				continue
+			}
 			msgID, err := EncodeMetaPosition(info)
 			if err != nil {
 				return nil, servererror.NewServerError(err)
 			}
 			resp.Positions = append(resp.Positions, request.Position{
-				ChannelName: s,
-				Time:        info.Time,
-				TT:          tsoutil.ComposeTS(info.Time+1, 0),
-				MsgID:       msgID,
+				CollectionID: position.CollectionID,
+				ChannelName:  s,
+				Time:         info.Time,
+				TT:           tsoutil.ComposeTS(info.Time+1, 0),
+				MsgID:        msgID,
 			})
 		}
 		for s, info := range position.OpPositions {
+			if info.Dropped {
+				continue
+			}
 			msgID, err := EncodeMetaPosition(info)
 			if err != nil {
 				return nil, servererror.NewServerError(err)
 			}
 			resp.OpPositions = append(resp.OpPositions, request.Position{
-				ChannelName: s,
-				Time:        info.Time,
-				TT:          tsoutil.ComposeTS(info.Time+1, 0),
-				MsgID:       msgID,
+				CollectionID: position.CollectionID,
+				ChannelName:  s,
+				Time:         info.Time,
+				TT:           tsoutil.ComposeTS(info.Time+1, 0),
+				MsgID:        msgID,
 			})
 		}
 		for s, info := range position.TargetPositions {
+			if info.Dropped {
+				continue
+			}
 			msgID, err := EncodeMetaPosition(info)
 			if err != nil {
 				return nil, servererror.NewServerError(err)
 			}
 			resp.TargetPositions = append(resp.TargetPositions, request.Position{
-				ChannelName: s,
-				Time:        info.Time,
-				TT:          tsoutil.ComposeTS(info.Time+1, 0),
-				MsgID:       msgID,
+				CollectionID: position.CollectionID,
+				ChannelName:  s,
+				Time:         info.Time,
+				TT:           tsoutil.ComposeTS(info.Time+1, 0),
+				MsgID:        msgID,
 			})
 		}
 	}

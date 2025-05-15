@@ -34,8 +34,8 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/util/retry"
+	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/v2/util/retry"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -205,7 +205,7 @@ func TestChannelUtils(t *testing.T) {
 }
 
 func TestStartReadCollectionForMilvus(t *testing.T) {
-	util.InitMilvusPkgParam()
+	util.InitMilvusPkgParam(false)
 
 	factoryCreator := mocks.NewFactoryCreator(t)
 	factory := msgstream.NewMockFactory(t)
@@ -394,7 +394,7 @@ func TestStartReadCollectionForMilvus(t *testing.T) {
 }
 
 func TestStartReadCollectionForKafka(t *testing.T) {
-	util.InitMilvusPkgParam()
+	util.InitMilvusPkgParam(false)
 
 	factoryCreator := mocks.NewFactoryCreator(t)
 	factory := msgstream.NewMockFactory(t)
@@ -574,7 +574,7 @@ func newReplicateChannelHandler(ctx context.Context,
 }
 
 func TestReplicateChannelHandler(t *testing.T) {
-	util.InitMilvusPkgParam()
+	util.InitMilvusPkgParam(false)
 
 	t.Run("fail to new msg stream", func(t *testing.T) {
 		factory := msgstream.NewMockFactory(t)

@@ -26,7 +26,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/yaml"
 
-	pkglog "github.com/milvus-io/milvus/pkg/log"
+	pkglog "github.com/milvus-io/milvus/pkg/v2/log"
 
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/util"
@@ -36,7 +36,6 @@ import (
 
 func main() {
 	pkglog.ReplaceGlobals(log.L(), log.Prop())
-	util.InitMilvusPkgParam()
 	tag.LogInfo()
 
 	s := &server.CDCServer{}
@@ -48,6 +47,7 @@ func main() {
 	if err != nil {
 		log.Panic("Failed to parse config file", zap.Error(err))
 	}
+	util.InitMilvusPkgParam(serverConfig.BatchMode)
 	logLevel, err := zapcore.ParseLevel(serverConfig.LogLevel)
 	if err != nil {
 		log.Warn("Failed to parse log level, use the default log level [info]", zap.Error(err))

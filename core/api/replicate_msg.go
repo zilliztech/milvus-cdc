@@ -18,7 +18,7 @@
 
 package api
 
-import "github.com/milvus-io/milvus/pkg/mq/msgstream"
+import "github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
 
 var EmptyMsgPack = &ReplicateMsg{}
 

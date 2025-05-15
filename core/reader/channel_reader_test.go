@@ -20,7 +20,6 @@ package reader
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"sync"
 	"testing"
@@ -32,8 +31,8 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus/pkg/mq/common"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/v2/mq/common"
+	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
@@ -131,7 +130,11 @@ func TestNewChannelReader(t *testing.T) {
 			stream.EXPECT().AsConsumer(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 			stream.EXPECT().Close().Return().Once()
 			stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(errors.New("error")).Once()
-			_, err := NewChannelReaderWithFactory("test", base64.StdEncoding.EncodeToString([]byte("foo")), config.MQConfig{
+			msgPosition := &msgstream.MsgPosition{
+				ChannelName: "test",
+				MsgID:       []byte("100"),
+			}
+			_, err := NewChannelReaderWithFactory("test", util.Base64MsgPosition(msgPosition), config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
 				},
@@ -145,7 +148,11 @@ func TestNewChannelReader(t *testing.T) {
 			stream.EXPECT().Seek(mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 			packChan := make(chan *msgstream.ConsumeMsgPack, 1)
 			stream.EXPECT().Chan().Return(packChan)
-			_, err := NewChannelReaderWithFactory("test", base64.StdEncoding.EncodeToString([]byte("foo")), config.MQConfig{
+			msgPosition := &msgstream.MsgPosition{
+				ChannelName: "test",
+				MsgID:       []byte("100"),
+			}
+			_, err := NewChannelReaderWithFactory("test", util.Base64MsgPosition(msgPosition), config.MQConfig{
 				Pulsar: config.PulsarConfig{
 					Address: "localhost",
 				},
@@ -179,6 +186,7 @@ func TestNewChannelReader(t *testing.T) {
 				},
 			}, nil, creator)
 			assert.NoError(t, err)
+			time.Sleep(500 * time.Millisecond)
 		}
 		{
 			creator.EXPECT().NewKmsFactory(mock.Anything).Return(factory).Once()
@@ -188,6 +196,7 @@ func TestNewChannelReader(t *testing.T) {
 				},
 			}, nil, creator)
 			assert.NoError(t, err)
+			time.Sleep(500 * time.Millisecond)
 		}
 	})
 }

@@ -20,7 +20,6 @@ package reader
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -30,13 +29,13 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus/pkg/mq/common"
-	"github.com/milvus-io/milvus/pkg/mq/msgdispatcher"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/v2/mq/common"
+	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
+	"github.com/zilliztech/milvus-cdc/core/msgdispatcher"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
@@ -173,15 +172,12 @@ func (c *ChannelReader) decodeSeekPosition(seekPosition string) error {
 	if seekPosition == "" {
 		return nil
 	}
-	decodeBytes, err := base64.StdEncoding.DecodeString(seekPosition)
+	decodePosition, err := util.Base64DecodeMsgPosition(seekPosition)
 	if err != nil {
 		log.Warn("fail to decode the seek position", zap.Error(err))
 		return err
 	}
-	c.seekPosition = &msgpb.MsgPosition{
-		ChannelName: c.channelName,
-		MsgID:       decodeBytes,
-	}
+	c.seekPosition = decodePosition
 	return nil
 }
 

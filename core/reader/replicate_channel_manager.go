@@ -34,19 +34,19 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-	"github.com/milvus-io/milvus/pkg/mq/msgdispatcher"
-	"github.com/milvus-io/milvus/pkg/mq/msgstream"
-	"github.com/milvus-io/milvus/pkg/util/commonpbutil"
-	"github.com/milvus-io/milvus/pkg/util/conc"
-	"github.com/milvus-io/milvus/pkg/util/funcutil"
-	"github.com/milvus-io/milvus/pkg/util/retry"
-	"github.com/milvus-io/milvus/pkg/util/tsoutil"
-	"github.com/milvus-io/milvus/pkg/util/typeutil"
+	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
+	"github.com/milvus-io/milvus/pkg/v2/util/commonpbutil"
+	"github.com/milvus-io/milvus/pkg/v2/util/conc"
+	"github.com/milvus-io/milvus/pkg/v2/util/funcutil"
+	"github.com/milvus-io/milvus/pkg/v2/util/retry"
+	"github.com/milvus-io/milvus/pkg/v2/util/tsoutil"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/model"
+	"github.com/zilliztech/milvus-cdc/core/msgdispatcher"
 	"github.com/zilliztech/milvus-cdc/core/pb"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
@@ -1173,6 +1173,11 @@ func (r *replicateChannelHandler) updateTargetPartitionInfo(collectionID int64, 
 		return 0
 	}
 	targetInfo.PartitionInfo = collectionInfo.Partitions
+	log.Info("update partition info",
+		zap.String("collection_name", collectionName),
+		zap.Int64("collection_id", collectionID),
+		zap.Any("partition_info", collectionInfo.Partitions),
+	)
 	if partitionName == "" {
 		return 0
 	}
@@ -1479,14 +1484,27 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		switch {
 		case !hasValidMsg && pack.EndTs != 0:
 			beginTS = pack.EndTs
+			pack.BeginTs = beginTS
+			log.Info("begin timestamp is 0, use end timestamp",
+				zap.String("target_channel", r.targetPChannel),
+				zap.Uint64("end_ts", pack.EndTs), zap.Any("hasValidMsg", hasValidMsg))
 		case miniTS != pack.EndTs:
 			beginTS = miniTS - 1
 			pack.BeginTs = beginTS
+			log.Info("begin timestamp is 0, use mini timestamp",
+				zap.String("target_channel", r.targetPChannel),
+				zap.Uint64("mini_ts", miniTS), zap.Uint64("pack_end_ts", pack.EndTs))
 		case len(pack.StartPositions) > 1:
 			beginTS = pack.StartPositions[0].Timestamp
 			pack.BeginTs = beginTS
+			log.Info("begin timestamp is 0, use start position",
+				zap.String("target_channel", r.targetPChannel),
+				zap.Uint64("begin_ts", beginTS))
 		default:
-			log.Warn("begin timestamp is 0", zap.Uint64("end_ts", pack.EndTs), zap.Any("hasValidMsg", hasValidMsg))
+			log.Warn("begin timestamp is 0",
+				zap.String("target_channel", r.targetPChannel),
+				zap.Uint64("end_ts", pack.EndTs),
+				zap.Any("hasValidMsg", hasValidMsg))
 		}
 	}
 	GetTSManager().CollectTS(tsManagerChannelKey, beginTS)
@@ -1557,6 +1575,10 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			continue
 		}
 		sourceCollectionName = info.CollectionName
+		logFields := []zap.Field{
+			zap.String("msg", msg.Type().String()),
+			zap.String("collection_name", info.CollectionName),
+		}
 		var dataLen int
 		switch realMsg := msg.(type) {
 		case *msgstream.InsertMsg:
@@ -1572,6 +1594,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 					zap.Int64("partition_id", partitionID), zap.String("partition_name", realMsg.PartitionName))
 				continue
 			}
+			logFields = append(logFields, zap.String("shard_name", realMsg.ShardName))
 			realMsg.ShardName = info.VChannel
 			// nolint
 			dataLen = int(realMsg.GetNumRows())
@@ -1595,6 +1618,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 					continue
 				}
 			}
+			logFields = append(logFields, zap.String("shard_name", realMsg.ShardName))
 			realMsg.ShardName = info.VChannel
 			dataLen = int(realMsg.GetNumRows())
 		case *msgstream.DropCollectionMsg:
@@ -1704,10 +1728,6 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 			MsgGroup:    originPosition.GetMsgGroup(),
 			Timestamp:   msg.EndTs(),
 		})
-		logFields := []zap.Field{
-			zap.String("msg", msg.Type().String()),
-			zap.String("collection_name", info.CollectionName),
-		}
 		if dataLen != 0 {
 			logFields = append(logFields, zap.Int("data_len", dataLen))
 		}
@@ -1790,7 +1810,7 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 	newPack.Msgs = append(newPack.Msgs, timeTickMsg)
 	lastSendTs, ok := GetTSManager().UnsafeGetLastSendTS(tsManagerChannelKey)
 	if ok && lastSendTs == 0 {
-		beginTs := newPack.BeginTs - 1
+		beginTs := newPack.BeginTs
 		beginMsgPosition := &msgpb.MsgPosition{
 			ChannelName: newPack.StartPositions[0].ChannelName,
 			MsgID:       newPack.StartPositions[0].MsgID,

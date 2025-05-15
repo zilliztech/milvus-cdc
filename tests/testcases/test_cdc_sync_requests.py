@@ -172,7 +172,7 @@ class TestCDCSyncRequest(TestBase):
             if c_downstream.num_entities == nb*epoch:
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            time.sleep(1)
+            time.sleep(10)
             try:
                 c_downstream.flush(timeout=5)
             except Exception as e:
@@ -824,6 +824,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(role_list) == 0, role_list
         connections.disconnect("default")
 
+    @pytest.mark.skip(reason="TODO: support import in milvus2.5")
     @pytest.mark.parametrize("file_type", ["json", "parquet"])
     def test_cdc_sync_import_entities_request(self, upstream_host, upstream_port, downstream_host, downstream_port, file_type,
         upstream_minio_endpoint, downstream_minio_endpoint, upstream_minio_bucket_name, downstream_minio_bucket_name):

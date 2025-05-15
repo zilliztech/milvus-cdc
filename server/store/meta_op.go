@@ -143,13 +143,61 @@ func UpdateTaskCollectionPosition(taskPositionStore api.MetaStore[*meta.TaskColl
 		metaPosition.TargetPositions = make(map[string]*meta.PositionInfo)
 	}
 	if position != nil {
-		metaPosition.Positions[pChannelName] = position
+		originPosition := metaPosition.Positions[pChannelName]
+		if originPosition == nil || !originPosition.Dropped {
+			metaPosition.Positions[pChannelName] = position
+		} else {
+			log.Info("skip update the position",
+				zap.String("task_id", taskID),
+				zap.Int64("collection_id", collectionID),
+				zap.String("pchannel_name", pChannelName))
+		}
 	}
 	if opPosition != nil {
-		metaPosition.OpPositions[pChannelName] = opPosition
+		originPosition := metaPosition.OpPositions[pChannelName]
+		if originPosition == nil || !originPosition.Dropped {
+			metaPosition.OpPositions[pChannelName] = opPosition
+		} else {
+			log.Info("skip update the op position",
+				zap.String("task_id", taskID),
+				zap.Int64("collection_id", collectionID),
+				zap.String("pchannel_name", pChannelName))
+		}
 	}
 	if targetPosition != nil {
-		metaPosition.TargetPositions[targetPosition.DataPair.GetKey()] = targetPosition
+		originPosition := metaPosition.TargetPositions[targetPosition.DataPair.GetKey()]
+		if originPosition == nil || !originPosition.Dropped {
+			metaPosition.TargetPositions[targetPosition.DataPair.GetKey()] = targetPosition
+		} else {
+			log.Info("skip update the target position",
+				zap.String("task_id", taskID),
+				zap.Int64("collection_id", collectionID),
+				zap.String("target_position_key", targetPosition.DataPair.GetKey()))
+		}
+	}
+	return taskPositionStore.Put(ctx, metaPosition, nil)
+}
+
+func UpdateDropStateTaskCollectionPosition(taskPositionStore api.MetaStore[*meta.TaskCollectionPosition], taskID string, collectionID int64) error {
+	ctx := context.Background()
+	positions, err := taskPositionStore.Get(ctx, &meta.TaskCollectionPosition{TaskID: taskID, CollectionID: collectionID}, nil)
+	if err != nil {
+		log.Warn("fail to get the task position", zap.String("task_id", taskID), zap.Int64("collection_id", collectionID), zap.Error(err))
+		return err
+	}
+	if len(positions) == 0 {
+		log.Warn("not found the task position", zap.String("task_id", taskID), zap.Int64("collection_id", collectionID))
+		return servererror.NewNotFoundError(taskID)
+	}
+	metaPosition := positions[0]
+	for _, v := range metaPosition.Positions {
+		v.Dropped = true
+	}
+	for _, v := range metaPosition.OpPositions {
+		v.Dropped = true
+	}
+	for _, v := range metaPosition.TargetPositions {
+		v.Dropped = true
 	}
 	return taskPositionStore.Put(ctx, metaPosition, nil)
 }

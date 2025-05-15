@@ -69,9 +69,9 @@ class TestCdcResume(TestBase):
         log.info("pause the insert task successfully")
         # check the collection in upstream
         num_entities_upstream = checker.get_num_entities()
-        log.info(f"num_entities_upstream: {num_entities_upstream}")
+        log.info(f"collection name: {collection_name}, num_entities_upstream: {num_entities_upstream}")
         count_by_query_upstream = checker.get_count_by_query()
-        log.info(f"count_by_query_upstream: {count_by_query_upstream}")
+        log.info(f"collection name: {collection_name}, count_by_query_upstream: {count_by_query_upstream}")
 
         # check the collection in downstream
         connections.disconnect("default")
@@ -134,13 +134,25 @@ class TestCdcResume(TestBase):
         num_entities_upstream_second = checker.get_num_entities()
         log.info(f"num_entities_upstream_second: {num_entities_upstream_second}")
         assert num_entities_upstream_second > num_entities_upstream
+        timeout = 30
+        t0 = time.time()
+        while True and time.time() - t0 < timeout:
+            count_by_query_upstream_second = checker.get_count_by_query()
+            num_entities_upstream_second = checker.get_num_entities()
+            if count_by_query_upstream_second == num_entities_upstream_second:
+                break
+            time.sleep(1)
+            if time.time() - t0 > timeout:
+                log.info(f"upstream query: {count_by_query_upstream_second}, upstream num entity: {num_entities_upstream_second}")
+                raise Exception(f"Timeout waiting for collection {collection_name} to be synced")
+        log.info(f"after pause insert task, upstream query: {count_by_query_upstream_second}, upstream num entity: {num_entities_upstream_second}")
 
         # connect to downstream
         connections.disconnect("default")
         log.info(f"start to connect to downstream {downstream_host} {downstream_port}")
         connections.connect(host=downstream_host, port=downstream_port, token=DEFAULT_TOKEN)
         # check the collection in downstream has not been synced
-        timeout = 60
+        timeout = 30
         collection = Collection(name=collection_name)
         count_by_query_downstream_second = len(
             collection.query(expr=checker.query_expr, output_fields=checker.output_fields, consistency_level="Eventually"))
@@ -152,8 +164,8 @@ class TestCdcResume(TestBase):
                 assert False
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"count_by_query_downstream_second: {count_by_query_downstream_second}")
-        log.info(f"after pause cdc task, count_by_query_downstream_second: {count_by_query_downstream_second}")
+                log.info(f"downstream: {count_by_query_downstream_second}")
+        log.info(f"after pause cdc task, downstream: {count_by_query_downstream_second}, upstream: {count_by_query_upstream_second}")
         assert count_by_query_downstream_second == count_by_query_downstream
 
         # resume cdc task
@@ -171,9 +183,11 @@ class TestCdcResume(TestBase):
                 collection.query(expr=checker.query_expr, output_fields=checker.output_fields))
             if count_by_query_downstream_second == count_by_query_upstream_second:
                 break
+            else:
+                log.info(f"downstream: {count_by_query_downstream_second}, upstream: {count_by_query_upstream_second}")
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"count_by_query_downstream_second: {count_by_query_downstream_second}")
+                log.info(f"downstream: {count_by_query_downstream_second}, upstream: {count_by_query_upstream_second}")
                 raise Exception(f"Timeout waiting for collection {collection_name} to be synced")
-        log.info(f"after resume cdc task, count_by_query_downstream_second: {count_by_query_downstream_second}")
+        log.info(f"after resume cdc task, downstream: {count_by_query_downstream_second}, upstream: {count_by_query_upstream_second}")
         assert count_by_query_downstream_second == count_by_query_upstream_second

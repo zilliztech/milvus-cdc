@@ -100,6 +100,7 @@ type PositionInfo struct {
 	StartTime int64
 	Time      int64
 	DataPair  *commonpb.KeyDataPair
+	Dropped   bool
 }
 
 type TaskCollectionPosition struct {
