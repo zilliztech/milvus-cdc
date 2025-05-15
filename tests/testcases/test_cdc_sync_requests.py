@@ -257,7 +257,7 @@ class TestCDCSyncRequest(TestBase):
             if len(res) == nb:
                 log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
                 break
-            res = c_downstream.query("json['number'] >= nb", timeout=10)
+            res = c_downstream.query(f"json['number'] >= {nb}", timeout=10)
             # get the number of entities in downstream
             if len(res) != nb:
                 log.info(f"sync progress:{len(res) / nb * 100:.2f}%")
