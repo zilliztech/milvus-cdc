@@ -4,8 +4,8 @@ log:
   level: debug
 image:
   all:
-    repository: milvusdb
-    tag: milvus:v2.5.11
+    repository: milvusdb/milvus
+    tag: v2.5.11
     pullPolicy: IfNotPresent
 standalone:
   messageQueue: kafka
