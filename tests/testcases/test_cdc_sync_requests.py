@@ -232,7 +232,7 @@ class TestCDCSyncRequest(TestBase):
         time.sleep(5)
         res = c.query('varchar == "hello"', timeout=10)
         assert len(res) == nb
-        res = c.query("json['number'] >= nb", timeout=10)
+        res = c.query(f"json['number'] >= {nb}", timeout=10)
         assert len(res) == nb
         # check collections in downstream
         connections.disconnect("default")
