@@ -27,7 +27,6 @@ class TestCDCSyncRequest(TestBase):
     def connect_downstream(self, host, port, token="root:Milvus"):
         connections.connect(host=host, port=port, token=token)
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_create_collection_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -65,7 +64,6 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert set(col_list).issubset(set(list_collections()))
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_drop_collection_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -181,7 +179,6 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"flush err: {str(e)}")
         assert c_downstream.num_entities == nb*epoch
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_upsert_entities_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -271,7 +268,6 @@ class TestCDCSyncRequest(TestBase):
         assert c_state == LoadState.Loaded
         assert len(res) == nb
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_delete_entities_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -333,7 +329,6 @@ class TestCDCSyncRequest(TestBase):
         assert c_state == LoadState.Loaded
         assert len(res) == 0
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_create_partition_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -366,7 +361,6 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"partition synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c_downstream)))
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_drop_partition_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -423,7 +417,6 @@ class TestCDCSyncRequest(TestBase):
         log.info(f"partitions in downstream {list_partitions(c_downstream)}")
         assert set([f"partition_{i}" for i in range(10)]).isdisjoint(set(list_partitions(c_downstream)))
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_create_index_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -465,7 +458,6 @@ class TestCDCSyncRequest(TestBase):
             if time.time() - t0 > timeout:
                 log.info(f"index synced in downstream failed with timeout: {time.time() - t0:.2f}s")
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_drop_index_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -529,7 +521,6 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"index synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert len(c_downstream.indexes) == 0
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_load_and_release_collection_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -606,7 +597,6 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"replicas synced in downstream failed with timeout: {time.time() - t0:.2f}s")
         assert c_state == LoadState.NotLoad, f"downstream collection state is {c_state}"
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_flush_collection_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -667,7 +657,6 @@ class TestCDCSyncRequest(TestBase):
         c_downstream.flush(timeout=10)
         log.info(f"number of entities in downstream: {c_downstream.num_entities}")
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_create_database_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -695,7 +684,6 @@ class TestCDCSyncRequest(TestBase):
         log.info(f"database in downstream {db.list_database()}")
         assert db_name in db.list_database()
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_drop_database_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc default
@@ -743,7 +731,6 @@ class TestCDCSyncRequest(TestBase):
         log.info(f"database in downstream {db.list_database()}")
         assert db_name not in db.list_database()
 
-    @pytest.mark.skip(reason="")
     def test_cdc_sync_rbac_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
         """
         target: test cdc rbac replicate
