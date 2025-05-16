@@ -1,4 +1,3 @@
-import pytest
 import time
 from datetime import datetime
 from utils.util_log import test_log as log
@@ -9,7 +8,6 @@ from pymilvus import (
 )
 from base.checker import default_schema, list_partitions
 from base.checker import (
-    InsertEntitiesPartitionChecker,
     InsertEntitiesCollectionChecker
 )
 from base.client_base import TestBase
@@ -42,8 +40,8 @@ class TestCDCCreate(TestBase):
             "milvus_connect_param": {
                 "host": downstream_host,
                 "port": int(downstream_port),
-                "username": "",
-                "password": "",
+                "username": "root",
+                "password": "Milvus",
                 "enable_tls": False,
                 "ignore_partition": True,
                 "connect_timeout": 10
@@ -101,8 +99,8 @@ class TestCDCCreate(TestBase):
             "milvus_connect_param": {
                 "host": downstream_host,
                 "port": int(downstream_port),
-                "username": "",
-                "password": "",
+                "username": "root",
+                "password": "Milvus",
                 "enable_tls": False,
                 "ignore_partition": False,
                 "connect_timeout": 10
@@ -174,8 +172,8 @@ class TestCDCCreate(TestBase):
             "milvus_connect_param": {
                 "host": downstream_host,
                 "port": int(downstream_port),
-                "username": "",
-                "password": "",
+                "username": "root",
+                "password": "Milvus",
                 "enable_tls": False,
                 "ignore_partition": False,
                 "connect_timeout": 10
@@ -254,148 +252,3 @@ class TestCDCCreate(TestBase):
         num_entities_downstream = col.num_entities
         log.info(f"num_entities in downstream: {num_entities_downstream}")
         assert num_entities_upstream == num_entities_downstream
-
-    # def test_cdc_for_partition_insert_after_cdc_task(self, upstream_host, upstream_port, downstream_host, downstream_port):
-    #     connections.connect(host=upstream_host, port=upstream_port)
-    #     c_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
-    #     c_infos = [
-    #         {"name": c_name}
-    #     ]
-    #     # create a cdc task, not ignore partition
-    #     request_data = {
-    #         "milvus_connect_param": {
-    #             "host": downstream_host,
-    #             "port": int(downstream_port),
-    #             "username": "",
-    #             "password": "",
-    #             "enable_tls": False,
-    #             "ignore_partition": False,
-    #             "connect_timeout": 10
-    #         },
-    #         "collection_infos": c_infos
-    #     }
-    #     rsp, result = client.create_task(request_data)
-    #     assert result
-    #     log.info(f"create task response: {rsp}")
-    #     task_id = rsp['task_id']
-    #     # get the cdc task
-    #     rsp, result = client.get_task(task_id)
-    #     assert result
-    #     log.info(f"get task {task_id} response: {rsp}")
-    #     # create collection in upstream
-    #     p_name = "p1"
-    #     checker = InsertEntitiesPartitionChecker(host=upstream_host, port=upstream_port, c_name=c_name, p_name=p_name)
-    #     checker.run()
-    #     time.sleep(20)
-    #     checker.pause()
-    #     # check entities in upstream
-    #     count_by_query_upstream = checker.get_count_by_query(p_name=p_name)
-    #     log.info(f"count_by_query in upstream: {count_by_query_upstream}")
-    #     num_entities_upstream = checker.get_num_entities(p_name=p_name)
-    #     log.info(f"num_entities in upstream: {num_entities_upstream}")
-
-    #     # check entities in downstream
-    #     connections.disconnect("default")
-    #     connections.connect(host=downstream_host, port=downstream_port, token=DEFAULT_TOKEN)
-    #     t0 = time.time()
-    #     timeout = 60
-    #     while True and time.time() - t0 < timeout:
-    #         if c_name in list_collections():
-    #             log.info(f"collection {c_name} has been synced")
-    #             break
-    #         time.sleep(1)
-    #         if time.time() - t0 > timeout:
-    #             raise Exception(f"Timeout waiting for collection {c_name} to be synced")
-    #     assert c_name in list_collections()
-    #     col = Collection(name=c_name)
-    #     col.create_index(field_name="float_vector",
-    #                      index_params={"index_type": "IVF_FLAT", "metric_type": "L2", "params": {"nlist": 128}})
-    #     col.load()
-    #     # wait for the partition to be synced
-    #     timeout = 120
-    #     count_by_query_downstream = len(col.query(expr="int64 >= 0", output_fields=["int64"], partition_names=[p_name]))
-    #     t0 = time.time()
-    #     while True and time.time() - t0 < timeout:
-    #         count_by_query_downstream = len(col.query(expr="int64 >= 0", output_fields=["int64"], partition_names=[p_name]))
-    #         log.info(
-    #             f"count_by_query_downstream {count_by_query_downstream},"
-    #             f"count_by_query_upstream {count_by_query_upstream}")
-    #         if count_by_query_downstream == count_by_query_upstream:
-    #             log.info(f"collection {c_name} has been synced")
-    #             break
-    #         time.sleep(1)
-    #         if time.time() - t0 > timeout:
-    #             raise Exception(f"Timeout waiting for collection {c_name} to be synced")
-    #     log.info(f"count_by_query in downstream: {count_by_query_downstream}")
-    #     assert count_by_query_upstream == count_by_query_downstream
-    #     # flush partition in downstream
-    #     p = Partition(col, p_name)
-    #     p.flush()
-    #     num_entities_downstream = p.num_entities
-    #     assert num_entities_upstream == num_entities_downstream,\
-    #         f"num_entities_upstream {num_entities_upstream} != num_entities_downstream {num_entities_downstream}"
-
-    # def test_cdc_for_cdc_task_large_than_max_num(self, upstream_host, upstream_port, downstream_host, downstream_port):
-    #     max_task = 100
-    #     # delete the tasks
-    #     res, result = client.list_tasks()
-    #     for task in res["tasks"]:
-    #         task_id = task["task_id"]
-    #         rsp, result = client.delete_task(task_id)
-    #         log.info(f"delete task response: {rsp}")
-    #         assert result
-    #     res, result = client.list_tasks()
-    #     assert result
-    #     log.info(f"list tasks response: {res}")
-    #     num_tasks = len(res["tasks"])
-    #     log.info(f"num_tasks: {num_tasks}")
-    #     assert num_tasks <= max_task
-    #     available_task = max_task - num_tasks
-    #     for i in range(available_task+3):
-    #         time.sleep(0.01)
-    #         c_name = prefix + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
-    #         c_infos = [
-    #             {"name": c_name}
-    #         ]
-    #         request_data = {
-    #             "milvus_connect_param": {
-    #                 "host": downstream_host,
-    #                 "port": int(downstream_port),
-    #                 "username": "",
-    #                 "password": "",
-    #                 "enable_tls": False,
-    #                 "ignore_partition": False,
-    #                 "connect_timeout": 10
-    #             },
-    #             "collection_infos": c_infos
-    #         }
-    #         rsp, result = client.create_task(request_data)
-    #         if i < available_task:
-    #             assert result
-    #             log.info(f"create task response: {rsp}")
-    #             task_id = rsp['task_id']
-    #             log.info(f"task_id: {task_id}")
-    #         else:
-    #             log.info(f"create task response: {rsp}")
-    #             # assert not result
-
-    #     # check the number of tasks
-    #     res, result = client.list_tasks()
-    #     assert result
-    #     log.info(f"list tasks response: {res}")
-    #     num_tasks = len(res["tasks"])
-    #     log.info(f"num_tasks: {num_tasks}")
-    #     assert num_tasks == max_task
-    #     # delete the tasks
-    #     for task in res["tasks"]:
-    #         task_id = task["task_id"]
-    #         rsp, result = client.delete_task(task_id)
-    #         log.info(f"delete task response: {rsp}")
-    #         assert result
-
-    #     # check the number of tasks
-    #     res, result = client.list_tasks()
-    #     assert result
-    #     log.info(f"list tasks response: {res}")
-    #     num_tasks = len(res["tasks"])
-    #     assert num_tasks == 0

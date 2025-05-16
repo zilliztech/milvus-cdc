@@ -31,8 +31,8 @@ class TestCdcList(TestBase):
                 "milvus_connect_param": {
                     "host": downstream_host,
                     "port": int(downstream_port),
-                    "username": "",
-                    "password": "",
+                    "username": "root",
+                    "password": "Milvus",
                     "enable_tls": False,
                     "ignore_partition": True,
                     "connect_timeout": 10

@@ -1,27 +1,16 @@
 import random
-
-import pytest
 import time
 import numpy as np
 from datetime import datetime
 from utils.util_log import test_log as log
-from api.milvus_cdc import MilvusCdcClient
 from pymilvus import (
     connections, list_collections,
-    Collection, Partition, db,
-    utility,
+    Collection, db,
 )
-from pymilvus.client.types import LoadState
-from pymilvus.orm.role import Role
-from base.checker import default_schema, list_partitions
-from base.checker import (
-    InsertEntitiesPartitionChecker,
-    InsertEntitiesCollectionChecker
-)
+from base.checker import default_schema
 from base.client_base import TestBase
 
 prefix = "cdc_create_task_"
-# client = MilvusCdcClient('http://localhost:8444')
 
 
 class TestCDCSyncRequest(TestBase):
@@ -36,7 +25,7 @@ class TestCDCSyncRequest(TestBase):
         method: create collection/insert/load/flush in upstream
         expected: create successfully
         """
-        connections.connect(host=upstream_host, port=upstream_port)
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
         col_list = []
         for i in range(5):
             time.sleep(0.1)
@@ -83,7 +72,7 @@ class TestCDCSyncRequest(TestBase):
         method: create collection/insert/load/flush in upstream
         expected: create successfully
         """
-        connections.connect(host=upstream_host, port=upstream_port)
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
         db.create_database("hoo")
         db.using_database(db_name="hoo")
         col_list = []
@@ -133,7 +122,7 @@ class TestCDCSyncRequest(TestBase):
         method: create collection/insert/load/flush in upstream
         expected: create successfully
         """
-        connections.connect(host=upstream_host, port=upstream_port)
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
         db.create_database("foo")
         db.using_database(db_name="foo")
         col_list = []
