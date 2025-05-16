@@ -54,6 +54,7 @@ class TestCDCSyncRequest(TestBase):
                     [i for i in range(nb)],
                     [np.float32(i) for i in range(nb)],
                     [str(i) for i in range(nb)],
+                    [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
                     [[random.random() for _ in range(128)] for _ in range(nb)]
                 ]
                 c.insert(data)
@@ -102,6 +103,7 @@ class TestCDCSyncRequest(TestBase):
                     [i for i in range(nb)],
                     [np.float32(i) for i in range(nb)],
                     [str(i) for i in range(nb)],
+                    [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
                     [[random.random() for _ in range(128)] for _ in range(nb)]
                 ]
                 c.insert(data)
@@ -147,6 +149,7 @@ class TestCDCSyncRequest(TestBase):
                 [i for i in range(nb)],
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
+                [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
                 [[random.random() for _ in range(128)] for _ in range(nb)]
             ]
             c.insert(data)
