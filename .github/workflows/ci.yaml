@@ -53,6 +53,13 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
 
+      - name: Install Python dependencies
+        timeout-minutes: 15
+        working-directory: tests
+        shell: bash
+        run: |
+          pip install -r requirements.txt
+
       - name: Build CDC
         timeout-minutes: 15
         working-directory: server
@@ -102,48 +109,22 @@ jobs:
           sleep 20s
 
       - name: Create CDC task
+        working-directory: tests/deployment
         timeout-minutes: 15
         run: |
-          curl --location '127.0.0.1:8444/cdc' \
-          --header 'Content-Type: application/json' \
-          --data '{
-              "request_type": "create",
-              "request_data": {
-                  "milvus_connect_param": {
-                      "uri": "http://127.0.0.1:19500",
-                      "token": "root:Milvus",
-                      "connect_timeout": 120,
-                      "channel_num": ${{ matrix.downstream_channel_num }}
-                  },
-                  "extra_info": {
-                      "enable_user_role": true
-                  },
-                  "db_collections": {
-                      "*": [
-                          {
-                            "name": "*"
-                          }
-                      ]
-                  }
-              }
-          }'
+          python cdc_task_op.py --cdc_host 127.0.0.1 --downstream_uri http://127.0.0.1:19500 --downstream_token root:Milvus --channel_num ${{ matrix.downstream_channel_num }} --op_name create
       - name: List CDC task
         if: ${{ always() }}
         timeout-minutes: 15
         shell: bash
         run: |
-          curl --location '127.0.0.1:8444/cdc' \
-          --header 'Content-Type: application/json' \
-          --data '{
-              "request_type": "list"
-          }'
+          python cdc_task_op.py --cdc_host 127.0.0.1 --op_name list
       
       - name: Run test
         timeout-minutes: 30
         shell: bash
         working-directory: tests
         run: |
-          pip install -r requirements.txt
           pytest testcases/test_cdc_sync_requests.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
 
       - name: List CDC task
