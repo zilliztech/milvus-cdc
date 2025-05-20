@@ -305,6 +305,53 @@ func (_c *DataHandler_CreatePartition_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// CreatePrivilegeGroup provides a mock function with given fields: ctx, param
+func (_m *DataHandler) CreatePrivilegeGroup(ctx context.Context, param *api.CreatePrivilegeGroupParam) error {
+	ret := _m.Called(ctx, param)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreatePrivilegeGroup")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.CreatePrivilegeGroupParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_CreatePrivilegeGroup_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreatePrivilegeGroup'
+type DataHandler_CreatePrivilegeGroup_Call struct {
+	*mock.Call
+}
+
+// CreatePrivilegeGroup is a helper method to define mock.On call
+//   - ctx context.Context
+//   - param *api.CreatePrivilegeGroupParam
+func (_e *DataHandler_Expecter) CreatePrivilegeGroup(ctx interface{}, param interface{}) *DataHandler_CreatePrivilegeGroup_Call {
+	return &DataHandler_CreatePrivilegeGroup_Call{Call: _e.mock.On("CreatePrivilegeGroup", ctx, param)}
+}
+
+func (_c *DataHandler_CreatePrivilegeGroup_Call) Run(run func(ctx context.Context, param *api.CreatePrivilegeGroupParam)) *DataHandler_CreatePrivilegeGroup_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.CreatePrivilegeGroupParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_CreatePrivilegeGroup_Call) Return(_a0 error) *DataHandler_CreatePrivilegeGroup_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_CreatePrivilegeGroup_Call) RunAndReturn(run func(context.Context, *api.CreatePrivilegeGroupParam) error) *DataHandler_CreatePrivilegeGroup_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateRole provides a mock function with given fields: ctx, param
 func (_m *DataHandler) CreateRole(ctx context.Context, param *api.CreateRoleParam) error {
 	ret := _m.Called(ctx, param)
@@ -822,6 +869,53 @@ func (_c *DataHandler_DropPartition_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// DropPrivilegeGroup provides a mock function with given fields: ctx, param
+func (_m *DataHandler) DropPrivilegeGroup(ctx context.Context, param *api.DropPrivilegeGroupParam) error {
+	ret := _m.Called(ctx, param)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DropPrivilegeGroup")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.DropPrivilegeGroupParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_DropPrivilegeGroup_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DropPrivilegeGroup'
+type DataHandler_DropPrivilegeGroup_Call struct {
+	*mock.Call
+}
+
+// DropPrivilegeGroup is a helper method to define mock.On call
+//   - ctx context.Context
+//   - param *api.DropPrivilegeGroupParam
+func (_e *DataHandler_Expecter) DropPrivilegeGroup(ctx interface{}, param interface{}) *DataHandler_DropPrivilegeGroup_Call {
+	return &DataHandler_DropPrivilegeGroup_Call{Call: _e.mock.On("DropPrivilegeGroup", ctx, param)}
+}
+
+func (_c *DataHandler_DropPrivilegeGroup_Call) Run(run func(ctx context.Context, param *api.DropPrivilegeGroupParam)) *DataHandler_DropPrivilegeGroup_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.DropPrivilegeGroupParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_DropPrivilegeGroup_Call) Return(_a0 error) *DataHandler_DropPrivilegeGroup_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_DropPrivilegeGroup_Call) RunAndReturn(run func(context.Context, *api.DropPrivilegeGroupParam) error) *DataHandler_DropPrivilegeGroup_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DropRole provides a mock function with given fields: ctx, param
 func (_m *DataHandler) DropRole(ctx context.Context, param *api.DropRoleParam) error {
 	ret := _m.Called(ctx, param)
@@ -1100,6 +1194,53 @@ func (_c *DataHandler_OperatePrivilege_Call) Return(_a0 error) *DataHandler_Oper
 }
 
 func (_c *DataHandler_OperatePrivilege_Call) RunAndReturn(run func(context.Context, *api.OperatePrivilegeParam) error) *DataHandler_OperatePrivilege_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// OperatePrivilegeGroup provides a mock function with given fields: ctx, param
+func (_m *DataHandler) OperatePrivilegeGroup(ctx context.Context, param *api.OperatePrivilegeGroupParam) error {
+	ret := _m.Called(ctx, param)
+
+	if len(ret) == 0 {
+		panic("no return value specified for OperatePrivilegeGroup")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.OperatePrivilegeGroupParam) error); ok {
+		r0 = rf(ctx, param)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DataHandler_OperatePrivilegeGroup_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'OperatePrivilegeGroup'
+type DataHandler_OperatePrivilegeGroup_Call struct {
+	*mock.Call
+}
+
+// OperatePrivilegeGroup is a helper method to define mock.On call
+//   - ctx context.Context
+//   - param *api.OperatePrivilegeGroupParam
+func (_e *DataHandler_Expecter) OperatePrivilegeGroup(ctx interface{}, param interface{}) *DataHandler_OperatePrivilegeGroup_Call {
+	return &DataHandler_OperatePrivilegeGroup_Call{Call: _e.mock.On("OperatePrivilegeGroup", ctx, param)}
+}
+
+func (_c *DataHandler_OperatePrivilegeGroup_Call) Run(run func(ctx context.Context, param *api.OperatePrivilegeGroupParam)) *DataHandler_OperatePrivilegeGroup_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.OperatePrivilegeGroupParam))
+	})
+	return _c
+}
+
+func (_c *DataHandler_OperatePrivilegeGroup_Call) Return(_a0 error) *DataHandler_OperatePrivilegeGroup_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *DataHandler_OperatePrivilegeGroup_Call) RunAndReturn(run func(context.Context, *api.OperatePrivilegeGroupParam) error) *DataHandler_OperatePrivilegeGroup_Call {
 	_c.Call.Return(run)
 	return _c
 }

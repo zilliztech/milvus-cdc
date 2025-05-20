@@ -63,6 +63,9 @@ type DataHandler interface {
 	OperateUserRole(ctx context.Context, param *OperateUserRoleParam) error
 	OperatePrivilege(ctx context.Context, param *OperatePrivilegeParam) error
 	OperatePrivilegeV2(ctx context.Context, param *OperatePrivilegeV2Param) error
+	CreatePrivilegeGroup(ctx context.Context, param *CreatePrivilegeGroupParam) error
+	DropPrivilegeGroup(ctx context.Context, param *DropPrivilegeGroupParam) error
+	OperatePrivilegeGroup(ctx context.Context, param *OperatePrivilegeGroupParam) error
 }
 
 type DefaultDataHandler struct{}
@@ -211,5 +214,20 @@ func (d *DefaultDataHandler) OperatePrivilege(ctx context.Context, param *Operat
 
 func (d *DefaultDataHandler) OperatePrivilegeV2(ctx context.Context, param *OperatePrivilegeV2Param) error {
 	log.Warn("OperatePrivilegeV2 is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) CreatePrivilegeGroup(ctx context.Context, param *CreatePrivilegeGroupParam) error {
+	log.Warn("CreatePrivilegeGroup is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) DropPrivilegeGroup(ctx context.Context, param *DropPrivilegeGroupParam) error {
+	log.Warn("DropPrivilegeGroup is not implemented, please check it")
+	return nil
+}
+
+func (d *DefaultDataHandler) OperatePrivilegeGroup(ctx context.Context, param *OperatePrivilegeGroupParam) error {
+	log.Warn("OperatePrivilegeGroup is not implemented, please check it")
 	return nil
 }

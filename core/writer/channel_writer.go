@@ -115,25 +115,28 @@ func (c *ChannelWriter) initAPIEventFuncs() {
 
 func (c *ChannelWriter) initOPMessageFuncs() {
 	c.opMessageFuncs = map[commonpb.MsgType]opMessageFunc{
-		commonpb.MsgType_CreateDatabase:     c.createDatabase,
-		commonpb.MsgType_DropDatabase:       c.dropDatabase,
-		commonpb.MsgType_AlterDatabase:      c.alterDatabase,
-		commonpb.MsgType_Flush:              c.flush,
-		commonpb.MsgType_CreateIndex:        c.createIndex,
-		commonpb.MsgType_DropIndex:          c.dropIndex,
-		commonpb.MsgType_AlterIndex:         c.alterIndex,
-		commonpb.MsgType_LoadCollection:     c.loadCollection,
-		commonpb.MsgType_ReleaseCollection:  c.releaseCollection,
-		commonpb.MsgType_LoadPartitions:     c.loadPartitions,
-		commonpb.MsgType_ReleasePartitions:  c.releasePartitions,
-		commonpb.MsgType_CreateCredential:   c.createCredential,
-		commonpb.MsgType_DeleteCredential:   c.deleteCredential,
-		commonpb.MsgType_UpdateCredential:   c.updateCredential,
-		commonpb.MsgType_CreateRole:         c.createRole,
-		commonpb.MsgType_DropRole:           c.dropRole,
-		commonpb.MsgType_OperateUserRole:    c.operateUserRole,
-		commonpb.MsgType_OperatePrivilege:   c.operatePrivilege,
-		commonpb.MsgType_OperatePrivilegeV2: c.operatePrivilegeV2,
+		commonpb.MsgType_CreateDatabase:        c.createDatabase,
+		commonpb.MsgType_DropDatabase:          c.dropDatabase,
+		commonpb.MsgType_AlterDatabase:         c.alterDatabase,
+		commonpb.MsgType_Flush:                 c.flush,
+		commonpb.MsgType_CreateIndex:           c.createIndex,
+		commonpb.MsgType_DropIndex:             c.dropIndex,
+		commonpb.MsgType_AlterIndex:            c.alterIndex,
+		commonpb.MsgType_LoadCollection:        c.loadCollection,
+		commonpb.MsgType_ReleaseCollection:     c.releaseCollection,
+		commonpb.MsgType_LoadPartitions:        c.loadPartitions,
+		commonpb.MsgType_ReleasePartitions:     c.releasePartitions,
+		commonpb.MsgType_CreateCredential:      c.createCredential,
+		commonpb.MsgType_DeleteCredential:      c.deleteCredential,
+		commonpb.MsgType_UpdateCredential:      c.updateCredential,
+		commonpb.MsgType_CreateRole:            c.createRole,
+		commonpb.MsgType_DropRole:              c.dropRole,
+		commonpb.MsgType_OperateUserRole:       c.operateUserRole,
+		commonpb.MsgType_OperatePrivilege:      c.operatePrivilege,
+		commonpb.MsgType_OperatePrivilegeV2:    c.operatePrivilegeV2,
+		commonpb.MsgType_CreatePrivilegeGroup:  c.createPrivilegeGroup,
+		commonpb.MsgType_DropPrivilegeGroup:    c.dropPrivilegeGroup,
+		commonpb.MsgType_OperatePrivilegeGroup: c.operatePrivilegeGroup,
 	}
 }
 
@@ -1155,6 +1158,45 @@ func (c *ChannelWriter) operatePrivilegeV2(ctx context.Context, msgBase *commonp
 	})
 	if err != nil {
 		log.Warn("failed to operate privilege", zap.Any("msg", operatePrivilegeMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelWriter) createPrivilegeGroup(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	createPrivilegeGroupMsg := msg.(*msgstream.CreatePrivilegeGroupMsg)
+	UpdateMsgBase(createPrivilegeGroupMsg.Base, msgBase)
+	err := c.dataHandler.CreatePrivilegeGroup(ctx, &api.CreatePrivilegeGroupParam{
+		CreatePrivilegeGroupRequest: createPrivilegeGroupMsg.CreatePrivilegeGroupRequest,
+	})
+	if err != nil {
+		log.Warn("failed to create privilege group", zap.Any("msg", createPrivilegeGroupMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelWriter) dropPrivilegeGroup(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	dropPrivilegeGroupMsg := msg.(*msgstream.DropPrivilegeGroupMsg)
+	UpdateMsgBase(dropPrivilegeGroupMsg.Base, msgBase)
+	err := c.dataHandler.DropPrivilegeGroup(ctx, &api.DropPrivilegeGroupParam{
+		DropPrivilegeGroupRequest: dropPrivilegeGroupMsg.DropPrivilegeGroupRequest,
+	})
+	if err != nil {
+		log.Warn("failed to drop privilege group", zap.Any("msg", dropPrivilegeGroupMsg), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelWriter) operatePrivilegeGroup(ctx context.Context, msgBase *commonpb.MsgBase, msg msgstream.TsMsg) error {
+	operatePrivilegeGroupMsg := msg.(*msgstream.OperatePrivilegeGroupMsg)
+	UpdateMsgBase(operatePrivilegeGroupMsg.Base, msgBase)
+	err := c.dataHandler.OperatePrivilegeGroup(ctx, &api.OperatePrivilegeGroupParam{
+		OperatePrivilegeGroupRequest: operatePrivilegeGroupMsg.OperatePrivilegeGroupRequest,
+	})
+	if err != nil {
+		log.Warn("failed to operate privilege group", zap.Any("msg", operatePrivilegeGroupMsg), zap.Error(err))
 		return err
 	}
 	return nil
