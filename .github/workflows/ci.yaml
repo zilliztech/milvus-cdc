@@ -113,12 +113,8 @@ jobs:
         timeout-minutes: 15
         run: |
           python cdc_task_op.py --cdc_host 127.0.0.1 --downstream_uri http://127.0.0.1:19500 --downstream_token root:Milvus --channel_num ${{ matrix.downstream_channel_num }} --op_name create
-      - name: List CDC task
-        if: ${{ always() }}
-        timeout-minutes: 15
-        shell: bash
-        run: |
           python cdc_task_op.py --cdc_host 127.0.0.1 --op_name list
+
       
       - name: Run test
         timeout-minutes: 30
@@ -130,15 +126,11 @@ jobs:
       - name: List CDC task
         if: ${{ always() }}
         timeout-minutes: 15
-        working-directory: server
+        working-directory: tests/deployment
         shell: bash
         run: |
+          python cdc_task_op.py --cdc_host 127.0.0.1 --op_name list
           cat server.log | tail -n 100
-          curl --location '127.0.0.1:8444/cdc' \
-          --header 'Content-Type: application/json' \
-          --data '{
-              "request_type": "list"
-          }'
 
       - name: Export logs
         if: ${{ always() }}
