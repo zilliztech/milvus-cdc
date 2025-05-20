@@ -1276,9 +1276,9 @@ func (e *MetaCDC) getChannelReader(info *meta.TaskInfo, replicateEntity *Replica
 		msgDatabaseName := util.GetDatabaseNameFromMsgPack(pack)
 		// TODO it should be changed if replicate the user and role info or multi collection
 		// TODO how to handle it when there are "*" and "foo" collection names in the task list
-		if msgCollectionName == "" && msgDatabaseName == "" {
+		if util.IsUserRoleMessage(pack) {
 			extraSkip := true
-			if info.ExtraInfo.EnableUserRole && util.IsUserRoleMessage(pack) {
+			if info.ExtraInfo.EnableUserRole {
 				extraSkip = false
 			}
 			if extraSkip {

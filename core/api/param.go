@@ -176,6 +176,21 @@ type OperatePrivilegeV2Param struct {
 	*milvuspb.OperatePrivilegeV2Request
 }
 
+type CreatePrivilegeGroupParam struct {
+	ReplicateParam
+	*milvuspb.CreatePrivilegeGroupRequest
+}
+
+type DropPrivilegeGroupParam struct {
+	ReplicateParam
+	*milvuspb.DropPrivilegeGroupRequest
+}
+
+type OperatePrivilegeGroupParam struct {
+	ReplicateParam
+	*milvuspb.OperatePrivilegeGroupRequest
+}
+
 type ReplicateMessageParam struct {
 	MsgBaseParam
 	ReplicateParam

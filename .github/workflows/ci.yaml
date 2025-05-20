@@ -20,7 +20,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.24.1'
+          go-version: '1.24.2'
           cache-dependency-path: server/go.sum
           cache: true
 
@@ -211,7 +211,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.24.2'
           cache-dependency-path: server/go.sum
           cache: true
 
@@ -356,7 +356,7 @@ jobs:
 
         - uses: actions/setup-go@v4
           with:
-            go-version: '1.21'
+            go-version: '1.24.2'
             cache-dependency-path: server/go.sum
             cache: true
 
@@ -499,7 +499,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.24.2'
           cache-dependency-path: server/go.sum
           cache: true
 
@@ -641,7 +641,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.24.2'
           cache-dependency-path: server/go.sum
           cache: true
 

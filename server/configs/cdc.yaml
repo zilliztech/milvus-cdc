@@ -4,7 +4,7 @@ metaStoreConfig:
   storeType: etcd
   etcd:
     address:
-      - http://127.0.0.1:12379
+      - http://127.0.0.1:2379
     enableAuth: false
     username: root
     password: root123456
@@ -18,7 +18,7 @@ metaStoreConfig:
 sourceConfig:
   etcd:
     address:
-      - http://127.0.0.1:12379
+      - http://127.0.0.1:2379
     rootPath: by-dev
     metaSubPath: meta
     enableAuth: false

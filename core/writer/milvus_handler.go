@@ -550,6 +550,48 @@ func (m *MilvusDataHandler) OperatePrivilegeV2(ctx context.Context, param *api.O
 	})
 }
 
+func (m *MilvusDataHandler) CreatePrivilegeGroup(ctx context.Context, param *api.CreatePrivilegeGroupParam) error {
+	createPrivilegeGroupRequest := param.CreatePrivilegeGroupRequest
+	createPrivilegeGroupRequest.Base = param.Base
+
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.CreatePrivilegeGroup(ctx, createPrivilegeGroupRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (m *MilvusDataHandler) DropPrivilegeGroup(ctx context.Context, param *api.DropPrivilegeGroupParam) error {
+	dropPrivilegeGroupRequest := param.DropPrivilegeGroupRequest
+	dropPrivilegeGroupRequest.Base = param.Base
+
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.DropPrivilegeGroup(ctx, dropPrivilegeGroupRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (m *MilvusDataHandler) OperatePrivilegeGroup(ctx context.Context, param *api.OperatePrivilegeGroupParam) error {
+	operatePrivilegeGroupRequest := param.OperatePrivilegeGroupRequest
+	operatePrivilegeGroupRequest.Base = param.Base
+
+	return m.milvusOp(ctx, "", func(milvus *milvusclient.Client) error {
+		ms := milvus.GetService()
+		resp, err := ms.OperatePrivilegeGroup(ctx, operatePrivilegeGroupRequest)
+		if err = merr.CheckRPCCall(resp, err); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 func (m *MilvusDataHandler) ReplicateMessage(ctx context.Context, param *api.ReplicateMessageParam) error {
 	var (
 		req = &milvuspb.ReplicateMessageRequest{
