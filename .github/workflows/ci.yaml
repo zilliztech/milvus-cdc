@@ -130,7 +130,6 @@ jobs:
         shell: bash
         run: |
           python cdc_task_op.py --cdc_host 127.0.0.1 --op_name list
-          cat server.log | tail -n 100
 
       - name: Export logs
         if: ${{ always() }}

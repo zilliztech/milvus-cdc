@@ -1,6 +1,6 @@
 import random
 import string
-
+import faker
 import pytest
 import time
 import numpy as np
@@ -9,7 +9,7 @@ from utils.util_log import test_log as log
 from utils.utils_import import MinioSyncer
 from pymilvus import (
     connections, list_collections,
-    Collection, Partition, db,
+    Collection, Partition, db, CollectionSchema, FieldSchema, DataType, Function, FunctionType,
     utility,
 )
 import pandas as pd
@@ -19,6 +19,7 @@ from pymilvus.bulk_writer import RemoteBulkWriter, BulkFileType
 from base.checker import default_schema, list_partitions
 from base.client_base import TestBase
 
+fake = faker.Faker()
 prefix = "cdc_create_task_"
 
 
@@ -1001,3 +1002,126 @@ class TestCDCSyncRequest(TestBase):
             except Exception as e:
                 log.info(f"flush err: {str(e)}")
         assert c_downstream.num_entities == nb
+
+    
+    @pytest.mark.parametrize("nullable", [True])
+    def test_cdc_sync_insert_with_full_datatype_request(self, upstream_host, upstream_port, downstream_host, downstream_port, nullable):
+        """
+        target: test cdc sync insert with full datatype
+        method: insert entities in upstream
+        expected: entities in downstream is inserted
+        """
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
+        collection_name = prefix + "insert_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        fields = [
+            FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True, description="id"),
+            FieldSchema(name="int64", dtype=DataType.INT64, nullable=nullable, description="int64"),
+            FieldSchema(name="float", dtype=DataType.FLOAT, nullable=nullable, description="float"),
+            FieldSchema(name="varchar", dtype=DataType.VARCHAR, max_length=1024, nullable=nullable, enable_match=True, enable_analyzer=True, description="varchar"),
+            FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=1024, enable_match=True, enable_analyzer=True, description="text"),
+            FieldSchema(name="json", dtype=DataType.JSON, nullable=nullable, description="json"),
+            FieldSchema(name="bool", dtype=DataType.BOOL, nullable=nullable, description="bool"),
+            FieldSchema(name="array", dtype=DataType.ARRAY, element_type=DataType.INT64, nullable=nullable, max_capacity=10, description="array"),
+            FieldSchema(name="float_embedding", dtype=DataType.FLOAT_VECTOR, dim=128, description="float_embedding"),
+            FieldSchema(name="binary_embedding", dtype=DataType.BINARY_VECTOR, dim=128, description="binary_embedding"),
+            FieldSchema(name="sparse_vector", dtype=DataType.SPARSE_FLOAT_VECTOR, description="sparse_vector"),
+            FieldSchema(name="bm25_sparse", dtype=DataType.SPARSE_FLOAT_VECTOR, description="bm25_sparse"),
+        ]
+        bm25_func = Function(
+            name="bm25", 
+            function_type=FunctionType.BM25,
+            input_field_names=["text"],
+            output_field_names=["bm25_sparse"],
+            params={})
+        schema = CollectionSchema(fields, "test collection")
+        schema.add_function(bm25_func)
+        c = Collection(name=collection_name, schema=schema)
+        log.info(f"create collection {collection_name} in upstream")
+        # insert data to upstream
+        nb = 3000
+        data = [
+            {
+                "int64": i,
+                "float": np.float32(i),
+                "varchar": fake.sentence(),
+                "text": fake.text(),
+                "json": {"number": i, "varchar": str(i), "bool": bool(i)},
+                "bool": bool(i),
+                "array": [i for _ in range(10)],
+                "float_embedding": [random.random() for _ in range(128)],
+                "binary_embedding": [random.randint(0, 255) for _ in range(128//8)],
+                "sparse_vector": {1: 0.5, 100: 0.3, 500: 0.8, 1024: 0.2, 5000: 0.6}
+            }
+            for i in range(nb)
+        ]
+        c.insert(data)
+        # add null data
+        data = [
+            {
+                "int64": None,
+                "float": None,
+                "varchar": None,
+                "text": fake.text(),
+                "json": None,
+                "bool": None,
+                "array": [],
+                "float_embedding": [random.random() for _ in range(128)],
+                "binary_embedding": [random.randint(0, 255) for _ in range(128//8)],
+                "sparse_vector": {1: 0.5, 100: 0.3, 500: 0.8, 1024: 0.2, 5000: 0.6}
+            }
+            for i in range(nb)
+        ]
+        c.insert(data)
+        c.flush(timeout=60)
+        float_emb_index_params = {"index_type": "HNSW", "params": {"M": 128, "efConstruction": 128}, "metric_type": "L2"}
+        binary_emb_index_params = {"index_type": "BIN_IVF_FLAT", "params": {"nlist": 128}, "metric_type": "HAMMING"}
+        sparse_index_params = {"index_type": "SPARSE_INVERTED_INDEX", "params": {}, "metric_type": "IP"}
+        bm25_index_params = {"index_type": "SPARSE_INVERTED_INDEX", "params": {"k1": 1.2, "b": 0.75}, "metric_type": "BM25"}
+        c.create_index("float_embedding", float_emb_index_params)
+        c.create_index("binary_embedding", binary_emb_index_params)
+        c.create_index("sparse_vector", sparse_index_params)
+        c.create_index("bm25_sparse", bm25_index_params)
+        c.load()
+        # get number of entities in upstream
+        log.info(f"number of entities in upstream: {c.num_entities}")
+        upstream_entities = c.num_entities
+        upstream_index = [index.to_dict() for index in c.indexes]
+        upstream_count = c.query(
+            expr="",
+            output_fields=["count(*)"]
+        )[0]["count(*)"]
+        assert upstream_count == upstream_entities
+        # check collections in downstream
+        connections.disconnect("default")
+        self.connect_downstream(downstream_host, downstream_port)
+        c_downstream = Collection(name=collection_name)
+        timeout = 120
+        t0 = time.time()
+        log.info(f"all collections in downstream {list_collections()}")
+        while True and time.time() - t0 < timeout:
+            if time.time() - t0 > timeout:
+                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                break
+            # get the number of entities in downstream
+            if c_downstream.num_entities != upstream_entities:
+                log.info(f"sync progress:{c_downstream.num_entities / upstream_entities * 100:.2f}%")
+            # collections in subset of downstream
+            if c_downstream.num_entities == upstream_entities:
+                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                break
+            time.sleep(10)
+            try:
+                c_downstream.flush(timeout=60)
+            except Exception as e:
+                log.info(f"flush err: {str(e)}")
+        assert c_downstream.num_entities == upstream_entities
+
+        # check index in downstream
+        downstream_index = [index.to_dict() for index in c_downstream.indexes]
+        assert sorted(upstream_index) == sorted(downstream_index)
+        # check count in downstream
+        downstream_count = c_downstream.query(
+            expr="",
+            output_fields=["count(*)"]
+        )["count(*)"][0]
+        assert downstream_count == upstream_count
