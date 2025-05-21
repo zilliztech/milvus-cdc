@@ -28,8 +28,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/msgpb"
-
 	pb "github.com/milvus-io/milvus/pkg/v2/proto/etcdpb"
+
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/util"

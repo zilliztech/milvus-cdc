@@ -31,9 +31,9 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/v2/common"
+	pb "github.com/milvus-io/milvus/pkg/v2/proto/etcdpb"
 	"github.com/milvus-io/milvus/pkg/v2/util/retry"
 
-	pb "github.com/milvus-io/milvus/pkg/v2/proto/etcdpb"
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/util"
