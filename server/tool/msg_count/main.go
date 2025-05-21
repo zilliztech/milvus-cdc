@@ -47,8 +47,8 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 	"github.com/milvus-io/milvus/pkg/v2/util/tsoutil"
 
+	pb "github.com/milvus-io/milvus/pkg/v2/proto/etcdpb"
 	"github.com/zilliztech/milvus-cdc/core/config"
-	"github.com/zilliztech/milvus-cdc/core/pb"
 	"github.com/zilliztech/milvus-cdc/core/reader"
 	"github.com/zilliztech/milvus-cdc/core/util"
 	"github.com/zilliztech/milvus-cdc/server/model"

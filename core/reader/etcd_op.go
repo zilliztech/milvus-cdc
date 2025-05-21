@@ -34,6 +34,7 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/v2/common"
+	pb "github.com/milvus-io/milvus/pkg/v2/proto/etcdpb"
 	"github.com/milvus-io/milvus/pkg/v2/util/conc"
 	"github.com/milvus-io/milvus/pkg/v2/util/retry"
 	"github.com/milvus-io/milvus/pkg/v2/util/tsoutil"
@@ -43,19 +44,19 @@ import (
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
 	"github.com/zilliztech/milvus-cdc/core/model"
-	"github.com/zilliztech/milvus-cdc/core/pb"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
 var _ api.MetaOp = (*EtcdOp)(nil)
 
 const (
-	collectionPrefix = "root-coord/database/collection-info"
-	partitionPrefix  = "root-coord/partitions"
-	fieldPrefix      = "root-coord/fields"
-	databasePrefix   = "root-coord/database/db-info"
-	tsPrefix         = "kv/gid/timestamp" // TODO the kv root is configurable
-	TomeObject       = "_tome"            // has marked deleted object
+	collectionPrefix         = "root-coord/database/collection-info"
+	partitionPrefix          = "root-coord/partitions"
+	fieldPrefix              = "root-coord/fields"
+	collectionFunctionPrefix = "root-coord/functions"
+	databasePrefix           = "root-coord/database/db-info"
+	tsPrefix                 = "kv/gid/timestamp" // TODO the kv root is configurable
+	TomeObject               = "_tome"            // has marked deleted object
 
 	SkipCollectionState = pb.CollectionState(-100)
 	SkipPartitionState  = pb.PartitionState(-100)
@@ -169,6 +170,10 @@ func (e *EtcdOp) partitionPrefix() string {
 
 func (e *EtcdOp) fieldPrefix() string {
 	return fmt.Sprintf("%s/%s/%s", e.rootPath, e.metaSubPath, fieldPrefix)
+}
+
+func (e *EtcdOp) collectionFunctionPrefix() string {
+	return fmt.Sprintf("%s/%s/%s", e.rootPath, e.metaSubPath, collectionFunctionPrefix)
 }
 
 func (e *EtcdOp) databasePrefix() string {
@@ -657,6 +662,33 @@ func (e *EtcdOp) fillCollectionField(info *pb.CollectionInfo) error {
 		fields = append(fields, field)
 	}
 	info.Schema.Fields = fields
+
+	functionPrefix := path.Join(e.collectionFunctionPrefix(), strconv.FormatInt(info.ID, 10)) + "/"
+	resp, err = util.EtcdGetWithContext(context.Background(), e.etcdClient, functionPrefix, clientv3.WithPrefix())
+	if err != nil {
+		log.Warn("fail to get the collection function data",
+			zap.String("prefix", functionPrefix),
+			zap.Error(err))
+		return err
+	}
+	if len(resp.Kvs) == 0 {
+		log.Info("not found the collection function data", zap.String("prefix", functionPrefix))
+		return nil
+	}
+	var functions []*schemapb.FunctionSchema
+	for _, kv := range resp.Kvs {
+		function := &schemapb.FunctionSchema{}
+		err = proto.Unmarshal(kv.Value, function)
+		if err != nil {
+			log.Warn("fail to unmarshal function schema info",
+				zap.String("prefix", functionPrefix),
+				zap.String("key", util.ToString(kv.Key)), zap.Error(err))
+			return err
+		}
+		functions = append(functions, function)
+	}
+	info.Schema.Functions = functions
+
 	return nil
 }
 

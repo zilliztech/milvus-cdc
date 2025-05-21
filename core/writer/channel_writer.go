@@ -31,13 +31,13 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/client/v2/entity"
 	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
+	pb "github.com/milvus-io/milvus/pkg/v2/proto/etcdpb"
 	"github.com/milvus-io/milvus/pkg/v2/util/requestutil"
 	"github.com/milvus-io/milvus/pkg/v2/util/retry"
 
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/log"
-	"github.com/zilliztech/milvus-cdc/core/pb"
 	"github.com/zilliztech/milvus-cdc/core/util"
 )
 
@@ -143,9 +143,12 @@ func (c *ChannelWriter) initOPMessageFuncs() {
 func (c *ChannelWriter) HandleReplicateAPIEvent(ctx context.Context, apiEvent *api.ReplicateAPIEvent) error {
 	fields := []zap.Field{
 		zap.Any("event", apiEvent.EventType),
+		zap.String("db", apiEvent.ReplicateParam.Database),
 	}
 	if apiEvent.CollectionInfo != nil && apiEvent.CollectionInfo.Schema != nil {
-		fields = append(fields, zap.String("collection", apiEvent.CollectionInfo.Schema.GetName()))
+		fields = append(fields,
+			zap.String("collection", apiEvent.CollectionInfo.Schema.GetName()),
+		)
 	}
 	if apiEvent.PartitionInfo != nil {
 		fields = append(fields, zap.String("partition", apiEvent.PartitionInfo.PartitionName))

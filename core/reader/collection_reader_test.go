@@ -33,12 +33,12 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/v2/common"
+	pb "github.com/milvus-io/milvus/pkg/v2/proto/etcdpb"
 
 	api2 "github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	"github.com/zilliztech/milvus-cdc/core/mocks"
 	"github.com/zilliztech/milvus-cdc/core/model"
-	"github.com/zilliztech/milvus-cdc/core/pb"
 )
 
 // Before running this case, should start the etcd server

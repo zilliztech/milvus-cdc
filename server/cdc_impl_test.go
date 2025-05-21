@@ -38,11 +38,11 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 
+	pb "github.com/milvus-io/milvus/pkg/v2/proto/etcdpb"
 	"github.com/zilliztech/milvus-cdc/core/api"
 	"github.com/zilliztech/milvus-cdc/core/config"
 	coremocks "github.com/zilliztech/milvus-cdc/core/mocks"
 	coremodel "github.com/zilliztech/milvus-cdc/core/model"
-	"github.com/zilliztech/milvus-cdc/core/pb"
 	cdcreader "github.com/zilliztech/milvus-cdc/core/reader"
 	coreservermocks "github.com/zilliztech/milvus-cdc/core/servermocks"
 	"github.com/zilliztech/milvus-cdc/core/util"
