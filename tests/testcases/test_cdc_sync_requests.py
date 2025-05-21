@@ -105,6 +105,7 @@ class TestCDCSyncRequest(TestBase):
         assert set(col_list).issubset(set(list_collections()))
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         timeout = 120
         t0 = time.time()
@@ -142,6 +143,7 @@ class TestCDCSyncRequest(TestBase):
         assert set(col_list).issubset(set(list_collections()))
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         timeout = 120
         t0 = time.time()
@@ -167,6 +169,7 @@ class TestCDCSyncRequest(TestBase):
         assert set(col_list).isdisjoint(set(list_collections()))
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         timeout = 120
         t0 = time.time()
@@ -214,6 +217,7 @@ class TestCDCSyncRequest(TestBase):
         log.info(f"number of entities in upstream: {c.num_entities}")
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 120
@@ -294,6 +298,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(res) == nb
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 120
@@ -362,6 +367,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(res) == 0
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 120
@@ -404,6 +410,7 @@ class TestCDCSyncRequest(TestBase):
         assert set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c)))
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 120
@@ -436,6 +443,7 @@ class TestCDCSyncRequest(TestBase):
         assert set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c)))
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 120
@@ -459,6 +467,7 @@ class TestCDCSyncRequest(TestBase):
         assert set([f"partition_{i}" for i in range(10)]).isdisjoint(set(list_partitions(c)))
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 120
@@ -503,6 +512,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(c.indexes) == 1
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 120
@@ -545,6 +555,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(c.indexes) == 1
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 120
@@ -565,6 +576,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(c.indexes) == 0
         # check index in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 120
@@ -610,6 +622,7 @@ class TestCDCSyncRequest(TestBase):
         assert len(res.groups) == 1
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 120
@@ -639,6 +652,7 @@ class TestCDCSyncRequest(TestBase):
         log.info("replicas released in upstream successfully")
         # check replicas in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 120
@@ -682,6 +696,7 @@ class TestCDCSyncRequest(TestBase):
         assert c.num_entities == 0
         # get number of entities in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         log.info(f"number of entities in downstream: {c_downstream.num_entities}")
@@ -696,6 +711,7 @@ class TestCDCSyncRequest(TestBase):
         assert c.num_entities == nb
         # get number of entities in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         log.info(f"number of entities in downstream: {c_downstream.num_entities}")
@@ -756,6 +772,7 @@ class TestCDCSyncRequest(TestBase):
         assert db_name in db.list_database()
         # check database in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         timeout = 120
         t0 = time.time()
@@ -980,6 +997,7 @@ class TestCDCSyncRequest(TestBase):
         log.info(f"number of entities in upstream: {c.num_entities}")
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 360
@@ -1093,6 +1111,7 @@ class TestCDCSyncRequest(TestBase):
         assert upstream_count == upstream_entities
         # check collections in downstream
         connections.disconnect("default")
+        time.sleep(5)
         self.connect_downstream(downstream_host, downstream_port)
         c_downstream = Collection(name=collection_name)
         timeout = 120
@@ -1120,7 +1139,9 @@ class TestCDCSyncRequest(TestBase):
         downstream_index = [index.to_dict() for index in c_downstream.indexes]
         log.info(f"upstream index: {upstream_index}")
         log.info(f"downstream index: {downstream_index}")
-        assert set(upstream_index) == set(downstream_index)
+        upstream_set = {frozenset(d.items()) for d in upstream_index}
+        downstream_set = {frozenset(d.items()) for d in downstream_index}
+        assert upstream_set == downstream_set
         # check count in downstream
         downstream_count = c_downstream.query(
             expr="",
