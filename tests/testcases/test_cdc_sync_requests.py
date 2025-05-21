@@ -1,33 +1,42 @@
 import random
-
 import pytest
 import time
 import numpy as np
+from operator import itemgetter
 from datetime import datetime
 from utils.util_log import test_log as log
 from utils.utils_import import MinioSyncer
 from pymilvus import (
-    connections, list_collections,
-    Collection, Partition, db,
+    connections,
+    list_collections,
+    Collection,
+    Partition,
+    db,
     utility,
 )
 import pandas as pd
 from pymilvus.client.types import LoadState
 from pymilvus.orm.role import Role
 from pymilvus.bulk_writer import RemoteBulkWriter, BulkFileType
+from pymilvus.orm.collection import CollectionSchema, FieldSchema, Function
+from pymilvus.orm.types import DataType
+from pymilvus.client.types import FunctionType
 from base.checker import default_schema, list_partitions
 from base.client_base import TestBase
+from faker import Faker
 
 prefix = "cdc_create_task_"
 
 
 class TestCDCSyncRequest(TestBase):
-    """ Test Milvus CDC end to end """
+    """Test Milvus CDC end to end"""
 
     def connect_downstream(self, host, port, token="root:Milvus"):
         connections.connect(host=host, port=port, token=token)
 
-    def test_cdc_sync_create_collection_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_create_collection_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: create task with default params
@@ -37,7 +46,9 @@ class TestCDCSyncRequest(TestBase):
         col_list = []
         for i in range(10):
             time.sleep(0.1)
-            collection_name = prefix + "create_col_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+            collection_name = (
+                prefix + "create_col_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+            )
             col_list.append(collection_name)
         # create collections in upstream
         for col_name in col_list:
@@ -54,17 +65,25 @@ class TestCDCSyncRequest(TestBase):
         while True and time.time() - t0 < timeout:
             # get the union of col_list and list_collections
             intersection_set = set(col_list).intersection(set(list_collections()))
-            log.info(f"sync progress:{len(intersection_set) / len(col_list) * 100:.2f}%")
+            log.info(
+                f"sync progress:{len(intersection_set) / len(col_list) * 100:.2f}%"
+            )
             # collections in subset of downstream
             if set(col_list).issubset(set(list_collections())):
-                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
         assert set(col_list).issubset(set(list_collections()))
 
-    def test_cdc_sync_drop_collection_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_drop_collection_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: drop collection in upstream
@@ -74,7 +93,9 @@ class TestCDCSyncRequest(TestBase):
         col_list = []
         for i in range(10):
             time.sleep(0.1)
-            collection_name = prefix + "drop_col_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+            collection_name = (
+                prefix + "drop_col_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+            )
             col_list.append(collection_name)
         # create collections in upstream
         for col_name in col_list:
@@ -91,14 +112,20 @@ class TestCDCSyncRequest(TestBase):
         while True and time.time() - t0 < timeout:
             # get the union of col_list and list_collections
             intersection_set = set(col_list).intersection(set(list_collections()))
-            log.info(f"sync progress:{len(intersection_set) / len(col_list) * 100:.2f}%")
+            log.info(
+                f"sync progress:{len(intersection_set) / len(col_list) * 100:.2f}%"
+            )
             # collections in subset of downstream
             if set(col_list).issubset(set(list_collections())):
-                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
         assert set(col_list).issubset(set(list_collections()))
         # drop collection in upstream
         connections.disconnect("default")
@@ -116,24 +143,36 @@ class TestCDCSyncRequest(TestBase):
         while True and time.time() - t0 < timeout:
             # get the union of col_list and list_collections
             intersection_set = set(col_list).intersection(set(list_collections()))
-            log.info(f"sync progress:{(len(col_list) - len(intersection_set)) / len(col_list) * 100:.2f}%")
+            log.info(
+                f"sync progress:{(len(col_list) - len(intersection_set)) / len(col_list) * 100:.2f}%"
+            )
             # collections in subset of downstream
             if set(col_list).isdisjoint(set(list_collections())):
-                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
-        assert set(col_list).isdisjoint(set(list_collections())), f"collections in downstream {list_collections()}"
+                log.info(
+                    f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
+        assert set(col_list).isdisjoint(
+            set(list_collections())
+        ), f"collections in downstream {list_collections()}"
 
-    def test_cdc_sync_insert_entities_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_insert_entities_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: insert entities in upstream
         expected: entities in downstream is inserted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + "insert_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = (
+            prefix + "insert_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+        )
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -145,11 +184,15 @@ class TestCDCSyncRequest(TestBase):
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
                 [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
-                [[random.random() for _ in range(128)] for _ in range(nb)]
+                [[random.random() for _ in range(128)] for _ in range(nb)],
             ]
             c.insert(data)
         c.flush()
-        index_params = {"index_type": "IVF_FLAT", "params": {"nlist": 128}, "metric_type": "L2"}
+        index_params = {
+            "index_type": "IVF_FLAT",
+            "params": {"nlist": 128},
+            "metric_type": "L2",
+        }
         c.create_index("float_vector", index_params)
         c.load()
         # get number of entities in upstream
@@ -163,30 +206,40 @@ class TestCDCSyncRequest(TestBase):
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
             if time.time() - t0 > timeout:
-                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
                 break
             # get the number of entities in downstream
             if c_downstream.num_entities != nb:
-                log.info(f"sync progress:{c_downstream.num_entities / (nb*epoch) * 100:.2f}%")
+                log.info(
+                    f"sync progress:{c_downstream.num_entities / (nb*epoch) * 100:.2f}%"
+                )
             # collections in subset of downstream
-            if c_downstream.num_entities == nb*epoch:
-                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+            if c_downstream.num_entities == nb * epoch:
+                log.info(
+                    f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(10)
             try:
                 c_downstream.flush(timeout=5)
             except Exception as e:
                 log.info(f"flush err: {str(e)}")
-        assert c_downstream.num_entities == nb*epoch
+        assert c_downstream.num_entities == nb * epoch
 
-    def test_cdc_sync_upsert_entities_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_upsert_entities_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: upsert entities in upstream
         expected: entities in downstream is upserted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + "upsert_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = (
+            prefix + "upsert_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+        )
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -198,35 +251,50 @@ class TestCDCSyncRequest(TestBase):
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
                 [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
-                [[random.random() for _ in range(128)] for _ in range(nb)]
+                [[random.random() for _ in range(128)] for _ in range(nb)],
             ]
             c.insert(data)
         c.flush()
-        index_params = {"index_type": "IVF_FLAT", "params": {"nlist": 128}, "metric_type": "L2"}
+        index_params = {
+            "index_type": "IVF_FLAT",
+            "params": {"nlist": 128},
+            "metric_type": "L2",
+        }
         c.create_index("float_vector", index_params)
         # add json path index for json field
-        json_path_index_params_double = {"index_type": "INVERTED", "params": {"json_cast_type": "double",
-                                                                              "json_path": "json['number']"}}
+        json_path_index_params_double = {
+            "index_type": "INVERTED",
+            "params": {"json_cast_type": "double", "json_path": "json['number']"},
+        }
         c.create_index(field_name="json", index_params=json_path_index_params_double)
-        json_path_index_params_varchar = {"index_type": "INVERTED", "params": {"json_cast_type": "VARCHAR",
-                                                                               "json_path": "json['varchar']"}}
+        json_path_index_params_varchar = {
+            "index_type": "INVERTED",
+            "params": {"json_cast_type": "VARCHAR", "json_path": "json['varchar']"},
+        }
         c.create_index(field_name="json", index_params=json_path_index_params_varchar)
-        json_path_index_params_bool = {"index_type": "INVERTED", "params": {"json_cast_type": "Bool",
-                                                                            "json_path": "json['bool']"}}
+        json_path_index_params_bool = {
+            "index_type": "INVERTED",
+            "params": {"json_cast_type": "Bool", "json_path": "json['bool']"},
+        }
         c.create_index(field_name="json", index_params=json_path_index_params_bool)
-        json_path_index_params_not_exist = {"index_type": "INVERTED", "params": {"json_cast_type": "Double",
-                                                                                 "json_path": "json['not_exist']"}}
+        json_path_index_params_not_exist = {
+            "index_type": "INVERTED",
+            "params": {"json_cast_type": "Double", "json_path": "json['not_exist']"},
+        }
         c.load()
         # get number of entities in upstream
         log.info(f"number of entities in upstream: {c.num_entities}")
         # upsert data in upstream
         data = [
-                [i for i in range(nb)],
-                [np.float32(i) for i in range(nb)],
-                ["hello" for i in range(nb)],
-                [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb, 2*nb)],
-                [[random.random() for _ in range(128)] for _ in range(nb)]
-            ]
+            [i for i in range(nb)],
+            [np.float32(i) for i in range(nb)],
+            ["hello" for i in range(nb)],
+            [
+                {"number": i, "varchar": str(i), "bool": bool(i)}
+                for i in range(nb, 2 * nb)
+            ],
+            [[random.random() for _ in range(128)] for _ in range(nb)],
+        ]
         c.upsert(data)
         # check data has been upserted in upstream
         time.sleep(5)
@@ -242,7 +310,9 @@ class TestCDCSyncRequest(TestBase):
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if time.time() - t0 > timeout:
-                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(3)
             c_state = utility.load_state(collection_name)
@@ -255,7 +325,9 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"sync progress:{len(res) / nb * 100:.2f}%")
             # collections in subset of downstream
             if len(res) == nb:
-                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             res = c_downstream.query(f"json['number'] >= {nb}", timeout=10)
             # get the number of entities in downstream
@@ -263,19 +335,25 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"sync progress:{len(res) / nb * 100:.2f}%")
             # collections in subset of downstream
             if len(res) == nb:
-                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
         assert c_state == LoadState.Loaded
         assert len(res) == nb
 
-    def test_cdc_sync_delete_entities_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_delete_entities_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: insert entities in upstream
         expected: entities in downstream is inserted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + "delete_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = (
+            prefix + "delete_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+        )
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -287,11 +365,15 @@ class TestCDCSyncRequest(TestBase):
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
                 [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
-                [[random.random() for _ in range(128)] for _ in range(nb)]
+                [[random.random() for _ in range(128)] for _ in range(nb)],
             ]
             c.insert(data)
         c.flush()
-        index_params = {"index_type": "IVF_FLAT", "params": {"nlist": 128}, "metric_type": "L2"}
+        index_params = {
+            "index_type": "IVF_FLAT",
+            "params": {"nlist": 128},
+            "metric_type": "L2",
+        }
         c.create_index("float_vector", index_params)
         c.load()
         # get number of entities in upstream
@@ -310,7 +392,9 @@ class TestCDCSyncRequest(TestBase):
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if time.time() - t0 > timeout:
-                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(3)
             c_state = utility.load_state(collection_name)
@@ -323,27 +407,35 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"sync progress:{(100-len(res)) / 100 * 100:.2f}%")
             # collections in subset of downstream
             if len(res) == 0:
-                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
         c_state = utility.load_state(collection_name)
         assert c_state == LoadState.Loaded
         assert len(res) == 0
 
-    def test_cdc_sync_create_partition_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_create_partition_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: upsert entities in upstream
         expected: entities in downstream is deleted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + "create_par_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = (
+            prefix + "create_par_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+        )
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # create partition in upstream
         for i in range(10):
             Partition(collection=c, name=f"partition_{i}")
         # check partitions in upstream
-        assert set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c)))
+        assert set([f"partition_{i}" for i in range(10)]).issubset(
+            set(list_partitions(c))
+        )
         # check collections in downstream
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
@@ -353,29 +445,43 @@ class TestCDCSyncRequest(TestBase):
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
-            if set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c_downstream))):
-                log.info(f"partition synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+            if set([f"partition_{i}" for i in range(10)]).issubset(
+                set(list_partitions(c_downstream))
+            ):
+                log.info(
+                    f"partition synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"partition synced in downstream failed with timeout: {time.time() - t0:.2f}s")
-        assert set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c_downstream)))
+                log.info(
+                    f"partition synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
+        assert set([f"partition_{i}" for i in range(10)]).issubset(
+            set(list_partitions(c_downstream))
+        )
 
-    def test_cdc_sync_drop_partition_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_drop_partition_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: upsert entities in upstream
         expected: entities in downstream is deleted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + "drop_par_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = (
+            prefix + "drop_par_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+        )
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # create partition in upstream
         for i in range(10):
             Partition(collection=c, name=f"partition_{i}")
         # check partitions in upstream
-        assert set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c)))
+        assert set([f"partition_{i}" for i in range(10)]).issubset(
+            set(list_partitions(c))
+        )
         # check collections in downstream
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
@@ -385,20 +491,30 @@ class TestCDCSyncRequest(TestBase):
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
             #
-            if set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c_downstream))):
-                log.info(f"partition synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+            if set([f"partition_{i}" for i in range(10)]).issubset(
+                set(list_partitions(c_downstream))
+            ):
+                log.info(
+                    f"partition synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"partition synced in downstream failed with timeout: {time.time() - t0:.2f}s")
-        assert set([f"partition_{i}" for i in range(10)]).issubset(set(list_partitions(c_downstream)))
+                log.info(
+                    f"partition synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
+        assert set([f"partition_{i}" for i in range(10)]).issubset(
+            set(list_partitions(c_downstream))
+        )
 
         # drop partition in upstream
         connections.disconnect("default")
         connections.connect(host=upstream_host, port=upstream_port)
         for i in range(10):
             Partition(collection=c, name=f"partition_{i}").drop()
-        assert set([f"partition_{i}" for i in range(10)]).isdisjoint(set(list_partitions(c)))
+        assert set([f"partition_{i}" for i in range(10)]).isdisjoint(
+            set(list_partitions(c))
+        )
         # check collections in downstream
         connections.disconnect("default")
         self.connect_downstream(downstream_host, downstream_port)
@@ -407,24 +523,36 @@ class TestCDCSyncRequest(TestBase):
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
-            if set([f"partition_{i}" for i in range(10)]).isdisjoint(set(list_partitions(c_downstream))):
-                log.info(f"partition synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+            if set([f"partition_{i}" for i in range(10)]).isdisjoint(
+                set(list_partitions(c_downstream))
+            ):
+                log.info(
+                    f"partition synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             c_downstream = Collection(name=collection_name)
             if time.time() - t0 > timeout:
-                log.info(f"partition synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"partition synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
         log.info(f"partitions in downstream {list_partitions(c_downstream)}")
-        assert set([f"partition_{i}" for i in range(10)]).isdisjoint(set(list_partitions(c_downstream)))
+        assert set([f"partition_{i}" for i in range(10)]).isdisjoint(
+            set(list_partitions(c_downstream))
+        )
 
-    def test_cdc_sync_create_index_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_create_index_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: upsert entities in upstream
         expected: entities in downstream is deleted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + "create_idx_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = (
+            prefix + "create_idx_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+        )
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -436,11 +564,15 @@ class TestCDCSyncRequest(TestBase):
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
                 [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
-                [[random.random() for _ in range(128)] for _ in range(nb)]
+                [[random.random() for _ in range(128)] for _ in range(nb)],
             ]
             c.insert(data)
         c.flush()
-        index_params = {"index_type": "IVF_FLAT", "params": {"nlist": 128}, "metric_type": "L2"}
+        index_params = {
+            "index_type": "IVF_FLAT",
+            "params": {"nlist": 128},
+            "metric_type": "L2",
+        }
         c.create_index("float_vector", index_params)
         assert len(c.indexes) == 1
         # check collections in downstream
@@ -452,13 +584,19 @@ class TestCDCSyncRequest(TestBase):
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
             if len(c_downstream.indexes) == 1:
-                log.info(f"index synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"index synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"index synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"index synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
 
-    def test_cdc_sync_drop_index_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_drop_index_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: upsert entities in upstream
@@ -466,7 +604,9 @@ class TestCDCSyncRequest(TestBase):
         """
 
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + "drop_idx_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = (
+            prefix + "drop_idx_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+        )
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -478,11 +618,15 @@ class TestCDCSyncRequest(TestBase):
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
                 [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
-                [[random.random() for _ in range(128)] for _ in range(nb)]
+                [[random.random() for _ in range(128)] for _ in range(nb)],
             ]
             c.insert(data)
         c.flush()
-        index_params = {"index_type": "IVF_FLAT", "params": {"nlist": 128}, "metric_type": "L2"}
+        index_params = {
+            "index_type": "IVF_FLAT",
+            "params": {"nlist": 128},
+            "metric_type": "L2",
+        }
         c.create_index("float_vector", index_params)
         assert len(c.indexes) == 1
         # check collections in downstream
@@ -494,11 +638,15 @@ class TestCDCSyncRequest(TestBase):
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
             if len(c_downstream.indexes) == 1:
-                log.info(f"index synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"index synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"index synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"index synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
 
         # drop index in upstream
         connections.disconnect("default")
@@ -514,21 +662,29 @@ class TestCDCSyncRequest(TestBase):
         while True and time.time() - t0 < timeout:
             # collections in subset of downstream
             if len(c_downstream.indexes) == 0:
-                log.info(f"index synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"index synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"index synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"index synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
         assert len(c_downstream.indexes) == 0
 
-    def test_cdc_sync_load_and_release_collection_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_load_and_release_collection_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: upsert entities in upstream
         expected: entities in downstream is deleted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + "load_release_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = (
+            prefix + "load_release_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+        )
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -540,11 +696,15 @@ class TestCDCSyncRequest(TestBase):
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
                 [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
-                [[random.random() for _ in range(128)] for _ in range(nb)]
+                [[random.random() for _ in range(128)] for _ in range(nb)],
             ]
             c.insert(data)
         c.flush()
-        index_params = {"index_type": "IVF_FLAT", "params": {"nlist": 128}, "metric_type": "L2"}
+        index_params = {
+            "index_type": "IVF_FLAT",
+            "params": {"nlist": 128},
+            "metric_type": "L2",
+        }
         c.create_index("float_vector", index_params)
         assert len(c.indexes) == 1
         c.load()
@@ -565,11 +725,15 @@ class TestCDCSyncRequest(TestBase):
                 continue
             if len(res.groups) == 1:
                 log.info(f"replicas num in downstream: {len(res.groups)}")
-                log.info(f"replicas synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"replicas synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"replicas synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"replicas synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
 
         # release replicas in upstream
         connections.disconnect("default")
@@ -590,21 +754,29 @@ class TestCDCSyncRequest(TestBase):
             c_state = utility.load_state(collection_name)
             if c_state == LoadState.NotLoad:
                 log.info("replicas released in downstream successfully")
-                log.info(f"replicas synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"replicas synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"replicas synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"replicas synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
         assert c_state == LoadState.NotLoad, f"downstream collection state is {c_state}"
 
-    def test_cdc_sync_flush_collection_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_flush_collection_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: upsert entities in upstream
         expected: entities in downstream is deleted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + "flush_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = (
+            prefix + "flush_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+        )
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -616,7 +788,7 @@ class TestCDCSyncRequest(TestBase):
                 [np.float32(i) for i in range(nb)],
                 [str(i) for i in range(nb)],
                 [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
-                [[random.random() for _ in range(128)] for _ in range(nb)]
+                [[random.random() for _ in range(128)] for _ in range(nb)],
             ]
             c.insert(data)
         # get number of entities in upstream
@@ -649,15 +821,21 @@ class TestCDCSyncRequest(TestBase):
                 log.info(f"sync progress:{c_downstream.num_entities / nb * 100:.2f}%")
             # collections in subset of downstream
             if c_downstream.num_entities == nb:
-                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
         c_downstream.flush(timeout=10)
         log.info(f"number of entities in downstream: {c_downstream.num_entities}")
 
-    def test_cdc_sync_create_database_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_create_database_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: upsert entities in upstream
@@ -665,7 +843,7 @@ class TestCDCSyncRequest(TestBase):
         """
         # create database in upstream
         connections.connect(host=upstream_host, port=upstream_port)
-        db_name = "db_create_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        db_name = "db_create_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
         db.create_database(db_name)
         log.info(f"database in upstream {db.list_database()}")
         assert db_name in db.list_database()
@@ -676,15 +854,21 @@ class TestCDCSyncRequest(TestBase):
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if db_name in db.list_database():
-                log.info(f"database synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"database synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"database synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"database synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
         log.info(f"database in downstream {db.list_database()}")
         assert db_name in db.list_database()
 
-    def test_cdc_sync_drop_database_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_drop_database_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc default
         method: upsert entities in upstream
@@ -692,7 +876,7 @@ class TestCDCSyncRequest(TestBase):
         """
         # create database in upstream
         connections.connect(host=upstream_host, port=upstream_port)
-        db_name = "db_drop_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        db_name = "db_drop_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
         db.create_database(db_name)
         log.info(f"database in upstream {db.list_database()}")
         assert db_name in db.list_database()
@@ -703,11 +887,15 @@ class TestCDCSyncRequest(TestBase):
         t0 = time.time()
         while True and time.time() - t0 < timeout:
             if db_name in db.list_database():
-                log.info(f"database synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"database synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"database synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"database synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
         log.info(f"database in downstream {db.list_database()}")
         assert db_name in db.list_database()
 
@@ -723,15 +911,21 @@ class TestCDCSyncRequest(TestBase):
         t0 = time.time()
         while time.time() - t0 < timeout:
             if db_name not in db.list_database():
-                log.info(f"database synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"database synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             if time.time() - t0 > timeout:
-                log.info(f"database synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"database synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
         log.info(f"database in downstream {db.list_database()}")
         assert db_name not in db.list_database()
 
-    def test_cdc_sync_rbac_request(self, upstream_host, upstream_port, downstream_host, downstream_port):
+    def test_cdc_sync_rbac_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port
+    ):
         """
         target: test cdc rbac replicate
         """
@@ -763,13 +957,17 @@ class TestCDCSyncRequest(TestBase):
                 time.sleep(2)
                 continue
             roleinfo = utility.list_roles(True)
-            role_list = [role for role in roleinfo.groups if role.role_name == role_name]
+            role_list = [
+                role for role in roleinfo.groups if role.role_name == role_name
+            ]
             if len(role_list) != 1:
                 time.sleep(2)
                 continue
             role = Role(role_name)
             grantinfo = role.list_grant("Global", "*")
-            grant_list = [grant for grant in grantinfo.groups if grant.privilege == privilege]
+            grant_list = [
+                grant for grant in grantinfo.groups if grant.privilege == privilege
+            ]
             if len(grant_list) != 1:
                 time.sleep(2)
                 continue
@@ -785,7 +983,9 @@ class TestCDCSyncRequest(TestBase):
         success_update = False
         while time.time() - t0 < timeout:
             try:
-                self.connect_downstream(downstream_host, downstream_port, f"{username}:{new_password}")
+                self.connect_downstream(
+                    downstream_host, downstream_port, f"{username}:{new_password}"
+                )
                 success_update = True
             except Exception:
                 connections.disconnect("default")
@@ -814,7 +1014,9 @@ class TestCDCSyncRequest(TestBase):
                 time.sleep(1)
                 continue
             roleinfo = utility.list_roles(True)
-            role_list = [role for role in roleinfo.groups if role.role_name == role_name]
+            role_list = [
+                role for role in roleinfo.groups if role.role_name == role_name
+            ]
             if len(role_list) != 0:
                 time.sleep(1)
                 continue
@@ -824,15 +1026,27 @@ class TestCDCSyncRequest(TestBase):
 
     @pytest.mark.skip(reason="TODO: support import in milvus2.5")
     @pytest.mark.parametrize("file_type", ["json", "parquet"])
-    def test_cdc_sync_import_entities_request(self, upstream_host, upstream_port, downstream_host, downstream_port, file_type,
-        upstream_minio_endpoint, downstream_minio_endpoint, upstream_minio_bucket_name, downstream_minio_bucket_name):
+    def test_cdc_sync_import_entities_request(
+        self,
+        upstream_host,
+        upstream_port,
+        downstream_host,
+        downstream_port,
+        file_type,
+        upstream_minio_endpoint,
+        downstream_minio_endpoint,
+        upstream_minio_bucket_name,
+        downstream_minio_bucket_name,
+    ):
         """
         target: test cdc default
         method: import entities in upstream
         expected: entities in downstream is inserted
         """
         connections.connect(host=upstream_host, port=upstream_port)
-        collection_name = prefix + "import_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+        collection_name = (
+            prefix + "import_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+        )
         c = Collection(name=collection_name, schema=default_schema)
         log.info(f"create collection {collection_name} in upstream")
         # insert data to upstream
@@ -842,8 +1056,12 @@ class TestCDCSyncRequest(TestBase):
                 "int64": [i for i in range(nb)],
                 "float": [np.float32(i) for i in range(nb)],
                 "varchar": [str(i) for i in range(nb)],
-                "json": [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
-                "float_vector": [[random.random() for _ in range(128)] for _ in range(nb)]
+                "json": [
+                    {"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)
+                ],
+                "float_vector": [
+                    [random.random() for _ in range(128)] for _ in range(nb)
+                ],
             }
         )
         with RemoteBulkWriter(
@@ -855,7 +1073,9 @@ class TestCDCSyncRequest(TestBase):
                 access_key="minioadmin",
                 secret_key="minioadmin",
             ),
-            file_type=BulkFileType.JSON if file_type == "json" else BulkFileType.PARQUET,
+            file_type=(
+                BulkFileType.JSON if file_type == "json" else BulkFileType.PARQUET
+            ),
         ) as remote_writer:
             for _, row in data.iterrows():
                 remote_writer.append_row(row.to_dict())
@@ -870,17 +1090,21 @@ class TestCDCSyncRequest(TestBase):
             dst_endpoint=downstream_minio_endpoint,
             dst_access_key="minioadmin",
             dst_secret_key="minioadmin",
-            secure=False
+            secure=False,
         )
         # Sync only the specific files generated by RemoteBulkWriter
-        all_files = [file for batch in files for file in batch]  # Flatten the list of files
+        all_files = [
+            file for batch in files for file in batch
+        ]  # Flatten the list of files
         success, errors, skipped = syncer.sync_files(
             src_bucket=upstream_minio_bucket_name,
             dst_bucket=downstream_minio_bucket_name,
-            files=all_files
+            files=all_files,
         )
 
-        print(f"Sync completed: {success} files synced successfully, {skipped} files skipped, {errors} errors encountered")
+        print(
+            f"Sync completed: {success} files synced successfully, {skipped} files skipped, {errors} errors encountered"
+        )
 
         # import data using bulk insert
         for f in files:
@@ -896,7 +1120,11 @@ class TestCDCSyncRequest(TestBase):
             assert states.state == utility.BulkInsertState.ImportCompleted
 
         c.flush()
-        index_params = {"index_type": "IVF_FLAT", "params": {"nlist": 128}, "metric_type": "L2"}
+        index_params = {
+            "index_type": "IVF_FLAT",
+            "params": {"nlist": 128},
+            "metric_type": "L2",
+        }
         c.create_index("float_vector", index_params)
         c.load()
         # get number of entities in upstream
@@ -910,14 +1138,18 @@ class TestCDCSyncRequest(TestBase):
         log.info(f"all collections in downstream {list_collections()}")
         while True and time.time() - t0 < timeout:
             if time.time() - t0 > timeout:
-                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
                 break
             # get the number of entities in downstream
             if c_downstream.num_entities != nb:
                 log.info(f"sync progress:{c_downstream.num_entities / (nb) * 100:.2f}%")
             # collections in subset of downstream
             if c_downstream.num_entities == nb:
-                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                log.info(
+                    f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
                 break
             time.sleep(1)
             try:
@@ -925,3 +1157,213 @@ class TestCDCSyncRequest(TestBase):
             except Exception as e:
                 log.info(f"flush err: {str(e)}")
         assert c_downstream.num_entities == nb
+
+    @pytest.mark.parametrize("nullable", [True])
+    def test_cdc_sync_insert_with_full_datatype_request(
+        self, upstream_host, upstream_port, downstream_host, downstream_port, nullable
+    ):
+        """
+        target: test cdc default
+        method: insert entities in upstream
+        expected: entities in downstream is inserted
+        """
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
+        collection_name = (
+            prefix + "insert_" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+        )
+        fields = [
+            FieldSchema(
+                name="id",
+                dtype=DataType.INT64,
+                is_primary=True,
+                auto_id=True,
+                description="id",
+            ),
+            FieldSchema(
+                name="int64",
+                dtype=DataType.INT64,
+                nullable=nullable,
+                description="int64",
+            ),
+            FieldSchema(
+                name="float",
+                dtype=DataType.FLOAT,
+                nullable=nullable,
+                description="float",
+            ),
+            FieldSchema(
+                name="varchar",
+                dtype=DataType.VARCHAR,
+                max_length=1024,
+                nullable=nullable,
+                enable_match=True,
+                enable_analyzer=True,
+                description="varchar",
+            ),
+            FieldSchema(
+                name="text",
+                dtype=DataType.VARCHAR,
+                max_length=1024,
+                enable_match=True,
+                enable_analyzer=True,
+                description="text",
+            ),
+            FieldSchema(
+                name="json", dtype=DataType.JSON, nullable=nullable, description="json"
+            ),
+            FieldSchema(
+                name="bool", dtype=DataType.BOOL, nullable=nullable, description="bool"
+            ),
+            FieldSchema(
+                name="array",
+                dtype=DataType.ARRAY,
+                element_type=DataType.INT64,
+                nullable=nullable,
+                max_capacity=10,
+                description="array",
+            ),
+            FieldSchema(
+                name="float_embedding",
+                dtype=DataType.FLOAT_VECTOR,
+                dim=128,
+                description="float_embedding",
+            ),
+            FieldSchema(
+                name="binary_embedding",
+                dtype=DataType.BINARY_VECTOR,
+                dim=128,
+                description="binary_embedding",
+            ),
+            FieldSchema(
+                name="sparse_vector",
+                dtype=DataType.SPARSE_FLOAT_VECTOR,
+                description="sparse_vector",
+            ),
+            FieldSchema(
+                name="bm25_sparse",
+                dtype=DataType.SPARSE_FLOAT_VECTOR,
+                description="bm25_sparse",
+            ),
+        ]
+        bm25_func = Function(
+            name="bm25",
+            function_type=FunctionType.BM25,
+            input_field_names=["text"],
+            output_field_names=["bm25_sparse"],
+            params={},
+        )
+        schema = CollectionSchema(fields, "test collection")
+        schema.add_function(bm25_func)
+        c = Collection(name=collection_name, schema=schema)
+        log.info(f"create collection {collection_name} in upstream")
+        # insert data to upstream
+        nb = 3000
+        fake = Faker()
+        data = [
+            {
+                "int64": i,
+                "float": np.float32(i),
+                "varchar": fake.sentence(),
+                "text": fake.text(),
+                "json": {"number": i, "varchar": str(i), "bool": bool(i)},
+                "bool": bool(i),
+                "array": [i for _ in range(10)],
+                "float_embedding": [random.random() for _ in range(128)],
+                "binary_embedding": [random.randint(0, 255) for _ in range(128 // 8)],
+                "sparse_vector": {1: 0.5, 100: 0.3, 500: 0.8, 1024: 0.2, 5000: 0.6},
+            }
+            for i in range(nb)
+        ]
+        c.insert(data)
+        # add null data
+        data = [
+            {
+                "int64": None,
+                "float": None,
+                "varchar": None,
+                "text": fake.text(),
+                "json": None,
+                "bool": None,
+                "array": [],
+                "float_embedding": [random.random() for _ in range(128)],
+                "binary_embedding": [random.randint(0, 255) for _ in range(128 // 8)],
+                "sparse_vector": {1: 0.5, 100: 0.3, 500: 0.8, 1024: 0.2, 5000: 0.6},
+            }
+            for i in range(nb)
+        ]
+        c.insert(data)
+        c.flush(timeout=60)
+        float_emb_index_params = {
+            "index_type": "HNSW",
+            "params": {"M": 128, "efConstruction": 128},
+            "metric_type": "L2",
+        }
+        binary_emb_index_params = {
+            "index_type": "BIN_IVF_FLAT",
+            "params": {"nlist": 128},
+            "metric_type": "HAMMING",
+        }
+        sparse_index_params = {
+            "index_type": "SPARSE_INVERTED_INDEX",
+            "params": {},
+            "metric_type": "IP",
+        }
+        bm25_index_params = {
+            "index_type": "SPARSE_INVERTED_INDEX",
+            "params": {"k1": 1.2, "b": 0.75},
+            "metric_type": "BM25",
+        }
+        c.create_index("float_embedding", float_emb_index_params)
+        c.create_index("binary_embedding", binary_emb_index_params)
+        c.create_index("sparse_vector", sparse_index_params)
+        c.create_index("bm25_sparse", bm25_index_params)
+        c.load()
+        # get number of entities in upstream
+        log.info(f"number of entities in upstream: {c.num_entities}")
+        upstream_entities = c.num_entities
+        upstream_index = [index.to_dict() for index in c.indexes]
+        upstream_count = c.query(expr="", output_fields=["count(*)"])[0]["count(*)"]
+        assert upstream_count == upstream_entities
+        # check collections in downstream
+        connections.disconnect("default")
+        self.connect_downstream(downstream_host, downstream_port)
+        c_downstream = Collection(name=collection_name)
+        timeout = 120
+        t0 = time.time()
+        log.info(f"all collections in downstream {list_collections()}")
+        while True and time.time() - t0 < timeout:
+            if time.time() - t0 > timeout:
+                log.info(
+                    f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s"
+                )
+                break
+            # get the number of entities in downstream
+            if c_downstream.num_entities != upstream_entities:
+                log.info(
+                    f"sync progress:{c_downstream.num_entities / upstream_entities * 100:.2f}%"
+                )
+            # collections in subset of downstream
+            if c_downstream.num_entities == upstream_entities:
+                log.info(
+                    f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s"
+                )
+                break
+            time.sleep(10)
+            try:
+                c_downstream.flush(timeout=60)
+            except Exception as e:
+                log.info(f"flush err: {str(e)}")
+        assert c_downstream.num_entities == upstream_entities
+
+        # check index in downstream
+        downstream_index = [index.to_dict() for index in c_downstream.indexes]
+        assert sorted(
+            upstream_index, key=itemgetter("collection", "field", "index_name")
+        ) == sorted(
+            downstream_index, key=itemgetter("collection", "field", "index_name")
+        )
+        # check count in downstream
+        downstream_count = c_downstream.query(expr="", output_fields=["count(*)"])[
+            "count(*)"
+        ][0]
+        assert downstream_count == upstream_count
