@@ -1139,9 +1139,9 @@ class TestCDCSyncRequest(TestBase):
         downstream_index = [index.to_dict() for index in c_downstream.indexes]
         log.info(f"upstream index: {upstream_index}")
         log.info(f"downstream index: {downstream_index}")
-        upstream_set = {frozenset(d.items()) for d in upstream_index}
-        downstream_set = {frozenset(d.items()) for d in downstream_index}
-        assert upstream_set == downstream_set
+        upstream_index.sort(key=lambda x: x["index_name"])
+        downstream_index.sort(key=lambda x: x["index_name"])
+        assert upstream_index == downstream_index
         # check count in downstream
         downstream_count = c_downstream.query(
             expr="",
