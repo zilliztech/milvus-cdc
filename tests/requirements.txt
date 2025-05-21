@@ -1,4 +1,3 @@
---extra-index-url https://test.pypi.org/simple/
 pytest-cov==2.8.1
 requests==2.32.2
 scikit-learn==1.5.1
@@ -12,8 +11,8 @@ allure-pytest==2.7.0
 pytest-print==0.2.1
 pytest-level==0.1.1
 pytest-xdist==2.5.0
-pymilvus==2.6.0rc93
-pymilvus[bulk_writer]==2.6.0rc93
+pymilvus==2.5.8
+pymilvus[bulk_writer]==2.5.8
 pytest-rerunfailures==9.1.1
 ndg-httpsclient
 pyopenssl
