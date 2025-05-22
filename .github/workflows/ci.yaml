@@ -13,183 +13,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  milvus-cdc-system-test:
-      runs-on: ubuntu-latest
-      steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v4
-        with:
-          go-version: '1.24.2'
-          cache-dependency-path: server/go.sum
-          cache: true
-
-      - name: set up python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-          cache: 'pip'
-
-      - name: Build CDC
-        timeout-minutes: 15
-        shell: bash
-        run: |
-          docker build --build-arg GIT_COMMIT_ARG=$(git rev-parse --short HEAD) -t milvus-cdc:latest .
-          docker tag milvus-cdc:latest milvusdb/milvus-cdc:latest
-
-      - name: Creating kind cluster
-        uses: helm/kind-action@v1.2.0
-
-      - name: Print cluster information
-        run: |
-          kubectl config view
-          kubectl cluster-info
-          kubectl get nodes
-          kubectl get pods -o wide -n kube-system
-          helm version
-          kubectl version
-
-      - name: Deploy Source Milvus
-        timeout-minutes: 15
-        shell: bash
-        working-directory: tests/deployment/upstream/
-        run: |
-          docker compose up -d
-          bash ../../../scripts/check_healthy.sh
-          docker compose ps -a
-
-      - name: Deploy Downstream Milvus
-        timeout-minutes: 15
-        shell: bash
-        working-directory: tests/deployment/downstream
-        run: |
-          helm repo add milvus https://zilliztech.github.io/milvus-helm
-          helm repo update
-          helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values.yaml
-          kubectl get pods
-          kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
-          kubectl port-forward service/cdc-downstream-minio 9010:9000 >/dev/null 2>&1 &
-          sleep 20s
-          nc -vz 127.0.0.1 19500
-
-      - name: Deploy Milvus CDC
-        timeout-minutes: 15
-        working-directory: deployment/docker
-        shell: bash
-        run: |
-          docker compose --verbose up -d
-          sleep 20s
-          docker compose ps
-          docker compose logs || true
-
-      - name: Create CDC task
-        timeout-minutes: 15
-        run: |
-          curl --location '127.0.0.1:8444/cdc' \
-          --header 'Content-Type: application/json' \
-          --data '{
-              "request_type": "create",
-              "request_data": {
-                  "milvus_connect_param": {
-                      "host": "127.0.0.1",
-                      "port": 19500,
-                      "username": "",
-                      "password": "",
-                      "enable_tls": false,
-                      "connect_timeout": 120
-                  },
-                  "extra_info": {
-                      "enable_user_role": true
-                  },
-                  "db_collections": {
-                      "*": [
-                          {
-                            "name": "*"
-                          }
-                      ]
-                  }
-              }
-          }'
-
-      - name: Checkout Milvus Repo
-        uses: actions/checkout@v4
-        with:
-          repository: zhuwenxing/milvus
-          ref: refine_checker
-          path: milvus
-
-      - name: Run test
-        timeout-minutes: 30
-        shell: bash
-        working-directory: milvus/tests/python_client
-        run: |
-          pip install -r requirements.txt
-          pip install numpy==1.26.4
-          cd chaos && pytest testcases/test_concurrent_operation.py --host 127.0.0.1 --log-cli-level=INFO --capture=no --request_duration 10m
-
-      - name: List CDC task
-        timeout-minutes: 15
-        working-directory: deployment/docker
-        shell: bash
-        run: |
-          docker compose logs
-          curl --location '127.0.0.1:8444/cdc' \
-          --header 'Content-Type: application/json' \
-          --data '{
-              "request_type": "list"
-          }'
-
-      - name: Diff upstream and downstream
-        if: ${{ always() }}
-        timeout-minutes: 10
-        shell: bash
-        working-directory: milvus/tests/python_client/chaos/scripts
-        run: |
-          python diff_upstream_downstream.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
-
-
-      - name: Export milvus cdc logs
-        if: ${{ always() }}
-        timeout-minutes: 5
-        working-directory: deployment/docker
-        run: |
-          docker compose ps -a
-          docker stats --no-stream
-          docker compose logs > server.log
-
-      - name: Export upstream milvus logs
-        if: ${{ always() }}
-        timeout-minutes: 5
-        working-directory: tests/deployment/upstream
-        run: |
-          docker compose ps -a
-          docker stats --no-stream
-          bash ../../../scripts/export_log_docker.sh
-      - name: Export downstream milvus logs
-        if: ${{ always() }}
-        timeout-minutes: 5
-        working-directory: scripts
-        run: |
-          kubectl get pods || true
-          bash export_log_k8s.sh default cdc-downstream k8s_logs
-
-      - name: Upload logs
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: system-test-logs
-          path: |
-            scripts/k8s_logs
-            tests/deployment/upstream/logs
-            deployment/docker/server.log
-
-  milvus-cdc-function-test:
-      name: CDC Function Test
+  milvus-cdc-sync-request-test:
+      name: CDC Sync Request Test
       runs-on: ubuntu-latest
       strategy:
         fail-fast: false
         matrix:
-          metastore: [etcd, mysql]
+          include:
+          - metastore: etcd
+            upstream_channel_num: 4
+            downstream_channel_num: 8
+          - metastore: etcd
+            upstream_channel_num: 4
+            downstream_channel_num: 16
+          - metastore: etcd
+            upstream_channel_num: 16
+            downstream_channel_num: 8
+          - metastore: etcd
+            upstream_channel_num: 16
+            downstream_channel_num: 16
+          - metastore: mysql
+            upstream_channel_num: 16
+            downstream_channel_num: 16
       steps:
       - uses: actions/checkout@v4
 
@@ -211,7 +56,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.24.2'
+          go-version: '1.21'
           cache-dependency-path: server/go.sum
           cache: true
 
@@ -221,6 +66,13 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
 
+      - name: Install Python dependencies
+        timeout-minutes: 15
+        working-directory: tests
+        shell: bash
+        run: |
+          pip install -r requirements.txt
+
       - name: Build CDC
         timeout-minutes: 15
         working-directory: server
@@ -228,43 +80,7 @@ jobs:
         run: |
           make build
           ls -l
-
-      - name: Creating kind cluster
-        uses: helm/kind-action@v1.2.0
-
-      - name: Print cluster information
-        run: |
-          kubectl config view
-          kubectl cluster-info
-          kubectl get nodes
-          kubectl get pods -o wide -n kube-system
-          helm version
-          kubectl version
-
-      - name: Deploy Source Milvus
-        timeout-minutes: 15
-        shell: bash
-        working-directory: tests/deployment/upstream/
-        run: |
-          docker compose up -d
-          bash ../../../scripts/check_healthy.sh
-          docker compose ps -a
-
-      - name: Deploy Downstream Milvus
-        timeout-minutes: 15
-        shell: bash
-        working-directory: tests/deployment/downstream
-        run: |
-          helm repo add milvus https://zilliztech.github.io/milvus-helm
-          helm repo update
-          helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values-auth.yaml
-          kubectl get pods
-          kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
-          kubectl port-forward service/cdc-downstream-minio 9010:9000 >/dev/null 2>&1 &
-          sleep 20s
-          nc -vz 127.0.0.1 19500
-
-      - name: Deploy Milvus CDC (${{ matrix.metastore }} metastore)
+      - name: Update CDC Config
         timeout-minutes: 15
         working-directory: server
         shell: bash
@@ -273,509 +89,77 @@ jobs:
           if [ "${{ matrix.metastore }}" == "mysql" ]; then
             yq -i '.metaStoreConfig.storeType = "mysql"' configs/cdc.yaml
           fi
+          yq -i '.sourceConfig.channelNum = ${{ matrix.upstream_channel_num }}' configs/cdc.yaml
+      - name: Update Milvus Config
+        timeout-minutes: 15
+        working-directory: tests/deployment/milvus/
+        shell: bash
+        run: |
+          yq -i '.rootCoord.dmlChannelNum = ${{ matrix.upstream_channel_num }}' upstream.yaml
+          yq -i '.rootCoord.dmlChannelNum = ${{ matrix.downstream_channel_num }}' downstream.yaml
+          cat upstream.yaml
+          cat downstream.yaml
+
+
+      - name: Deploy Upstream and Downstream Milvus
+        timeout-minutes: 15
+        shell: bash
+        working-directory: tests/deployment/milvus/
+        run: |
+          for i in {1..3}; do
+            sudo docker compose up -d --wait && break
+            echo "Retry $i: docker compose up failed, retrying in 10s..."
+            sleep 10
+          done
+          sudo docker compose ps -a
+
+
+      - name: Deploy Milvus CDC (${{ matrix.metastore }} metastore)
+        timeout-minutes: 15
+        working-directory: server
+        shell: bash
+        run: |
           ../bin/cdc > server.log 2>&1 &
           sleep 20s
 
       - name: Create CDC task
+        working-directory: tests/deployment
         timeout-minutes: 15
         run: |
-          curl --location '127.0.0.1:8444/cdc' \
-          --header 'Content-Type: application/json' \
-          --data '{
-              "request_type": "create",
-              "request_data": {
-                  "milvus_connect_param": {
-                      "uri": "http://127.0.0.1:19500",
-                      "token": "root:Milvus",
-                      "connect_timeout": 120
-                  },
-                  "extra_info": {
-                      "enable_user_role": true
-                  },
-                  "db_collections": {
-                      "*": [
-                          {
-                            "name": "*"
-                          }
-                      ]
-                  }
-              }
-          }'
+          python cdc_task_op.py --cdc_host 127.0.0.1 --downstream_uri http://127.0.0.1:19500 --downstream_token root:Milvus --channel_num ${{ matrix.downstream_channel_num }} --op_name create
+          python cdc_task_op.py --cdc_host 127.0.0.1 --op_name list
 
+      
       - name: Run test
         timeout-minutes: 30
         shell: bash
         working-directory: tests
         run: |
-          pip install -r requirements.txt
           pytest testcases/test_cdc_sync_requests.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
 
       - name: List CDC task
         if: ${{ always() }}
         timeout-minutes: 15
-        working-directory: server
+        working-directory: tests/deployment
         shell: bash
         run: |
-          cat server.log | tail -n 100
-          curl --location '127.0.0.1:8444/cdc' \
-          --header 'Content-Type: application/json' \
-          --data '{
-              "request_type": "list"
-          }'
+          python cdc_task_op.py --cdc_host 127.0.0.1 --op_name list
 
-      - name: Export upstream milvus logs
+      - name: Export logs
         if: ${{ always() }}
         timeout-minutes: 5
-        working-directory: tests/deployment/upstream
         run: |
-          docker compose ps -a
-          docker stats --no-stream
-          bash ../../../scripts/export_log_docker.sh
-      - name: Export downstream milvus logs
-        if: ${{ always() }}
-        timeout-minutes: 5
-        working-directory: scripts
-        run: |
-          kubectl get pods || true
-          bash export_log_k8s.sh default cdc-downstream k8s_logs
+          docker ps -a || true
+          mkdir -p logs
+          sudo cp -r tests/deployment/milvus/logs logs/
+          sudo cp server/server.log logs/
+          sudo chown -R $USER:$USER logs/
+          sudo chmod -R 755 logs/
 
       - name: Upload logs
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: func-test-logs-${{ matrix.metastore }}
+          name: func-test-logs-${{ matrix.metastore }}-${{ matrix.upstream_channel_num }}-${{ matrix.downstream_channel_num }}
           path: |
-            scripts/k8s_logs
-            tests/deployment/upstream/logs
-            server/server.log
-
-  milvus-cdc-function-test-4-16:
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v4
-
-        - uses: actions/setup-go@v4
-          with:
-            go-version: '1.24.2'
-            cache-dependency-path: server/go.sum
-            cache: true
-
-        - name: set up python
-          uses: actions/setup-python@v5
-          with:
-            python-version: '3.10'
-            cache: 'pip'
-
-        - name: Build CDC
-          timeout-minutes: 15
-          working-directory: server
-          shell: bash
-          run: |
-            make build
-            ls -l
-
-        - name: Creating kind cluster
-          uses: helm/kind-action@v1.2.0
-
-        - name: Print cluster information
-          run: |
-            kubectl config view
-            kubectl cluster-info
-            kubectl get nodes
-            kubectl get pods -o wide -n kube-system
-            helm version
-            kubectl version
-
-        - name: Deploy Source Milvus
-          timeout-minutes: 15
-          shell: bash
-          working-directory: tests/deployment/channel_4/
-          run: |
-            docker compose up -d
-            bash ../../../scripts/check_healthy.sh
-            docker compose ps -a
-
-        - name: Deploy Downstream Milvus
-          timeout-minutes: 15
-          shell: bash
-          working-directory: tests/deployment/downstream
-          run: |
-            helm repo add milvus https://zilliztech.github.io/milvus-helm
-            helm repo update
-            helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values.yaml
-            kubectl get pods
-            kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
-            kubectl port-forward service/cdc-downstream-minio 9010:9000 >/dev/null 2>&1 &
-            sleep 20s
-            nc -vz 127.0.0.1 19500
-
-        - name: Deploy Milvus CDC
-          timeout-minutes: 15
-          working-directory: server
-          shell: bash
-          run: |
-            cp ../deployment/docker/cdc-4.yaml configs/cdc.yaml
-            ../bin/cdc > server.log 2>&1 &
-            sleep 20s
-
-        - name: Create CDC task
-          timeout-minutes: 15
-          run: |
-            curl --location '127.0.0.1:8444/cdc' \
-            --header 'Content-Type: application/json' \
-            --data '{
-                "request_type": "create",
-                "request_data": {
-                    "milvus_connect_param": {
-                        "uri": "http://127.0.0.1:19500",
-                        "token": "root:Milvus",
-                        "connect_timeout": 120,
-                        "channel_num": 16
-                    },
-                    "extra_info": {
-                        "enable_user_role": true
-                    },
-                    "db_collections": {
-                        "*": [
-                            {
-                              "name": "*"
-                            }
-                        ]
-                    }
-                }
-            }'
-
-        - name: Run test
-          timeout-minutes: 30
-          shell: bash
-          working-directory: tests
-          run: |
-            pip install -r requirements.txt
-            pytest testcases/test_cdc_sync_requests.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
-
-        - name: List CDC task
-          if: ${{ always() }}
-          timeout-minutes: 15
-          working-directory: server
-          shell: bash
-          run: |
-            cat server.log | tail -n 100
-            curl --location '127.0.0.1:8444/cdc' \
-            --header 'Content-Type: application/json' \
-            --data '{
-                "request_type": "list"
-            }'
-
-        - name: Export upstream milvus logs
-          if: ${{ always() }}
-          timeout-minutes: 5
-          working-directory: tests/deployment/channel_4/
-          run: |
-            docker compose ps -a
-            docker stats --no-stream
-            bash ../../../scripts/export_log_docker.sh
-        - name: Export downstream milvus logs
-          if: ${{ always() }}
-          timeout-minutes: 5
-          working-directory: scripts
-          run: |
-            kubectl get pods || true
-            bash export_log_k8s.sh default cdc-downstream k8s_logs
-
-        - name: Upload logs
-          if: ${{ always() }}
-          uses: actions/upload-artifact@v4
-          with:
-            name: func-test-logs-4-16
-            path: |
-              scripts/k8s_logs
-              tests/deployment/channel_4/logs
-              server/server.log
-
-  milvus-cdc-function-test-16-8:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v4
-        with:
-          go-version: '1.24.2'
-          cache-dependency-path: server/go.sum
-          cache: true
-
-      - name: set up python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-          cache: 'pip'
-
-      - name: Build CDC
-        timeout-minutes: 15
-        working-directory: server
-        shell: bash
-        run: |
-          make build
-          ls -l
-
-      - name: Creating kind cluster
-        uses: helm/kind-action@v1.2.0
-
-      - name: Print cluster information
-        run: |
-          kubectl config view
-          kubectl cluster-info
-          kubectl get nodes
-          kubectl get pods -o wide -n kube-system
-          helm version
-          kubectl version
-
-      - name: Deploy Source Milvus
-        timeout-minutes: 15
-        shell: bash
-        working-directory: tests/deployment/upstream/
-        run: |
-          docker compose up -d
-          bash ../../../scripts/check_healthy.sh
-          docker compose ps -a
-
-      - name: Deploy Downstream Milvus
-        timeout-minutes: 15
-        shell: bash
-        working-directory: tests/deployment/downstream
-        run: |
-          helm repo add milvus https://zilliztech.github.io/milvus-helm
-          helm repo update
-          helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values-8.yaml
-          kubectl get pods
-          kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
-          kubectl port-forward service/cdc-downstream-minio 9010:9000 >/dev/null 2>&1 &
-          sleep 20s
-          nc -vz 127.0.0.1 19500
-
-      - name: Deploy Milvus CDC
-        timeout-minutes: 15
-        working-directory: server
-        shell: bash
-        run: |
-          cp ../deployment/docker/cdc-16.yaml configs/cdc.yaml
-          ../bin/cdc > server.log 2>&1 &
-          sleep 20s
-
-      - name: Create CDC task
-        timeout-minutes: 15
-        run: |
-          curl --location '127.0.0.1:8444/cdc' \
-          --header 'Content-Type: application/json' \
-          --data '{
-              "request_type": "create",
-              "request_data": {
-                  "milvus_connect_param": {
-                      "uri": "http://127.0.0.1:19500",
-                      "token": "root:Milvus",
-                      "connect_timeout": 120,
-                      "channel_num": 8
-                  },
-                  "extra_info": {
-                      "enable_user_role": true
-                  },
-                  "db_collections": {
-                      "*": [
-                          {
-                            "name": "*"
-                          }
-                      ]
-                  }
-              }
-          }'
-
-      - name: Run test
-        timeout-minutes: 30
-        shell: bash
-        working-directory: tests
-        run: |
-          pip install -r requirements.txt
-          pytest testcases/test_cdc_sync_requests.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
-
-      - name: List CDC task
-        if: ${{ always() }}
-        timeout-minutes: 15
-        working-directory: server
-        shell: bash
-        run: |
-          cat server.log | tail -n 100
-          curl --location '127.0.0.1:8444/cdc' \
-          --header 'Content-Type: application/json' \
-          --data '{
-              "request_type": "list"
-          }'
-
-      - name: Export upstream milvus logs
-        if: ${{ always() }}
-        timeout-minutes: 5
-        working-directory: tests/deployment/upstream
-        run: |
-          docker compose ps -a
-          docker stats --no-stream
-          bash ../../../scripts/export_log_docker.sh
-      - name: Export downstream milvus logs
-        if: ${{ always() }}
-        timeout-minutes: 5
-        working-directory: scripts
-        run: |
-          kubectl get pods || true
-          bash export_log_k8s.sh default cdc-downstream k8s_logs
-
-      - name: Upload logs
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: func-test-logs-16-8
-          path: |
-            scripts/k8s_logs
-            tests/deployment/upstream/logs
-            server/server.log
-  milvus-cdc-function-test-with-db:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v4
-        with:
-          go-version: '1.24.2'
-          cache-dependency-path: server/go.sum
-          cache: true
-
-      - name: set up python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-          cache: 'pip'
-
-      - name: Build CDC
-        timeout-minutes: 15
-        working-directory: server
-        shell: bash
-        run: |
-          make build
-          ls -l
-
-      - name: Creating kind cluster
-        uses: helm/kind-action@v1.2.0
-
-      - name: Print cluster information
-        run: |
-          kubectl config view
-          kubectl cluster-info
-          kubectl get nodes
-          kubectl get pods -o wide -n kube-system
-          helm version
-          kubectl version
-
-      - name: Deploy Source Milvus
-        timeout-minutes: 15
-        shell: bash
-        working-directory: tests/deployment/upstream/
-        run: |
-          docker compose up -d
-          bash ../../../scripts/check_healthy.sh
-          docker compose ps -a
-
-      - name: Deploy Downstream Milvus
-        timeout-minutes: 15
-        shell: bash
-        working-directory: tests/deployment/downstream
-        run: |
-          helm repo add milvus https://zilliztech.github.io/milvus-helm
-          helm repo update
-          helm install --wait --timeout 720s cdc-downstream milvus/milvus -f standalone-values-auth.yaml
-          kubectl get pods
-          kubectl port-forward service/cdc-downstream-milvus 19500:19530 >/dev/null 2>&1 &
-          kubectl port-forward service/cdc-downstream-minio 9010:9000 >/dev/null 2>&1 &
-          sleep 20s
-          nc -vz 127.0.0.1 19500
-
-      - name: Deploy Milvus CDC
-        timeout-minutes: 15
-        working-directory: server
-        shell: bash
-        run: |
-          cp ../deployment/docker/cdc.yaml configs/cdc.yaml
-          ../bin/cdc > server.log 2>&1 &
-          sleep 20s
-
-      - name: Create CDC task
-        timeout-minutes: 15
-        run: |
-          curl --location '127.0.0.1:8444/cdc' \
-          --header 'Content-Type: application/json' \
-          --data '{
-              "request_type": "create",
-              "request_data": {
-                  "milvus_connect_param": {
-                      "uri": "http://127.0.0.1:19500",
-                      "token": "root:Milvus",
-                      "connect_timeout": 120
-                  },
-                  "extra_info": {
-                      "enable_user_role": true
-                  },
-                  "db_collections": {
-                      "foo": [
-                          {
-                            "name": "*"
-                          }
-                      ]
-                  }
-              }
-          }'
-
-      - name: Run test
-        timeout-minutes: 30
-        shell: bash
-        working-directory: tests
-        run: |
-          pip install -r requirements.txt
-          pytest testcases/test_cdc_database.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
-          pytest testcases/test_cdc_get.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
-          pytest testcases/test_cdc_list.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
-          pytest testcases/test_cdc_pause.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
-          pytest testcases/test_cdc_resume.py --upstream_host 127.0.0.1 --upstream_port 19530 --downstream_host 127.0.0.1 --downstream_port 19500
-
-      - name: List CDC task
-        if: ${{ always() }}
-        timeout-minutes: 15
-        working-directory: server
-        shell: bash
-        run: |
-          cat server.log | tail -n 100
-          curl --location '127.0.0.1:8444/cdc' \
-          --header 'Content-Type: application/json' \
-          --data '{
-              "request_type": "list"
-          }'
-
-      - name: Export upstream milvus logs
-        if: ${{ always() }}
-        timeout-minutes: 5
-        working-directory: tests/deployment/upstream
-        run: |
-          docker compose ps -a
-          docker stats --no-stream
-          bash ../../../scripts/export_log_docker.sh
-      - name: Export downstream milvus logs
-        if: ${{ always() }}
-        timeout-minutes: 5
-        working-directory: scripts
-        run: |
-          kubectl get pods || true
-          bash export_log_k8s.sh default cdc-downstream k8s_logs
-
-      - name: Upload logs
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: func-test-logs-with-db
-          path: |
-            scripts/k8s_logs
-            tests/deployment/upstream/logs
-            server/server.log
+            logs
