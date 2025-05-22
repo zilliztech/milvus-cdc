@@ -1148,3 +1148,69 @@ class TestCDCSyncRequest(TestBase):
             output_fields=["count(*)"]
         )[0]["count(*)"]
         assert downstream_count == upstream_count
+
+    @pytest.mark.parametrize("nullable", [True, False])
+    @pytest.mark.parametrize("default_value", [[], [None for i in range(3000)]])
+    def test_cdc_sync_nullable_insert_request(self, default_value, nullable, upstream_host, upstream_port, downstream_host, downstream_port):
+        """
+        target: test cdc default
+        method: insert nullable entities in upstream
+        expected: entities in downstream is inserted
+        """
+        connections.connect(host=upstream_host, port=upstream_port)
+        collection_name = prefix + "insert_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+
+        dim = 128
+        fields = [
+            FieldSchema(name="int64", dtype=DataType.INT64, is_primary=True),
+            FieldSchema(name="float", dtype=DataType.FLOAT),
+            FieldSchema(name="varchar", dtype=DataType.VARCHAR, max_length=65535, default_value="abc", nullable=nullable),
+            FieldSchema(name="json", dtype=DataType.JSON),
+            FieldSchema(name="float_vector", dtype=DataType.FLOAT_VECTOR, dim=dim)
+        ]
+        schema = CollectionSchema(fields=fields, description="test collection")
+
+        c = Collection(name=collection_name, schema=schema)
+        log.info(f"create collection {collection_name} in upstream")
+        # insert data to upstream
+        nb = 3000
+        epoch = 10
+        for e in range(epoch):
+            data = [
+                [i for i in range(nb)],
+                [np.float32(i) for i in range(nb)],
+                default_value,
+                [{"number": i, "varchar": str(i), "bool": bool(i)} for i in range(nb)],
+                [[random.random() for _ in range(128)] for _ in range(nb)]
+            ]
+            c.insert(data)
+        c.flush()
+        index_params = {"index_type": "IVF_FLAT", "params": {"nlist": 128}, "metric_type": "L2"}
+        c.create_index("float_vector", index_params)
+        c.load()
+        # get number of entities in upstream
+        log.info(f"number of entities in upstream: {c.num_entities}")
+        # check collections in downstream
+        connections.disconnect("default")
+        self.connect_downstream(downstream_host, downstream_port)
+        c_downstream = Collection(name=collection_name)
+        timeout = 120
+        t0 = time.time()
+        log.info(f"all collections in downstream {list_collections()}")
+        while True and time.time() - t0 < timeout:
+            if time.time() - t0 > timeout:
+                log.info(f"collection synced in downstream failed with timeout: {time.time() - t0:.2f}s")
+                break
+            # get the number of entities in downstream
+            if c_downstream.num_entities != nb:
+                log.info(f"sync progress:{c_downstream.num_entities / (nb*epoch) * 100:.2f}%")
+            # collections in subset of downstream
+            if c_downstream.num_entities == nb*epoch:
+                log.info(f"collection synced in downstream successfully cost time: {time.time() - t0:.2f}s")
+                break
+            time.sleep(10)
+            try:
+                c_downstream.flush(timeout=5)
+            except Exception as e:
+                log.info(f"flush err: {str(e)}")
+        assert c_downstream.num_entities == nb*epoch
