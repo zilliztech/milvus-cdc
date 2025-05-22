@@ -19,9 +19,22 @@ jobs:
       strategy:
         fail-fast: false
         matrix:
-          metastore: [etcd, mysql]
-          upstream_channel_num: [4, 16]
-          downstream_channel_num: [8, 16]
+          include:
+          - metastore: etcd
+            upstream_channel_num: 4
+            downstream_channel_num: 8
+          - metastore: etcd
+            upstream_channel_num: 4
+            downstream_channel_num: 16
+          - metastore: etcd
+            upstream_channel_num: 16
+            downstream_channel_num: 8
+          - metastore: etcd
+            upstream_channel_num: 16
+            downstream_channel_num: 16
+          - metastore: mysql
+            upstream_channel_num: 16
+            downstream_channel_num: 16
       steps:
       - uses: actions/checkout@v4
 
@@ -76,6 +89,7 @@ jobs:
           if [ "${{ matrix.metastore }}" == "mysql" ]; then
             yq -i '.metaStoreConfig.storeType = "mysql"' configs/cdc.yaml
           fi
+          yq -i '.sourceConfig.channelNum = ${{ matrix.upstream_channel_num }}' configs/cdc.yaml
       - name: Update Milvus Config
         timeout-minutes: 15
         working-directory: tests/deployment/milvus/

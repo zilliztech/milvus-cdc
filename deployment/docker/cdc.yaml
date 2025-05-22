@@ -32,6 +32,7 @@ sourceConfig:
   readChanLen: 4
   defaultPartitionName: _default
   replicateChan: cdc-test-upstream-replicate-msg
+  channelNum: 16
   pulsar:
     address: pulsar://localhost:6650
     webAddress: localhost:80
