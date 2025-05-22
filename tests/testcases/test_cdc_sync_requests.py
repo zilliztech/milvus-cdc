@@ -1157,7 +1157,7 @@ class TestCDCSyncRequest(TestBase):
         method: insert nullable entities in upstream
         expected: entities in downstream is inserted
         """
-        connections.connect(host=upstream_host, port=upstream_port)
+        connections.connect(host=upstream_host, port=upstream_port, token="root:Milvus")
         collection_name = prefix + "insert_" + datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
 
         dim = 128
