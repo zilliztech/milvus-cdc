@@ -1146,5 +1146,5 @@ class TestCDCSyncRequest(TestBase):
         downstream_count = c_downstream.query(
             expr="",
             output_fields=["count(*)"]
-        )["count(*)"][0]
+        )[0]["count(*)"]
         assert downstream_count == upstream_count
