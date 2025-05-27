@@ -56,6 +56,7 @@ require (
 	github.com/godbus/dbus/v5 v5.0.4 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/btree v1.1.2 // indirect
@@ -146,6 +147,7 @@ require (
 replace (
 	github.com/apache/pulsar-client-go => github.com/milvus-io/pulsar-client-go v0.6.10
 	github.com/confluentinc/confluent-kafka-go => github.com/confluentinc/confluent-kafka-go/v2 v2.3.0
+	github.com/golang-jwt/jwt => github.com/golang-jwt/jwt/v4 v4.5.1 // indirect
 	github.com/milvus-io/milvus/client/v2 => github.com/SimFG/milvus/client/v2 v2.0.0-20250314101636-acb2c2d9198c
 	// github.com/milvus-io/milvus-proto/go-api/v2 => github.com/SimFG/milvus-proto/go-api/v2 v2.0.0-20250109072021-b66909fa356b
 	github.com/milvus-io/milvus/pkg/v2 => github.com/SimFG/milvus/pkg/v2 v2.0.0-20250519121918-b4396ba475bc // master

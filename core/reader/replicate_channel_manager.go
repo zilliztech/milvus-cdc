@@ -844,10 +844,8 @@ func (r *replicateChannelManager) forwardMsg(targetPChannel string, msg *api.Rep
 		r.channelLock.RLock()
 		defer r.channelLock.RUnlock()
 
-		sourceKey := r.channelMapping.UsingSourceKey()
 		for _, channelHandler := range r.channelHandlerMap {
-			if (sourceKey && channelHandler.targetPChannel == targetPChannel) ||
-				(!sourceKey && channelHandler.sourcePChannel == targetPChannel) {
+			if channelHandler.targetPChannel == targetPChannel {
 				handler = channelHandler
 				break
 			}
@@ -1731,15 +1729,16 @@ func (r *replicateChannelHandler) handlePack(forward bool, pack *msgstream.MsgPa
 		if dataLen != 0 {
 			logFields = append(logFields, zap.Int("data_len", dataLen))
 		}
-		if r.targetPChannel != info.PChannel || r.sourcePChannel != originPositionPChannel {
+		if r.targetPChannel != info.PChannel {
 			logFields = append(logFields,
-				zap.Bool("source_key", r.sourceKey), zap.String("origin_position_channel", originPositionPChannel),
-				zap.String("pChannel", pChannel), zap.String("info_pChannel", info.PChannel))
+				zap.Bool("source_key", r.sourceKey),
+				zap.String("origin_position_channel", originPositionPChannel),
+				zap.String("info_pChannel", info.PChannel),
+				zap.String("source_pChannel", r.sourcePChannel),
+				zap.String("target_pChannel", r.targetPChannel),
+			)
 			log.Debug("forward the msg", logFields...)
 			forwardChannel = info.PChannel
-			if !r.sourceKey {
-				forwardChannel = originPositionPChannel
-			}
 		} else {
 			log.Debug("receive msg", logFields...)
 			if forwardChannel != "" {

@@ -33,7 +33,7 @@ type ChannelMapping struct {
 	sameMapping map[string]string
 	// when source is more than target, use sourceMapping, key is source channel, A1/A2/A3 is source, A is target, like A1 -> A, A2 -> A, A3 -> A
 	sourceMapping map[string]string
-	// when source is less than target, use targetMapping, key is target channel, A is source, A1/A2/A3 is target, like A -> A1, A -> A2, A -> A3
+	// when source is less than target, use targetMapping, key is target channel, A is source, A1/A2/A3 is target, like A1 -> A, A2 -> A, A3 -> A
 	targetMapping map[string]string
 }
 
