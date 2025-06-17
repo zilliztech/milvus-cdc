@@ -23,18 +23,27 @@ jobs:
           - metastore: etcd
             upstream_channel_num: 4
             downstream_channel_num: 8
+            milvus_version: 2.5
+          - metastore: etcd
+            upstream_channel_num: 4
+            downstream_channel_num: 8
+            milvus_version: 2.6
           - metastore: etcd
             upstream_channel_num: 4
             downstream_channel_num: 16
+            milvus_version: 2.5
           - metastore: etcd
             upstream_channel_num: 16
             downstream_channel_num: 8
+            milvus_version: 2.5
           - metastore: etcd
             upstream_channel_num: 16
             downstream_channel_num: 16
+            milvus_version: 2.5
           - metastore: mysql
             upstream_channel_num: 16
             downstream_channel_num: 16
+            milvus_version: 2.5
       steps:
       - uses: actions/checkout@v4
 
@@ -99,6 +108,15 @@ jobs:
           yq -i '.rootCoord.dmlChannelNum = ${{ matrix.downstream_channel_num }}' downstream.yaml
           cat upstream.yaml
           cat downstream.yaml
+          if [ "${{ matrix.milvus_version }}" == "2.5" ]; then
+            yq -i '.services.downstream-standalone.image = "milvusdb/milvus:v2.5.13"' docker-compose.yml
+            yq -i '.services.upstream-standalone.image = "milvusdb/milvus:v2.5.13"' docker-compose.yml
+          fi
+          if [ "${{ matrix.milvus_version }}" == "2.6" ]; then
+            yq -i '.services.downstream-standalone.image = "milvusdb/milvus:v2.6.0-rc1"' docker-compose.yml
+            yq -i '.services.upstream-standalone.image = "milvusdb/milvus:v2.6.0-rc1"' docker-compose.yml
+          fi
+          cat docker-compose.yml
 
 
       - name: Deploy Upstream and Downstream Milvus
