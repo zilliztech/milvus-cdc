@@ -191,7 +191,7 @@ func (r *replicateChannelManager) startReadCollectionForKafka(ctx context.Contex
 	var targetInfo *model.CollectionInfo
 	partitions := make(map[string]int64)
 	partitionInfos, err := r.metaOp.GetAllPartition(ctx, func(partitionInfo *pb.PartitionInfo) bool {
-		return partitionInfo.CollectionId != info.ID
+		return partitionInfo.CollectionId == info.ID
 	})
 	if err != nil {
 		log.Warn("failed to get partition info", zap.Error(err))
