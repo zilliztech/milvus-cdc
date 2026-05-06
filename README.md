@@ -1,3 +1,4 @@
+This project is deprected and merged back to milvus main repo.
 # Milvus-CDC
 
 CDC is "Change Data Capture", and Milvus-CDC is a change data capture tool for Milvus. It can capture the changes of upstream Milvus collections and sink them to downstream Milvus. This will bring the following benefits:
