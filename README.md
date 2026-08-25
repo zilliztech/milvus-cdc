@@ -1,4 +1,11 @@
-# Milvus-CDC
+# Milvus-CDC (Deprecated)
+
+> ⚠️⚠️ **This repository has been ARCHIVED and is no longer maintained.** ⚠️⚠️
+>
+> Since **Milvus 2.6**, CDC (change data capture / cross-cluster replication) is maintained in the main Milvus repository [milvus-io/milvus](https://github.com/milvus-io/milvus) as built-in WAL-based PRIMARY/SECONDARY replication:
+>
+> - **For Milvus >= 2.6**: use the built-in replication feature of Milvus. See the [replication & CDC design doc](https://github.com/milvus-io/milvus/blob/master/docs/agent_guides/streaming-system/replication/replicate.md) for details.
+> - **For Milvus <= 2.5**: this repository remains usable as-is, but it is frozen — no new features or fixes will land here.
 
 CDC is "Change Data Capture", and Milvus-CDC is a change data capture tool for Milvus. It can capture the changes of upstream Milvus collections and sink them to downstream Milvus. This will bring the following benefits:
 
